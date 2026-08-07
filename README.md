@@ -19,12 +19,14 @@ The preview and G-code are always generated from the same final absolute polylin
 - Raster image and handwriting tracing from PNG, JPEG, WebP, TIFF, and BMP files.
 - Explicit centerline and contour trace modes.
 - Deterministic Otsu or manual thresholding, inversion, blur, size limiting, and small-component cleanup.
-- Editable raw trace SVG export for manual correction before machine placement.
+- Browser drag-and-drop raster workflow with original, cleaned-mask, editable-trace, and final-machine views.
+- In-browser path deletion, reversal, midpoint splitting, two-stroke joining, endpoint dragging, and undo.
+- Editable SVG, G-code, and reproducible raster-job JSON downloads.
 - Explicit machine limits, paper origin, margins, scale, and placement.
 - Exact SVG preview showing paper, ink strokes, and dashed pen-up travel.
 - Bounds-checked heaterless Marlin G-code.
 
-### Release 0.5 raster ingestion
+### Release 0.5 — Image & Handwriting Studio
 
 - EXIF-aware image loading and transparent-background handling.
 - Bounded preprocessing so large phone photos are downsampled before tracing.
@@ -33,9 +35,13 @@ The preview and G-code are always generated from the same final absolute polylin
 - `printrbot-plotter image` for general raster artwork.
 - `printrbot-plotter handwriting` for centerline tracing of photographed or scanned writing.
 - Trace metadata recording threshold, cleanup, resize, skeleton, stroke, and point counts.
-- `--trace-svg` for exporting a plain editable SVG that can be corrected and re-imported through the existing SVG adapter.
+- `--trace-svg` for exporting a plain editable SVG that can be corrected and re-imported.
+- `printrbot-studio` browser application with drag-and-drop input and live preprocessing controls.
+- Four-stage inspection: original image → cleaned binary mask → editable raw trace → exact machine preview.
+- Manual geometry correction remains upstream of machine preview and G-code, preserving one geometry source of truth.
+- Every browser job includes source SHA-256, trace settings, raw geometry, and final machine geometry in a downloadable JSON sidecar.
 
-Release 0.5 currently traces visible handwriting marks; it does not perform OCR, infer characters, or retype notes. Browser raster upload and an in-browser trace editor remain planned.
+Release 0.5 traces visible handwriting marks; it does not perform OCR, infer characters, or retype notes.
 
 ### Safety and calibration
 
@@ -149,9 +155,7 @@ printrbot-plotter fonts --file fonts/example-stroke-font.json
 
 Custom font format: [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md)
 
-## Trace a raster image
-
-Trace the foreground boundary of a simple sketch, logo, or silhouette:
+## Trace a raster image from the CLI
 
 ```bash
 printrbot-plotter image sketch.png \
@@ -161,9 +165,7 @@ printrbot-plotter image sketch.png \
   --preview out/sketch.svg
 ```
 
-Use `--trace-mode centerline` when the raster contains stroke-like line art rather than filled regions.
-
-The default threshold is deterministic global Otsu thresholding. Override it when needed:
+Use `--trace-mode centerline` when the raster contains stroke-like line art rather than filled regions. The default threshold is deterministic global Otsu thresholding. Override it when needed:
 
 ```bash
 printrbot-plotter image sketch.jpg \
@@ -194,7 +196,7 @@ printrbot-plotter handwriting note.jpg \
   --air-plot
 ```
 
-Edit `out/note-trace.svg` in a normal vector editor, then re-import the corrected geometry through the existing SVG path:
+Edit `out/note-trace.svg` in a vector editor, then re-import it:
 
 ```bash
 printrbot-plotter svg out/note-trace.svg \
@@ -203,7 +205,31 @@ printrbot-plotter svg out/note-trace.svg \
   --preview out/note-corrected.svg
 ```
 
-Release 0.5 details and remaining browser/editor work: [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md)
+## Run the Image & Handwriting Studio
+
+```bash
+printrbot-studio
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000/raster
+```
+
+The browser studio lets you:
+
+1. drag in an image or handwriting photograph;
+2. choose centerline or contour tracing;
+3. adjust threshold, inversion, blur, noise removal, and simplification;
+4. compare the original, cleaned mask, raw vector trace, and final machine preview;
+5. click paths to select them, Shift-click to select two, delete/reverse/split/join paths, and drag selected path endpoints;
+6. regenerate the final preview from those exact edited paths;
+7. download edited SVG, G-code, or a JSON sidecar containing the source SHA-256, trace settings, and geometry.
+
+The original writing interface remains available at `http://127.0.0.1:8000/` in the same process.
+
+Release 0.5 details: [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md)
 
 ## Generate an air-plot calibration
 
@@ -240,19 +266,13 @@ printrbot-plotter send out/calibration.gcode \
 
 The sender waits for Marlin `ok` after every command and attempts `M400 → pen up → M400` after an ordinary cancellation or communication failure.
 
-## Run the Python browser application
+## Run the writing browser application only
 
 ```bash
 printrbot-plotter serve
 ```
 
-Open:
-
-```text
-http://127.0.0.1:8000
-```
-
-The application currently provides text-engine, font, variation, wrapping, layout, preview, calibration, and G-code download controls. Release 0.5 raster upload and interactive trace correction are still being added to this browser interface.
+Open `http://127.0.0.1:8000`. For writing plus raster routes in one server, use `printrbot-studio` instead.
 
 ## Build and flash the ESP32 bridge
 
@@ -274,50 +294,20 @@ Password: plotter123
 Page:     http://192.168.4.1
 ```
 
-The firmware dashboard accepts a reviewed `.gcode` file and exposes job controls and live status.
-
 Firmware guide: [`firmware/esp32/README.md`](firmware/esp32/README.md)
 
 HTTP API: [`docs/ESP32_API.md`](docs/ESP32_API.md)
 
 ## Use the Python ESP32 client
 
-Check bridge status:
-
 ```bash
 printrbot-bridge status
-```
-
-Upload reviewed G-code:
-
-```bash
 printrbot-bridge upload out/calibration.gcode
-```
-
-Start and monitor:
-
-```bash
 printrbot-bridge start
-printrbot-bridge status
-```
-
-Pause, resume, or orderly-cancel:
-
-```bash
 printrbot-bridge pause
 printrbot-bridge resume
 printrbot-bridge cancel
-```
-
-Run a non-moving query:
-
-```bash
 printrbot-bridge query M119
-```
-
-Immediate emergency stop requires a different confirmation phrase because it sends `M112`:
-
-```bash
 printrbot-bridge emergency --confirm STOP
 ```
 
@@ -333,6 +323,7 @@ printrbot-bridge --url http://printrbot.local status
 Python application
   text / stroke fonts / SVG / raster tracing
   variation and wrapping
+  manual raster correction
   machine-space layout
   exact preview
   G-code generation
@@ -377,6 +368,7 @@ Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 - Homing is off unless explicitly enabled.
 - Physical font size remains meaningful instead of silently filling the page.
 - Raster images are bounded and downsampled before tracing to limit geometry growth.
+- Manually edited raster geometry is validated before final placement.
 - Every final coordinate must be finite and inside configured bounds.
 - The first and final pen state is up.
 - Air-plot mode cannot lower the pen.
@@ -395,6 +387,6 @@ The software cannot detect a loose pen, reversed motor, incorrect endstop direct
 - [`docs/RELEASE_0.2.md`](docs/RELEASE_0.2.md) — safe-machine foundation and remaining physical validation
 - [`docs/RELEASE_0.3.md`](docs/RELEASE_0.3.md) — native writing engine and current limitations
 - [`docs/RELEASE_0.4.md`](docs/RELEASE_0.4.md) — ESP32 transport progress and acceptance criteria
-- [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md) — raster image and handwriting ingestion progress
+- [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md) — Image & Handwriting Studio
 - [`docs/HARDWARE.md`](docs/HARDWARE.md) — hardware, firmware, wiring, power, and sources
 - [`docs/ESP32_API.md`](docs/ESP32_API.md) — embedded HTTP API
