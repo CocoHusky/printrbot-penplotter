@@ -21,6 +21,7 @@ from .models import (
     RenderedJob,
     StyleConfig,
 )
+from .optimize import MotionConfig, optimize_motion
 from .raster import RasterTraceConfig
 
 
@@ -34,34 +35,34 @@ def _finish_job(
     pen: PenConfig,
     layout: LayoutConfig,
     simplify_tolerance_mm: float,
+    motion: MotionConfig | None = None,
     metadata: dict[str, object] | None = None,
 ) -> RenderedJob:
     placed = place_on_page(raw, page, layout, machine)
     simplified = simplify_polylines(placed, simplify_tolerance_mm)
-    min_x, min_y, max_x, max_y = bounds(simplified)
+    motion_plan = optimize_motion(simplified, motion or MotionConfig(), pen=pen)
+    final = motion_plan.polylines
+    min_x, min_y, max_x, max_y = bounds(final)
     complete_metadata: dict[str, object] = {
         "input_type": input_type,
-        "strokes": len(simplified),
+        "strokes": len(final),
         "width_mm": round(max_x - min_x, 3),
         "height_mm": round(max_y - min_y, 3),
         "minimum_x_mm": round(min_x, 3),
         "minimum_y_mm": round(min_y, 3),
         "air_plot": pen.air_plot,
         "fit_mode": layout.fit_mode,
+        "corner_feed_mm_min": pen.corner_feed_mm_min,
+        "corner_angle_deg": pen.corner_angle_deg,
     }
+    complete_metadata.update(motion_plan.metadata())
     if metadata:
         complete_metadata.update(metadata)
 
     return RenderedJob(
-        polylines=simplified,
-        gcode=polylines_to_gcode(
-            simplified,
-            page,
-            pen,
-            machine,
-            title=title,
-        ),
-        preview_svg=preview_svg(simplified, page, machine),
+        polylines=final,
+        gcode=polylines_to_gcode(final, page, pen, machine, title=title),
+        preview_svg=preview_svg(final, page, machine),
         metadata=complete_metadata,
     )
 
@@ -74,6 +75,7 @@ def render_text_job(
     pen: PenConfig | None = None,
     style: StyleConfig | None = None,
     layout: LayoutConfig | None = None,
+    motion: MotionConfig | None = None,
     simplify_tolerance_mm: float = 0.04,
 ) -> RenderedJob:
     page = page or PageConfig()
@@ -103,6 +105,7 @@ def render_text_job(
         machine=machine,
         pen=pen,
         layout=layout,
+        motion=motion,
         simplify_tolerance_mm=simplify_tolerance_mm,
         metadata=input_metadata,
     )
@@ -115,6 +118,7 @@ def render_svg_job(
     machine: MachineConfig | None = None,
     pen: PenConfig | None = None,
     layout: LayoutConfig | None = None,
+    motion: MotionConfig | None = None,
     simplify_tolerance_mm: float = 0.04,
 ) -> RenderedJob:
     page = page or PageConfig()
@@ -131,6 +135,7 @@ def render_svg_job(
         machine=machine,
         pen=pen,
         layout=layout,
+        motion=motion,
         simplify_tolerance_mm=simplify_tolerance_mm,
         metadata={"source": str(source)},
     )
@@ -146,6 +151,7 @@ def _render_raster_job(
     machine: MachineConfig | None,
     pen: PenConfig | None,
     layout: LayoutConfig | None,
+    motion: MotionConfig | None,
     simplify_tolerance_mm: float,
     metadata: dict[str, object] | None = None,
 ) -> RenderedJob:
@@ -165,6 +171,7 @@ def _render_raster_job(
         machine=machine,
         pen=pen,
         layout=layout,
+        motion=motion,
         simplify_tolerance_mm=simplify_tolerance_mm,
         metadata=trace_metadata,
     )
@@ -178,6 +185,7 @@ def render_image_job(
     machine: MachineConfig | None = None,
     pen: PenConfig | None = None,
     layout: LayoutConfig | None = None,
+    motion: MotionConfig | None = None,
     simplify_tolerance_mm: float = 0.04,
 ) -> RenderedJob:
     """Trace a raster image as contours or centerlines and render one plot job."""
@@ -192,6 +200,7 @@ def render_image_job(
         machine=machine,
         pen=pen,
         layout=layout,
+        motion=motion,
         simplify_tolerance_mm=simplify_tolerance_mm,
     )
 
@@ -204,6 +213,7 @@ def render_handwriting_job(
     machine: MachineConfig | None = None,
     pen: PenConfig | None = None,
     layout: LayoutConfig | None = None,
+    motion: MotionConfig | None = None,
     simplify_tolerance_mm: float = 0.04,
 ) -> RenderedJob:
     """Trace photographed or scanned handwriting without recognizing/retyping it."""
@@ -225,6 +235,7 @@ def render_handwriting_job(
         machine=machine,
         pen=pen,
         layout=layout,
+        motion=motion,
         simplify_tolerance_mm=simplify_tolerance_mm,
         metadata={"handwriting_recognition": False},
     )
@@ -238,7 +249,11 @@ def render_calibration_job(
     pen: PenConfig | None = None,
     layout: LayoutConfig | None = None,
 ) -> RenderedJob:
-    """Create the known-size Release 0.2 calibration job."""
+    """Create the known-size Release 0.2 calibration job.
+
+    Calibration intentionally bypasses Release 0.6 geometry optimization so a
+    nominal test pattern cannot be changed by route joining/smoothing settings.
+    """
 
     page = page or PageConfig()
     machine = machine or MachineConfig()
@@ -253,6 +268,7 @@ def render_calibration_job(
         machine=machine,
         pen=pen,
         layout=layout,
+        motion=MotionConfig(route_mode="authored"),
         simplify_tolerance_mm=0.0,
         metadata={"nominal_square_size_mm": size_mm},
     )
