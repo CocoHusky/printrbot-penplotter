@@ -1,8 +1,8 @@
 # Printrbot Pen Plotter
 
-Printrbot Pen Plotter converts typed text, photographed or scanned handwriting, raster images, and vector artwork into reproducible physical marker drawings. The software generates centerline handwriting, seeded glyph variations, connected cursive-style writing, geometric robot lettering, raster centerlines or contours, exact machine-space previews, and guarded Marlin G-code. Jobs can be sent directly over USB or uploaded to an ESP32-C3 Wi-Fi bridge.
+Printrbot Pen Plotter converts typed text, photographed or scanned handwriting, raster images, and vector artwork into reproducible physical marker drawings. The software generates centerline handwriting, seeded glyph variations, connected cursive-style writing, geometric robot lettering, raster centerlines or contours, optimized plot routes, exact machine-space previews, and guarded Marlin G-code. Jobs can be sent directly over USB or uploaded to an ESP32-C3 Wi-Fi bridge.
 
-The preview and G-code are always generated from the same final absolute polylines.
+The preview and G-code are always generated from the same final absolute polylines, including any explicitly enabled Release 0.6 motion transforms.
 
 ## Current capabilities
 
@@ -23,6 +23,10 @@ The preview and G-code are always generated from the same final absolute polylin
 - In-browser path deletion, reversal, midpoint splitting, two-stroke joining, endpoint dragging, and undo.
 - Editable SVG, G-code, and reproducible raster-job JSON downloads.
 - Explicit machine limits, paper origin, margins, scale, and placement.
+- Authored, nearest-endpoint, and two-opt route modes.
+- Optional stroke reversal, endpoint joining, RDP simplification, resampling, and smoothing.
+- Corner-aware drawing feed requests.
+- Before/after motion metrics for distance, travel, pen lifts, points, and idealized duration.
 - Exact SVG preview showing paper, ink strokes, and dashed pen-up travel.
 - Bounds-checked heaterless Marlin G-code.
 
@@ -43,10 +47,32 @@ The preview and G-code are always generated from the same final absolute polylin
 
 Release 0.5 traces visible handwriting marks; it does not perform OCR, infer characters, or retype notes.
 
+### Release 0.6 — Motion Quality & Plot Optimization
+
+Release 0.6 acts on already-created, machine-placed polylines. It does not generate artwork and it does not replace Marlin's real-time motion planner.
+
+Available route modes:
+
+- `authored` — preserve incoming stroke order; this is the default and the normal choice for text/cursive.
+- `nearest` — greedily choose the closest remaining stroke endpoint, with optional reversal.
+- `two_opt` — start from nearest routing and deterministically improve pen-up travel with two-opt refinement.
+
+Optional shape-quality controls are all disabled by default:
+
+- near-endpoint joining;
+- millimeter Ramer-Douglas-Peucker simplification;
+- fixed-spacing resampling;
+- conservative endpoint-preserving smoothing.
+
+Every normal rendered job now reports before/after draw distance, pen-up travel, stroke/point count, pen lifts, estimated duration, and travel savings. The estimate is planning information only; real runtime still depends on Marlin acceleration, junction behavior, transport pacing, and physical mechanics.
+
+Sharp corners can request a separate slower drawing feed using `--corner-feed` and `--corner-angle`. Marlin still performs acceleration and step timing.
+
 ### Safety and calibration
 
 - Non-moving `M115`, `M119`, `M114`, and `M503` preflight.
 - Known-size square/cross/octagon calibration pattern.
+- Calibration deliberately bypasses Release 0.6 route/smoothing transforms.
 - Air-plot mode that never emits a pen-down move.
 - Finite-coordinate, machine-bound, paper-bound, Z-bound, point-count, and command-count validation.
 - USB serial sending one command at a time with Marlin `ok` acknowledgement.
@@ -124,12 +150,12 @@ printrbot-plotter text "minimum motion" \
   --wrap-width 110
 ```
 
-Current cursive uses authored entry/exit anchors and simple connector curves. It does not yet implement contextual forms, ligatures, or collision-aware calligraphy.
+Current cursive uses authored entry/exit anchors and simple connector curves. It does not yet implement contextual forms, ligatures, or collision-aware calligraphy. Keep global Release 0.6 routing on `authored` for normal language output.
 
 ## Generate robot lettering
 
 ```bash
-printrbot-plotter text "ROBOT 05" \
+printrbot-plotter text "ROBOT 06" \
   --preset robot \
   --font-size 16
 ```
@@ -204,6 +230,61 @@ printrbot-plotter svg out/note-trace.svg \
   --output out/note-corrected.gcode \
   --preview out/note-corrected.svg
 ```
+
+## Optimize independent artwork motion
+
+For SVG, traced images, or other independent strokes, two-opt routing can reduce pen-up travel:
+
+```bash
+printrbot-plotter svg artwork.svg \
+  --motion-route two_opt \
+  --air-plot \
+  --output out/artwork.gcode \
+  --preview out/artwork.svg
+```
+
+Clean and optimize a dense traced image:
+
+```bash
+printrbot-plotter image sketch.png \
+  --trace-mode centerline \
+  --motion-route two_opt \
+  --rdp-tolerance 0.08 \
+  --resample-spacing 1.0 \
+  --air-plot
+```
+
+Conservative smoothing is explicit:
+
+```bash
+printrbot-plotter handwriting note.jpg \
+  --smooth-passes 1 \
+  --rdp-tolerance 0.05 \
+  --air-plot
+```
+
+Joining nearby endpoints adds ink across the gap, so it is disabled by default and should only be enabled after reviewing the preview:
+
+```bash
+printrbot-plotter svg cleaned.svg \
+  --motion-route two_opt \
+  --join-tolerance 0.25 \
+  --air-plot
+```
+
+Corner speed can be tuned separately from the normal drawing feed:
+
+```bash
+printrbot-plotter svg artwork.svg \
+  --draw-feed 1200 \
+  --corner-feed 600 \
+  --corner-angle 70 \
+  --air-plot
+```
+
+The command's metadata reports `motion_before`, `motion_after`, `travel_saved_mm`, and `travel_saved_percent` so routing changes can be evaluated before hardware use.
+
+Release 0.6 details: [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md)
 
 ## Run the Image & Handwriting Studio
 
@@ -325,7 +406,8 @@ Python application
   variation and wrapping
   manual raster correction
   machine-space layout
-  exact preview
+  motion routing / optional path cleanup
+  exact post-motion preview
   G-code generation
             ↓ HTTP upload
 ESP32-C3 bridge
@@ -336,14 +418,14 @@ ESP32-C3 bridge
             ↓ translated UART
 Printrboard Rev F4
   Marlin parser
-  motion planning
+  acceleration / junction planning
   endstops
   stepper control
             ↓
 physical pen drawing
 ```
 
-The ESP32 does not generate handwriting, trace images, or create motion geometry. The Printrboard remains the real-time motion controller.
+The ESP32 does not generate handwriting, trace images, optimize geometry, or create motion geometry. The Printrboard remains the real-time motion controller.
 
 ## UART requirement
 
@@ -369,7 +451,11 @@ Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 - Physical font size remains meaningful instead of silently filling the page.
 - Raster images are bounded and downsampled before tracing to limit geometry growth.
 - Manually edited raster geometry is validated before final placement.
+- Authored stroke order is the default; global route optimization is explicit.
+- Endpoint joining, RDP cleanup, resampling, and smoothing are disabled by default.
+- Calibration bypasses Release 0.6 motion transforms.
 - Every final coordinate must be finite and inside configured bounds.
+- Preview and G-code use the same exact post-motion geometry.
 - The first and final pen state is up.
 - Air-plot mode cannot lower the pen.
 - Heater, extrusion, tool-change, and `E`-axis commands are rejected.
@@ -379,7 +465,7 @@ Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 - Only one ESP32 hardware job can be active.
 - The current bridge must remain on a trusted network because request-level authentication is not finished.
 
-The software cannot detect a loose pen, reversed motor, incorrect endstop direction, wiring fault, shifted paper, obstruction, incorrect level shifter, unstable power supply, bad photograph perspective, or unwanted trace artifacts that were not removed during review.
+The software cannot detect a loose pen, reversed motor, incorrect endstop direction, wiring fault, shifted paper, obstruction, incorrect level shifter, unstable power supply, bad photograph perspective, or unwanted trace artifacts that were not removed during review. Motion runtime values are estimates rather than measured hardware timing.
 
 ## Project documentation
 
@@ -388,5 +474,6 @@ The software cannot detect a loose pen, reversed motor, incorrect endstop direct
 - [`docs/RELEASE_0.3.md`](docs/RELEASE_0.3.md) — native writing engine and current limitations
 - [`docs/RELEASE_0.4.md`](docs/RELEASE_0.4.md) — ESP32 transport progress and acceptance criteria
 - [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md) — Image & Handwriting Studio
+- [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md) — Motion Quality & Plot Optimization
 - [`docs/HARDWARE.md`](docs/HARDWARE.md) — hardware, firmware, wiring, power, and sources
 - [`docs/ESP32_API.md`](docs/ESP32_API.md) — embedded HTTP API
