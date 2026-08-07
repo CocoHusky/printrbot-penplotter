@@ -336,7 +336,6 @@ void configureRoutes() {
 }  // namespace
 
 void setup() {
-  Serial.begin(115200);
   delay(250);
 
   statusPixel.begin();
@@ -347,21 +346,11 @@ void setup() {
   preferences.begin("plotter", false);
   if (!LittleFS.begin(true)) {
     setPixel(220, 0, 20);
-    Serial.println("LittleFS failed to mount.");
   }
 
   printerBridge.begin();
   configureWifi();
   configureRoutes();
-
-  Serial.println();
-  Serial.println("Printrbot ESP32 bridge started.");
-  Serial.print("Setup Wi-Fi: ");
-  Serial.println(plotter::config::kAccessPointSsid);
-  Serial.print("Setup password: ");
-  Serial.println(plotter::config::kAccessPointPassword);
-  Serial.println("Open http://192.168.4.1 or http://printrbot.local");
-
   printerBridge.sendCommand("M115");
 }
 
