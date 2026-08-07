@@ -2,29 +2,106 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
 Point: TypeAlias = tuple[float, float]
 Polyline: TypeAlias = list[Point]
 Polylines: TypeAlias = list[Polyline]
+HorizontalAlign: TypeAlias = Literal["left", "center", "right"]
+VerticalAlign: TypeAlias = Literal["bottom", "center", "top"]
+FitMode: TypeAlias = Literal["none", "downscale", "fit"]
+
+
+def _require_finite(name: str, value: float) -> None:
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite.")
+
+
+@dataclass(frozen=True)
+class MachineConfig:
+    """Absolute Marlin machine limits in millimeters."""
+
+    x_min_mm: float = 0.0
+    x_max_mm: float = 152.4
+    y_min_mm: float = 0.0
+    y_max_mm: float = 152.4
+    z_min_mm: float = 0.0
+    z_max_mm: float = 152.4
+
+    def validate(self) -> None:
+        for name, value in self.__dict__.items():
+            _require_finite(name, value)
+        if self.x_max_mm <= self.x_min_mm:
+            raise ValueError("Machine X maximum must exceed X minimum.")
+        if self.y_max_mm <= self.y_min_mm:
+            raise ValueError("Machine Y maximum must exceed Y minimum.")
+        if self.z_max_mm <= self.z_min_mm:
+            raise ValueError("Machine Z maximum must exceed Z minimum.")
+
+    @property
+    def width_mm(self) -> float:
+        return self.x_max_mm - self.x_min_mm
+
+    @property
+    def height_mm(self) -> float:
+        return self.y_max_mm - self.y_min_mm
 
 
 @dataclass(frozen=True)
 class PageConfig:
-    """Physical plotting area, expressed in millimeters."""
+    """Paper rectangle placed in absolute machine coordinates."""
 
     width_mm: float = 152.4
     height_mm: float = 152.4
     margin_mm: float = 8.0
+    origin_x_mm: float = 0.0
+    origin_y_mm: float = 0.0
 
-    def validate(self) -> None:
+    def validate(self, machine: MachineConfig | None = None) -> None:
+        for name, value in self.__dict__.items():
+            _require_finite(name, value)
         if self.width_mm <= 0 or self.height_mm <= 0:
             raise ValueError("Page width and height must be positive.")
         if self.margin_mm < 0:
             raise ValueError("Page margin cannot be negative.")
         if self.margin_mm * 2 >= min(self.width_mm, self.height_mm):
             raise ValueError("Page margin leaves no drawable area.")
+        if machine is not None:
+            machine.validate()
+            if self.origin_x_mm < machine.x_min_mm or self.origin_y_mm < machine.y_min_mm:
+                raise ValueError("Page origin is outside the machine minimum bounds.")
+            if self.origin_x_mm + self.width_mm > machine.x_max_mm:
+                raise ValueError("Page extends beyond the machine X maximum.")
+            if self.origin_y_mm + self.height_mm > machine.y_max_mm:
+                raise ValueError("Page extends beyond the machine Y maximum.")
+
+    @property
+    def drawable_width_mm(self) -> float:
+        return self.width_mm - 2 * self.margin_mm
+
+    @property
+    def drawable_height_mm(self) -> float:
+        return self.height_mm - 2 * self.margin_mm
+
+
+@dataclass(frozen=True)
+class LayoutConfig:
+    """Placement rules that preserve physical size unless fitting is requested."""
+
+    fit_mode: FitMode = "downscale"
+    horizontal_align: HorizontalAlign = "center"
+    vertical_align: VerticalAlign = "center"
+    scale: float = 1.0
+    offset_x_mm: float = 0.0
+    offset_y_mm: float = 0.0
+
+    def validate(self) -> None:
+        for name in ("scale", "offset_x_mm", "offset_y_mm"):
+            _require_finite(name, getattr(self, name))
+        if self.scale <= 0:
+            raise ValueError("Layout scale must be positive.")
 
 
 @dataclass(frozen=True)
@@ -37,10 +114,19 @@ class PenConfig:
     draw_feed_mm_min: float = 1200.0
     z_feed_mm_min: float = 300.0
     home_before_plot: bool = False
+    air_plot: bool = False
     park_x_mm: float | None = None
     park_y_mm: float | None = None
 
-    def validate(self) -> None:
+    def validate(self, machine: MachineConfig | None = None) -> None:
+        for name, value in (
+            ("z_up_mm", self.z_up_mm),
+            ("z_down_mm", self.z_down_mm),
+            ("travel_feed_mm_min", self.travel_feed_mm_min),
+            ("draw_feed_mm_min", self.draw_feed_mm_min),
+            ("z_feed_mm_min", self.z_feed_mm_min),
+        ):
+            _require_finite(name, value)
         for name, value in (
             ("travel_feed_mm_min", self.travel_feed_mm_min),
             ("draw_feed_mm_min", self.draw_feed_mm_min),
@@ -48,6 +134,20 @@ class PenConfig:
         ):
             if value <= 0:
                 raise ValueError(f"{name} must be positive.")
+        if self.park_x_mm is None and self.park_y_mm is not None:
+            raise ValueError("Park X and Y must either both be set or both be unset.")
+        if self.park_y_mm is None and self.park_x_mm is not None:
+            raise ValueError("Park X and Y must either both be set or both be unset.")
+        if machine is not None:
+            machine.validate()
+            for name, value in (("z_up_mm", self.z_up_mm), ("z_down_mm", self.z_down_mm)):
+                if not machine.z_min_mm <= value <= machine.z_max_mm:
+                    raise ValueError(f"{name} is outside the machine Z limits.")
+            if self.park_x_mm is not None and self.park_y_mm is not None:
+                if not machine.x_min_mm <= self.park_x_mm <= machine.x_max_mm:
+                    raise ValueError("Park X is outside machine limits.")
+                if not machine.y_min_mm <= self.park_y_mm <= machine.y_max_mm:
+                    raise ValueError("Park Y is outside machine limits.")
 
 
 @dataclass(frozen=True)
@@ -109,6 +209,16 @@ class StyleConfig:
         return cls(**values)  # type: ignore[arg-type]
 
     def validate(self) -> None:
+        for name, value in (
+            ("font_size_mm", self.font_size_mm),
+            ("line_spacing", self.line_spacing),
+            ("letter_spacing_mm", self.letter_spacing_mm),
+            ("rotation_jitter_deg", self.rotation_jitter_deg),
+            ("baseline_jitter_mm", self.baseline_jitter_mm),
+            ("x_jitter_mm", self.x_jitter_mm),
+            ("scale_jitter", self.scale_jitter),
+        ):
+            _require_finite(name, value)
         if self.font_size_mm <= 0:
             raise ValueError("Font size must be positive.")
         if self.line_spacing <= 0:
