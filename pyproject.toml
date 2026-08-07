@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "printrbot-penplotter"
-version = "0.5.0"
+version = "0.5.1"
 description = "Turn text, handwriting, raster images, and vector art into physically placed Marlin jobs with USB or ESP32 transport."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,6 +14,7 @@ dependencies = [
   "numpy>=1.26,<3",
   "pillow>=10,<13",
   "pyserial>=3.5,<4",
+  "python-multipart>=0.0.20,<1",
   "svgpathtools>=1.6,<2",
   "uvicorn[standard]>=0.30,<1",
 ]
@@ -24,6 +25,7 @@ dev = ["pytest>=8,<9"]
 [project.scripts]
 printrbot-plotter = "printrbot_penplotter.cli:main"
 printrbot-bridge = "printrbot_penplotter.esp32_client:main"
+printrbot-studio = "printrbot_penplotter.studio_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
