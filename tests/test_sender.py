@@ -10,6 +10,7 @@ from printrbot_penplotter.sender import (
     MarlinError,
     MarlinSender,
     PlotCancelled,
+    UnsafeGcodeError,
 )
 
 
@@ -89,3 +90,22 @@ def test_cancellation_stops_before_next_command_and_raises_pen() -> None:
     assert commands[0] == "G21"
     assert "G90" not in commands
     assert commands[-3:] == ["M400", "G0 Z4.500 F300", "M400"]
+
+
+@pytest.mark.parametrize(
+    "unsafe_command",
+    [
+        "M104 S200",
+        "M109 S200",
+        "M140 S60",
+        "M190 S60",
+        "M302 S0",
+        "T0",
+        "G1 X10 Y10 E2.5",
+    ],
+)
+def test_heater_extrusion_and_tool_commands_are_blocked(unsafe_command: str) -> None:
+    with MarlinSender("fake", serial_factory=factory, startup_delay_s=0) as sender:
+        with pytest.raises(UnsafeGcodeError):
+            sender.send_gcode(unsafe_command)
+        assert sender._serial.commands == []
