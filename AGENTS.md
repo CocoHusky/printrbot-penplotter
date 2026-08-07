@@ -37,7 +37,7 @@ The finished product must let a user type text or supply handwriting, sketches, 
 7. **Never send heaters, extrusion, or tool-change commands.** This machine is a heaterless pen plotter with `EXTRUDERS 0`.
 8. **Do not bypass voltage conversion.** The Printrboard UART is 5 V logic and the ESP32-C3 GPIO domain is 3.3 V. Keep the documented level-translation boundary.
 9. **Preserve Marlin compatibility.** The AT90USB1286 Printrboard remains the real-time motion controller. The ESP32 is a network/host bridge, not a replacement motion planner.
-10. **Document evidence.** Hardware claims, pin mappings, firmware choices, and safety decisions belong in `docs/HARDWARE.md` with source links.
+10. **Document evidence.** Hardware claims, pin mappings, firmware choices, and safety decisions belong in hardware documentation with source links.
 
 ## Writing-engine rules
 
@@ -52,6 +52,23 @@ The finished product must let a user type text or supply handwriting, sketches, 
 9. **Keep font data separate from layout.** `stroke_fonts.py` owns glyph definitions and loading; `writing.py` owns selection, wrapping, transforms, and joins; machine placement remains in `geometry.py`.
 10. **Do not overclaim cursive quality.** Baseline connectors are not contextual calligraphy, ligatures, collision avoidance, or continuous handwriting unless those features are implemented and tested.
 
+## ESP32 transport rules
+
+1. **The ESP32 transports final jobs; it does not render them.** Font selection, image tracing, geometry, layout, preview, and G-code generation remain in the Python application.
+2. **One command must be acknowledged before the next is sent.** Do not add blind streaming, speculative buffering, or movement retries that can desynchronize Marlin state.
+3. **One hardware job at a time.** Upload replacement, query traffic, and network reconfiguration must not race with an active job.
+4. **Validate the complete stored job before start.** A partial upload or unvalidated file must never become runnable.
+5. **Apply safety filtering at both ends.** Python generation and ESP32 upload validation both block heaters, extrusion, tool changes, embedded emergency stop, and `E`-axis motion.
+6. **Pause is cooperative.** Pause occurs between Marlin acknowledgements and does not pretend to interrupt an already accepted motion command.
+7. **Orderly cancel and emergency stop are different operations.** Normal cancel stops new commands and attempts `M400 → calibrated pen up → M400`. Emergency stop sends `M112` immediately and may require controller reset.
+8. **Never auto-resume after reset, reconnect, or power loss.** Recovery requires explicit operator review and confirmation.
+9. **Keep UART electrical assumptions explicit.** GPIO6 is ESP32 RX, GPIO7 is ESP32 TX, baud is 115200, grounds are common, and a proper 5 V↔3.3 V translator is mandatory.
+10. **Treat Wi-Fi and HTTP input as untrusted.** Enforce size limits, line limits, state checks, credential limits, and API authentication before describing the bridge as production-ready.
+11. **The setup access point is a recovery channel.** Station-mode support must not remove the ability to reach and recover the device locally.
+12. **Firmware builds must be reproducible.** Pin PlatformIO/platform versions, test protocol code natively, compile the exact board target, and publish binary hashes.
+13. **No hidden physical validation claims.** Firmware compilation and browser operation do not prove UART voltage safety, motor direction, homing, pen height, or emergency-stop behavior.
+14. **Transport clients implement the existing sender boundary.** New desktop/mobile clients upload and monitor the exact G-code represented by the preview; they do not create a second artwork pipeline.
+
 ## Current implementation boundary
 
 The current foundation provides:
@@ -64,11 +81,13 @@ The current foundation provides:
 - exact machine-space placement and validation;
 - preview generated from final plot paths;
 - Marlin G-code using X/Y motion and Z pen lift;
-- guarded serial sending;
+- guarded direct USB serial sending;
+- ESP32-C3 firmware with Wi-Fi, LittleFS upload, safety validation, acknowledgement-based forwarding, job states, browser controls, and UART logs;
+- a Python ESP32 bridge client;
 - local browser UI and CLI;
-- tests proving deterministic output, bounds, safe defaults, font loading, joining, and wrapping.
+- tests proving deterministic output, bounds, safe defaults, font loading, joining, wrapping, bridge request formation, and firmware safety filtering.
 
-Do not claim raster-image tracing, handwriting recognition, contextual cursive, ligatures, production ESP32 firmware, autonomous calibration, or complete background hardware job control until code and tests exist.
+Do not claim raster-image tracing, handwriting recognition, contextual cursive, ligatures, authenticated ESP32 sessions, power-loss resume, autonomous calibration, or completed physical hardware validation until code and tests exist.
 
 ## Development sequence
 
@@ -82,7 +101,7 @@ Software work may proceed in separate releases, but physical drawing remains gat
 6. **Motion quality** — reduced pen lifts, corner handling, smoothing, and feed optimization.
 7. **Product UX** — job queue, saved profiles, mobile controls, editing, and reproducible job files.
 
-Writing-engine code can be developed and previewed while physical Release 0.2 work is unfinished. It must not bypass preflight, air-plot, motor-direction, homing, origin, or pen-height validation before real plotting.
+Writing and transport code can be developed and previewed while Release 0.2 physical work is unfinished. Neither may bypass preflight, air-plot, motor-direction, homing, origin, level-shifter, power, or pen-height validation before real plotting.
 
 ## Code architecture rules
 
@@ -91,13 +110,17 @@ Writing-engine code can be developed and previewed while physical Release 0.2 wo
 - `optimize.py` provides deterministic travel metrics and ordering helpers without generating artwork.
 - `inputs.py` dispatches source material into polylines and keeps stroke/outline engines explicit.
 - `geometry.py` validates, transforms, places, simplifies, and previews polylines.
-- `gcode.py` is the only module that converts final geometry into Marlin movement commands.
-- `sender.py` handles transport acknowledgement and errors; it must not generate artwork.
+- `gcode.py` is the only Python module that converts final geometry into Marlin movement commands.
+- `sender.py` handles direct USB acknowledgement and errors; it must not generate artwork.
+- `esp32_client.py` uploads and controls already-generated jobs; it must not generate artwork.
 - `pipeline.py` composes modules without duplicating their logic.
-- Web and CLI layers call the pipeline; they do not implement a second renderer.
-- New transports implement the same job-sending boundary rather than modifying rendering code.
+- `firmware/esp32/include/plotter_protocol.h` owns firmware-side command sanitation shared with native tests.
+- `firmware/esp32/src/printer_bridge.*` owns UART framing, acknowledgement, timeout, and logs.
+- `firmware/esp32/src/job_runner.*` owns stored-job state and one-command-at-a-time execution.
+- `firmware/esp32/src/main.cpp` owns Wi-Fi, HTTP routing, Preferences, LittleFS upload, and device lifecycle.
+- Web and CLI layers call the pipeline or transport clients; they do not implement a second renderer.
 
-## Safety requirements for every hardware change
+## Safety requirements for every hardware-moving change
 
 Before merging hardware-moving code, verify:
 
@@ -106,14 +129,16 @@ Before merging hardware-moving code, verify:
 - the final state leaves the pen up;
 - homing is disabled by default unless explicitly requested;
 - feed rates are configurable and conservative;
-- malformed input cannot create NaN, infinity, or extreme coordinates;
-- serial errors and timeouts stop the job instead of continuing blindly;
-- physical motion still requires a deliberate confirmation phrase;
-- emergency-stop behavior is documented and tested manually before being advertised.
+- malformed input cannot create NaN, infinity, extreme coordinates, oversized files, or unsafe commands;
+- serial errors and timeouts stop new job commands instead of continuing blindly;
+- physical motion still requires a deliberate start action;
+- orderly cancellation and emergency stop remain separate;
+- no automatic resume occurs after reset or reconnect;
+- physical emergency power removal remains reachable during first validation.
 
 ## Documentation rules
 
-Update `README.md` when software usage changes. Update release documents when scope or completion changes. Update `docs/HARDWARE.md` when wiring, electronics, firmware, power, pin assignments, or validated machine settings change. Keep build/wiring procedures out of the README except for links to hardware documentation.
+Update `README.md` when software usage changes. Update release documents when scope or completion changes. Update `docs/HARDWARE.md` or dedicated hardware documents when wiring, electronics, firmware, power, pin assignments, or validated machine settings change. Keep detailed build/wiring procedures out of the root README except for concise summaries and links.
 
 Every hardware source entry should state:
 
@@ -128,14 +153,15 @@ Every bundled or imported font pack should state its provenance and license befo
 
 A feature is complete only when:
 
-1. it is implemented through the shared pipeline;
+1. it is implemented through the shared geometry or transport architecture;
 2. it has a test or a documented manual validation procedure;
 3. failure behavior is explicit;
 4. README usage is updated when user-facing;
 5. release tracking is updated;
 6. hardware documentation is updated when electrical or mechanical behavior changes;
-7. the result advances the final text/handwriting/image-to-physical-drawing vision.
+7. physical behavior is not claimed without physical evidence;
+8. the result advances the final text/handwriting/image-to-physical-drawing vision.
 
 ## Decision rule
 
-When several implementations are possible, choose the one that most directly improves reproducible physical drawing while minimizing duplicated geometry, unsafe assumptions, irreversible hardware changes, hidden substitutions, and custom firmware.
+When several implementations are possible, choose the one that most directly improves reproducible physical drawing while minimizing duplicated geometry, unsafe assumptions, irreversible hardware changes, hidden substitutions, unauthenticated control, and automatic recovery behavior that could restart motion without an operator.

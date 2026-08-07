@@ -1,5 +1,6 @@
 """Printrbot pen-plotter software."""
 
+from .esp32_client import BridgeError, Esp32BridgeClient
 from .models import (
     LayoutConfig,
     MachineConfig,
@@ -20,6 +21,8 @@ from .stroke_fonts import (
 from .writing import WritingResult, stroke_text_to_polylines
 
 __all__ = [
+    "BridgeError",
+    "Esp32BridgeClient",
     "GlyphVariant",
     "LayoutConfig",
     "MachineConfig",
@@ -40,4 +43,4 @@ __all__ = [
     "stroke_text_to_polylines",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

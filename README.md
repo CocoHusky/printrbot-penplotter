@@ -1,52 +1,52 @@
 # Printrbot Pen Plotter
 
-Printrbot Pen Plotter turns typed text, handwriting-style strokes, sketches, and vector artwork into physical marker drawings. It is being built to create clean lettering, seeded human variation, connected cursive, deliberately robotic writing, traced artwork, and reproducible drawings controlled from a browser or command line.
+Printrbot Pen Plotter converts typed text and vector artwork into reproducible physical marker drawings. The software generates centerline handwriting, seeded glyph variations, connected cursive-style writing, geometric robot lettering, exact machine-space previews, and guarded Marlin G-code. Jobs can be sent directly over USB or uploaded to an ESP32-C3 Wi-Fi bridge.
 
-The software uses one geometry pipeline from input to preview to G-code, so the paths shown on screen are the same absolute machine-space paths sent to Marlin.
+The preview and G-code are always generated from the same final absolute polylines.
 
-## What the project is designed to do
+## Current capabilities
 
-- Type a message and convert it into a physical pen drawing.
-- Draw letters as single centerlines instead of tracing both edges of a filled font.
-- Use reproducible alternate glyphs so repeated characters do not have to look identical.
-- Create clean, humanized, cursive-oriented, and technical robot styles.
-- Load custom JSON stroke-font packs with authored paths and cursive anchors.
-- Preserve conventional TTF/OTF outline rendering when outlined lettering is desired.
-- Wrap text to a physical width measured in millimeters.
-- Import vector sketches and handwriting through SVG.
-- Preview exact machine placement, paper boundaries, margins, ink paths, and pen-up travel.
-- Generate heaterless Marlin G-code for X/Y drawing and Z pen lift.
-- Send reviewed jobs directly over USB or through a future ESP32 Wi-Fi bridge.
-- Preserve settings and random seeds so a drawing can be reproduced or intentionally varied.
+### Writing and geometry
 
-## Current Release 0.3 foundation
+- Native single-line `hand` and `robot` stroke fonts.
+- Uppercase, lowercase, digits, and common punctuation.
+- Deterministic alternate glyphs using a saved random seed.
+- Simple lowercase cursive joins.
+- Physical cap height, tracking, word spacing, slant, and wrapping in millimeters.
+- Custom JSON stroke-font packs.
+- Conventional TTF/OTF outline rendering when double-line outlined lettering is desired.
+- SVG path import.
+- Explicit machine limits, paper origin, margins, scale, and placement.
+- Exact SVG preview showing paper, ink strokes, and dashed pen-up travel.
+- Bounds-checked heaterless Marlin G-code.
 
-The current software includes:
+### Safety and calibration
 
-- native single-line `StrokeFont` and `GlyphVariant` models;
-- built-in `hand` and `robot` centerline fonts;
-- uppercase A–Z, lowercase a–z, digits, and common punctuation;
-- three deterministic variants for built-in hand glyphs;
-- `first`, `seeded`, and `cycle` variant-selection modes;
-- lowercase entry/exit anchors and simple cursive baseline joins;
-- millimeter cap height, tracking, word spacing, slant, and word wrapping;
-- optional nearest-endpoint ordering for independent multi-stroke glyphs;
-- a validated custom JSON stroke-font format;
-- explicit `stroke` and `outline` text engines;
-- custom TTF/OTF outline rendering;
-- explicit machine limits, paper origin, margins, scale, and placement;
-- `none`, `downscale`, and `fit` placement modes;
-- finite-coordinate, paper-bound, machine-bound, Z-bound, point-count, and command-count validation;
-- machine-space SVG previews showing paper, margins, ink paths, and dashed pen-up travel;
-- a known-size square/cross/octagon calibration pattern;
-- air-plot G-code that never lowers the pen;
-- non-moving Marlin preflight checks using `M115`, `M119`, `M114`, and `M503`;
-- acknowledged serial sending with orderly pen-up attempts on cancellation or Marlin error;
-- CLI, local browser interface, metadata reporting, and automated tests.
+- Non-moving `M115`, `M119`, `M114`, and `M503` preflight.
+- Known-size square/cross/octagon calibration pattern.
+- Air-plot mode that never emits a pen-down move.
+- Finite-coordinate, machine-bound, paper-bound, Z-bound, point-count, and command-count validation.
+- USB serial sending one command at a time with Marlin `ok` acknowledgement.
+- Heater, extrusion, tool-change, and `E`-axis commands blocked from normal jobs.
+- Separate orderly cancellation and immediate emergency stop behavior.
 
-The built-in hand alphabet is an initial engineering font, not a finished calligraphy family. Current cursive uses simple connector curves between compatible lowercase anchors. Contextual forms, ligatures, collision detection, interactive glyph editing, image tracing, full background job control, and production ESP32 firmware remain planned.
+### Release 0.4 ESP32 transport
 
-## Install
+- PlatformIO firmware for the ESP32-C3-DevKitC-02.
+- Setup Wi-Fi access point and optional home-network connection.
+- GPIO6 RX / GPIO7 TX Marlin UART at 115200 baud.
+- G-code upload to ESP32 LittleFS.
+- Full-file safety validation before a job becomes runnable.
+- One active hardware job at a time.
+- Ready, running, paused, cancelling, cancelled, completed, failed, and emergency states.
+- Acknowledgement-based progress and UART activity log.
+- Browser upload, start, pause, resume, orderly cancel, emergency stop, and non-moving queries.
+- Python `printrbot-bridge` client for scripted upload and control.
+- Native firmware protocol tests and reproducible ESP32 build artifacts in CI.
+
+Release 0.2 physical machine validation is still required before a real pen-down drawing. Release 0.4 firmware is a development bridge and does not yet provide authenticated HTTP sessions.
+
+## Install the Python application
 
 Python 3.11 or newer is required.
 
@@ -55,11 +55,6 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
-```
-
-Run the test suite:
-
-```bash
 pytest
 ```
 
@@ -71,16 +66,14 @@ printrbot-plotter text "Hello from Printrbot" \
   --font-size 18
 ```
 
-This creates:
+Outputs:
 
 ```text
 out/plot.svg      exact machine-space preview
 out/plot.gcode    Marlin movement commands
 ```
 
-The default human preset uses the built-in `hand` centerline font. `--font-size 18` requests an 18 mm cap height before page placement. The default `downscale` mode keeps that physical size unless the drawing must shrink to fit.
-
-## Create reproducible letter variation
+Create reproducible variation:
 
 ```bash
 printrbot-plotter text "banana" \
@@ -90,17 +83,7 @@ printrbot-plotter text "banana" \
   --font-size 16
 ```
 
-The same text, font, settings, and seed produce the same glyph choices and jitter. Changing the seed produces another controlled variation.
-
-Variant modes:
-
-```text
-first    always use the first authored glyph form
-seeded   choose a deterministic form from character, position, and seed
-cycle    rotate through every authored form in order
-```
-
-Inspect alternate forms directly:
+Cycle through authored forms:
 
 ```bash
 printrbot-plotter text "aaaaaaaaa" \
@@ -109,7 +92,7 @@ printrbot-plotter text "aaaaaaaaa" \
   --font-size 18
 ```
 
-## Generate connected cursive-style writing
+## Generate cursive-style writing
 
 ```bash
 printrbot-plotter text "minimum motion" \
@@ -118,53 +101,17 @@ printrbot-plotter text "minimum motion" \
   --wrap-width 110
 ```
 
-The cursive preset uses:
-
-- the built-in `hand` centerline font;
-- seeded alternate glyphs;
-- lowercase entry and exit anchors;
-- baseline connectors;
-- a stronger writing slant;
-- tighter tracking.
-
-The current engine connects letters where both neighboring glyphs define anchors. It does not yet perform contextual substitutions, ligatures, or collision-aware calligraphy.
-
-Connection behavior can be overridden:
-
-```bash
-printrbot-plotter text "connected" \
-  --preset human \
-  --connect-letters \
-  --slant 7 \
-  --letter-spacing 0
-```
+Current cursive uses authored entry/exit anchors and simple connector curves. It does not yet implement contextual forms, ligatures, or collision-aware calligraphy.
 
 ## Generate robot lettering
 
 ```bash
-printrbot-plotter text "ROBOT 03" \
+printrbot-plotter text "ROBOT 04" \
   --preset robot \
   --font-size 16
 ```
 
-The robot preset uses fixed geometric centerline glyphs, no random jitter, and no cursive joins.
-
-## Wrap text using physical width
-
-```bash
-printrbot-plotter text "This sentence wraps to a measured text box." \
-  --preset human \
-  --font-size 10 \
-  --wrap-width 95 \
-  --fit-mode none \
-  --horizontal-align left
-```
-
-`--wrap-width` is measured in millimeters before final page alignment. Explicit newline characters remain supported.
-
 ## Use the outline compatibility engine
-
-Conventional fonts describe filled outlines. Choose the outline engine when that is the intended effect:
 
 ```bash
 printrbot-plotter text "Outlined title" \
@@ -173,152 +120,54 @@ printrbot-plotter text "Outlined title" \
   --font-size 18
 ```
 
-Use a custom TTF/OTF file:
+A custom TTF/OTF can be supplied with `--font-path`. Outline fonts trace glyph edges and are intentionally different from the single-line stroke engine.
 
-```bash
-printrbot-plotter text "Outlined script" \
-  --engine outline \
-  --font-path /absolute/path/to/font.ttf \
-  --font-size 18
-```
-
-The outline engine traces glyph edges and can create double-line letters. It is not the single-line handwriting engine.
-
-## Inspect built-in stroke fonts
+## Inspect or load stroke fonts
 
 ```bash
 printrbot-plotter fonts
-```
-
-Inspect one font and its variant counts:
-
-```bash
 printrbot-plotter fonts --font hand
+printrbot-plotter fonts --file fonts/example-stroke-font.json
 ```
 
-Built-ins:
+Custom font format: [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md)
 
-```text
-hand   lowercase handwriting centerlines plus uppercase, digits, punctuation, and three variants
-robot  fixed geometric centerlines
-```
-
-## Use a custom stroke-font pack
-
-Validate and inspect the included example:
-
-```bash
-printrbot-plotter fonts \
-  --file fonts/example-stroke-font.json
-```
-
-Render with it:
-
-```bash
-printrbot-plotter text "Aaa" \
-  --engine stroke \
-  --stroke-font-path fonts/example-stroke-font.json \
-  --variant-mode cycle \
-  --connect-letters \
-  --font-size 18
-```
-
-Unsupported characters use the font's fallback glyph and are listed in job metadata rather than silently removed.
-
-The complete format is documented in [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md).
-
-## Placement modes
-
-```text
-none       preserve exact requested scale and fail if it does not fit
-downscale  preserve requested scale but shrink oversized work
-fit        expand or shrink artwork to fill the drawable paper area
-```
-
-Place a text box inside machine coordinates:
-
-```bash
-printrbot-plotter text "Placed text" \
-  --preset human \
-  --font-size 12 \
-  --page-width 100 \
-  --page-height 80 \
-  --page-origin-x 20 \
-  --page-origin-y 30 \
-  --margin 5 \
-  --fit-mode none \
-  --horizontal-align left \
-  --vertical-align bottom
-```
-
-The preview shows the full machine area, paper rectangle, usable margin, ink paths, and dashed pen-up travel.
-
-## Convert an SVG sketch
-
-```bash
-printrbot-plotter svg artwork.svg \
-  --fit-mode fit \
-  --output out/artwork.gcode \
-  --preview out/artwork-preview.svg
-```
-
-SVG is the current interchange format for line art, handwriting traces, and externally vectorized images.
-
-## Generate the safe calibration pattern
-
-Create a known-size 10 mm square/cross/octagon pattern that keeps the pen raised:
+## Generate an air-plot calibration
 
 ```bash
 printrbot-plotter calibrate
 ```
 
-Outputs:
+This creates:
 
 ```text
 out/calibration.svg
 out/calibration.gcode
 ```
 
-The default calibration job is an **air plot**. Inspect the preview, then send it only after machine direction and available travel have been checked.
+The default calibration file is an air plot. Do not use `--pen-plot` until motor direction, homing, machine origin, travel, and Z-up/Z-down have been physically validated.
 
-A pen-down calibration file can be generated later:
-
-```bash
-printrbot-plotter calibrate --pen-plot
-```
-
-Do not use `--pen-plot` until the air plot has completed safely and Z-up/Z-down values are physically calibrated.
-
-## Generate any writing job as an air plot
-
-```bash
-printrbot-plotter text "Air test" \
-  --preset human \
-  --air-plot \
-  --z-up 5
-```
-
-In air-plot mode, every XY path is traced while Z remains at the configured pen-up height.
-
-## Run the non-moving Marlin preflight
+## Run direct USB preflight
 
 ```bash
 printrbot-plotter preflight \
   --port /dev/cu.usbmodemPrintrbot123451
 ```
 
-The preflight performs only these queries:
+This only queries firmware identity, endstops, position, and stored settings. It does not move the machine.
 
-```text
-M115  firmware identity
-M119  endstop state report
-M114  current position
-M503  stored settings
+## Send a reviewed job directly over USB
+
+```bash
+printrbot-plotter send out/calibration.gcode \
+  --port /dev/cu.usbmodemPrintrbot123451 \
+  --safe-z-up 5 \
+  --confirm DRAW
 ```
 
-It does not home or move an axis. Passing preflight confirms communication and reporting, not correct motor direction or pen calibration.
+The sender waits for Marlin `ok` after every command and attempts `M400 → pen up → M400` after an ordinary cancellation or communication failure.
 
-## Run the browser interface
+## Run the Python browser application
 
 ```bash
 printrbot-plotter serve
@@ -330,111 +179,147 @@ Open:
 http://127.0.0.1:8000
 ```
 
-The page provides controls for:
+The application provides text-engine, font, variation, wrapping, layout, preview, calibration, and G-code download controls.
 
-- single-line or outline text engines;
-- human, clean, cursive, and robot presets;
-- stroke font, glyph variants, and random seed;
-- cursive joins, slant, tracking, and word spacing;
-- physical cap height and wrapping width;
-- page size, origin, fit behavior, and alignment;
-- exact preview, calibration generation, and G-code download.
-
-The browser's hardware endpoint remains disabled by default. Rendering and downloading work without a printer.
-
-## Send a reviewed job to Marlin
-
-First inspect the SVG and G-code. Confirm that the machine is clear, the pen is raised, coordinates are valid, and Z-up is calibrated. Then send with explicit confirmation:
+## Build and flash the ESP32 bridge
 
 ```bash
-printrbot-plotter send out/calibration.gcode \
-  --port /dev/cu.usbmodemPrintrbot123451 \
-  --safe-z-up 5 \
-  --confirm DRAW
+cd firmware/esp32
+python -m pip install platformio==6.1.19
+pio test -e native
+pio run -e esp32-c3-devkitc-02
+pio run -e esp32-c3-devkitc-02 -t upload
 ```
 
-The sender:
+During USB flashing, disconnect external 5 V from the ESP32. The Printrboard UART can remain disconnected for the first Wi-Fi test.
 
-- blocks heater, extrusion, and tool-change commands;
-- strips comments;
-- sends one command at a time;
-- waits for Marlin's `ok`;
-- stops on error or timeout;
-- attempts `M400`, pen-up, and `M400` after ordinary cancellation or serial/Marlin failure.
+After flashing:
 
-Pressing `Ctrl+C` during CLI sending attempts the same orderly pen-up stop. Physical power removal must still remain reachable during first tests.
+```text
+Wi-Fi:    Printrbot-Bridge
+Password: plotter123
+Page:     http://192.168.4.1
+```
 
-## Enable the browser hardware endpoint
+The firmware dashboard accepts a reviewed `.gcode` file and exposes job controls and live status.
 
-Only after direct serial preflight and air-plot calibration:
+Firmware guide: [`firmware/esp32/README.md`](firmware/esp32/README.md)
+
+HTTP API: [`docs/ESP32_API.md`](docs/ESP32_API.md)
+
+## Use the Python ESP32 client
+
+Check bridge status:
 
 ```bash
-export PLOTTER_ALLOW_HARDWARE=1
-export PLOTTER_SERIAL_PORT=/dev/cu.usbmodemPrintrbot123451
-printrbot-plotter serve
+printrbot-bridge status
 ```
 
-The `/api/plot` endpoint additionally requires the literal confirmation value `DRAW`. Background job states, pause/resume, live logs, and emergency-stop controls remain unfinished Release 0.2 work.
+Upload reviewed G-code:
 
-## Software flow
+```bash
+printrbot-bridge upload out/calibration.gcode
+```
+
+Start and monitor:
+
+```bash
+printrbot-bridge start
+printrbot-bridge status
+```
+
+Pause, resume, or orderly-cancel:
+
+```bash
+printrbot-bridge pause
+printrbot-bridge resume
+printrbot-bridge cancel
+```
+
+Run a non-moving query:
+
+```bash
+printrbot-bridge query M119
+```
+
+Immediate emergency stop requires a different confirmation phrase because it sends `M112`:
+
+```bash
+printrbot-bridge emergency --confirm STOP
+```
+
+Use another bridge address with `--url`:
+
+```bash
+printrbot-bridge --url http://printrbot.local status
+```
+
+## ESP32 and Printrboard responsibilities
 
 ```text
-typed text
-    ↓
-stroke font + deterministic glyph variants
-    ↓
-word wrapping + optional cursive connectors
-    ↓
-millimeter centerline geometry
-    ↓
-physical page layout + finite validation
-    ↓
-absolute machine-space paths
-    ↓
-exact SVG preview + bounds-checked Marlin G-code
-    ↓
-guarded serial or future ESP32 transport
+Python application
+  text / stroke fonts / SVG
+  variation and wrapping
+  machine-space layout
+  exact preview
+  G-code generation
+            ↓ HTTP upload
+ESP32-C3 bridge
+  Wi-Fi and browser UI
+  stored job validation
+  one-command-at-a-time forwarding
+  progress, pause, cancel, emergency
+            ↓ translated UART
+Printrboard Rev F4
+  Marlin parser
+  motion planning
+  endstops
+  stepper control
+            ↓
+physical pen drawing
 ```
 
-Core modules:
+The ESP32 does not generate handwriting or motion geometry. The Printrboard remains the real-time motion controller.
+
+## UART requirement
+
+The Printrboard uses 5 V logic and the ESP32-C3 GPIO domain uses 3.3 V logic. A proper level translator is required.
 
 ```text
-src/printrbot_penplotter/stroke_fonts.py  centerline font model, built-ins, JSON loader
-src/printrbot_penplotter/writing.py       variants, wrapping, joins, physical writing layout
-src/printrbot_penplotter/optimize.py      deterministic pen-travel ordering helpers
-src/printrbot_penplotter/inputs.py        stroke/outline text and SVG adapters
-src/printrbot_penplotter/geometry.py      validation, layout, transforms, preview
-src/printrbot_penplotter/calibration.py   known-size test geometry
-src/printrbot_penplotter/gcode.py         Marlin command generation
-src/printrbot_penplotter/preflight.py     non-moving controller checks
-src/printrbot_penplotter/sender.py        acknowledged serial transport
-src/printrbot_penplotter/pipeline.py      end-to-end job composition
-src/printrbot_penplotter/web.py           local browser UI and API
-src/printrbot_penplotter/cli.py           command-line interface
+Printrboard EXP1 pin 7 TX1
+  → translated to 3.3 V
+  → ESP32 GPIO6 RX
+
+ESP32 GPIO7 TX
+  → translated to 5 V
+  → Printrboard EXP1 pin 5 RX1
+
+EXP1 pin 14 GND ↔ ESP32 GND ↔ translator GND
 ```
+
+Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 
 ## Safety defaults
 
-- Homing is off unless `--home` is explicitly supplied.
-- Text preserves physical size by default rather than filling the page.
-- Every generated coordinate must be finite.
-- Every X/Y point is checked against paper and machine limits.
-- Pen-up and pen-down Z values are checked against machine Z limits.
+- Homing is off unless explicitly enabled.
+- Physical font size remains meaningful instead of silently filling the page.
+- Every final coordinate must be finite and inside configured bounds.
 - The first and final pen state is up.
-- Air-plot mode never emits a pen-down Z move.
-- Heater, extrusion, and tool-change commands are blocked from normal serial sending.
-- Physical serial sending requires `--confirm DRAW`.
-- The browser cannot move hardware unless an environment variable explicitly enables it.
-- Pen heights, page origin, machine bounds, alignment, feed rates, font engine, and variation seed remain explicit configuration.
+- Air-plot mode cannot lower the pen.
+- Heater, extrusion, tool-change, and `E`-axis commands are rejected.
+- USB physical sending requires `--confirm DRAW`.
+- ESP32 embedded `M112` is rejected inside uploaded files and exposed only through a separate emergency endpoint.
+- ESP32 pause and orderly cancellation occur between acknowledged commands.
+- Only one ESP32 hardware job can be active.
+- The current bridge must remain on a trusted network because request-level authentication is not finished.
 
-Start with non-moving preflight, then a pen-up calibration air plot, then scrap paper. The software cannot detect a loose pen, reversed motor, incorrect endstop direction, wiring fault, shifted paper, or obstruction.
+The software cannot detect a loose pen, reversed motor, incorrect endstop direction, wiring fault, shifted paper, obstruction, incorrect level shifter, or unstable power supply.
 
-## Project direction
+## Project documentation
 
-[`AGENTS.md`](AGENTS.md) defines the non-negotiable final vision, architecture boundaries, development order, and safety rules.
-
-[`docs/RELEASE_0.2.md`](docs/RELEASE_0.2.md) tracks safe-machine work that remains physically incomplete.
-
-[`docs/RELEASE_0.3.md`](docs/RELEASE_0.3.md) tracks native writing-engine work and its current limitations.
-
-Hardware inventory, firmware state, wiring, sources, power choices, and the physical validation checklist are maintained in [`docs/HARDWARE.md`](docs/HARDWARE.md).
+- [`AGENTS.md`](AGENTS.md) — non-negotiable architecture and development guardrails
+- [`docs/RELEASE_0.2.md`](docs/RELEASE_0.2.md) — safe-machine foundation and remaining physical validation
+- [`docs/RELEASE_0.3.md`](docs/RELEASE_0.3.md) — native writing engine and current limitations
+- [`docs/RELEASE_0.4.md`](docs/RELEASE_0.4.md) — ESP32 transport progress and acceptance criteria
+- [`docs/HARDWARE.md`](docs/HARDWARE.md) — hardware, firmware, wiring, power, and sources
+- [`docs/ESP32_API.md`](docs/ESP32_API.md) — embedded HTTP API
