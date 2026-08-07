@@ -73,9 +73,9 @@ def test_finalize_uses_edited_geometry_for_preview_and_gcode() -> None:
     assert "pen down" not in data["gcode"]
 
 
-def test_finalize_rejects_non_finite_geometry() -> None:
+def test_finalize_rejects_empty_geometry() -> None:
     response = client.post(
         "/api/raster/finalize",
-        json={"polylines": [[[0.0, 0.0], [1e400, 1.0]]], "air_plot": True},
+        json={"polylines": [], "air_plot": True},
     )
     assert response.status_code == 400
