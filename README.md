@@ -1,6 +1,6 @@
 # Printrbot Pen Plotter
 
-Printrbot Pen Plotter converts typed text and vector artwork into reproducible physical marker drawings. The software generates centerline handwriting, seeded glyph variations, connected cursive-style writing, geometric robot lettering, exact machine-space previews, and guarded Marlin G-code. Jobs can be sent directly over USB or uploaded to an ESP32-C3 Wi-Fi bridge.
+Printrbot Pen Plotter converts typed text, photographed or scanned handwriting, raster images, and vector artwork into reproducible physical marker drawings. The software generates centerline handwriting, seeded glyph variations, connected cursive-style writing, geometric robot lettering, raster centerlines or contours, exact machine-space previews, and guarded Marlin G-code. Jobs can be sent directly over USB or uploaded to an ESP32-C3 Wi-Fi bridge.
 
 The preview and G-code are always generated from the same final absolute polylines.
 
@@ -16,9 +16,26 @@ The preview and G-code are always generated from the same final absolute polylin
 - Custom JSON stroke-font packs.
 - Conventional TTF/OTF outline rendering when double-line outlined lettering is desired.
 - SVG path import.
+- Raster image and handwriting tracing from PNG, JPEG, WebP, TIFF, and BMP files.
+- Explicit centerline and contour trace modes.
+- Deterministic Otsu or manual thresholding, inversion, blur, size limiting, and small-component cleanup.
+- Editable raw trace SVG export for manual correction before machine placement.
 - Explicit machine limits, paper origin, margins, scale, and placement.
 - Exact SVG preview showing paper, ink strokes, and dashed pen-up travel.
 - Bounds-checked heaterless Marlin G-code.
+
+### Release 0.5 raster ingestion
+
+- EXIF-aware image loading and transparent-background handling.
+- Bounded preprocessing so large phone photos are downsampled before tracing.
+- `centerline` tracing using skeletonization and graph paths for stroke-like input.
+- `contour` tracing for filled shapes, logos, and silhouettes.
+- `printrbot-plotter image` for general raster artwork.
+- `printrbot-plotter handwriting` for centerline tracing of photographed or scanned writing.
+- Trace metadata recording threshold, cleanup, resize, skeleton, stroke, and point counts.
+- `--trace-svg` for exporting a plain editable SVG that can be corrected and re-imported through the existing SVG adapter.
+
+Release 0.5 currently traces visible handwriting marks; it does not perform OCR, infer characters, or retype notes. Browser raster upload and an in-browser trace editor remain planned.
 
 ### Safety and calibration
 
@@ -106,7 +123,7 @@ Current cursive uses authored entry/exit anchors and simple connector curves. It
 ## Generate robot lettering
 
 ```bash
-printrbot-plotter text "ROBOT 04" \
+printrbot-plotter text "ROBOT 05" \
   --preset robot \
   --font-size 16
 ```
@@ -131,6 +148,62 @@ printrbot-plotter fonts --file fonts/example-stroke-font.json
 ```
 
 Custom font format: [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md)
+
+## Trace a raster image
+
+Trace the foreground boundary of a simple sketch, logo, or silhouette:
+
+```bash
+printrbot-plotter image sketch.png \
+  --trace-mode contour \
+  --air-plot \
+  --output out/sketch.gcode \
+  --preview out/sketch.svg
+```
+
+Use `--trace-mode centerline` when the raster contains stroke-like line art rather than filled regions.
+
+The default threshold is deterministic global Otsu thresholding. Override it when needed:
+
+```bash
+printrbot-plotter image sketch.jpg \
+  --threshold 145 \
+  --min-component 12 \
+  --simplify-px 1.2 \
+  --air-plot
+```
+
+For light artwork on a dark background, add `--invert`.
+
+## Trace photographed or scanned handwriting
+
+```bash
+printrbot-plotter handwriting note.jpg \
+  --air-plot \
+  --output out/note.gcode \
+  --preview out/note.svg
+```
+
+The handwriting command uses centerline tracing so a thick marker stroke is reduced toward one drawable path instead of producing both sides of an outline. It traces the marks as geometry; it does not recognize or retype the writing.
+
+Export the raw pre-placement trace for manual cleanup:
+
+```bash
+printrbot-plotter handwriting note.jpg \
+  --trace-svg out/note-trace.svg \
+  --air-plot
+```
+
+Edit `out/note-trace.svg` in a normal vector editor, then re-import the corrected geometry through the existing SVG path:
+
+```bash
+printrbot-plotter svg out/note-trace.svg \
+  --air-plot \
+  --output out/note-corrected.gcode \
+  --preview out/note-corrected.svg
+```
+
+Release 0.5 details and remaining browser/editor work: [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md)
 
 ## Generate an air-plot calibration
 
@@ -179,7 +252,7 @@ Open:
 http://127.0.0.1:8000
 ```
 
-The application provides text-engine, font, variation, wrapping, layout, preview, calibration, and G-code download controls.
+The application currently provides text-engine, font, variation, wrapping, layout, preview, calibration, and G-code download controls. Release 0.5 raster upload and interactive trace correction are still being added to this browser interface.
 
 ## Build and flash the ESP32 bridge
 
@@ -258,7 +331,7 @@ printrbot-bridge --url http://printrbot.local status
 
 ```text
 Python application
-  text / stroke fonts / SVG
+  text / stroke fonts / SVG / raster tracing
   variation and wrapping
   machine-space layout
   exact preview
@@ -279,7 +352,7 @@ Printrboard Rev F4
 physical pen drawing
 ```
 
-The ESP32 does not generate handwriting or motion geometry. The Printrboard remains the real-time motion controller.
+The ESP32 does not generate handwriting, trace images, or create motion geometry. The Printrboard remains the real-time motion controller.
 
 ## UART requirement
 
@@ -303,6 +376,7 @@ Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 
 - Homing is off unless explicitly enabled.
 - Physical font size remains meaningful instead of silently filling the page.
+- Raster images are bounded and downsampled before tracing to limit geometry growth.
 - Every final coordinate must be finite and inside configured bounds.
 - The first and final pen state is up.
 - Air-plot mode cannot lower the pen.
@@ -313,7 +387,7 @@ Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 - Only one ESP32 hardware job can be active.
 - The current bridge must remain on a trusted network because request-level authentication is not finished.
 
-The software cannot detect a loose pen, reversed motor, incorrect endstop direction, wiring fault, shifted paper, obstruction, incorrect level shifter, or unstable power supply.
+The software cannot detect a loose pen, reversed motor, incorrect endstop direction, wiring fault, shifted paper, obstruction, incorrect level shifter, unstable power supply, bad photograph perspective, or unwanted trace artifacts that were not removed during review.
 
 ## Project documentation
 
@@ -321,5 +395,6 @@ The software cannot detect a loose pen, reversed motor, incorrect endstop direct
 - [`docs/RELEASE_0.2.md`](docs/RELEASE_0.2.md) — safe-machine foundation and remaining physical validation
 - [`docs/RELEASE_0.3.md`](docs/RELEASE_0.3.md) — native writing engine and current limitations
 - [`docs/RELEASE_0.4.md`](docs/RELEASE_0.4.md) — ESP32 transport progress and acceptance criteria
+- [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md) — raster image and handwriting ingestion progress
 - [`docs/HARDWARE.md`](docs/HARDWARE.md) — hardware, firmware, wiring, power, and sources
 - [`docs/ESP32_API.md`](docs/ESP32_API.md) — embedded HTTP API
