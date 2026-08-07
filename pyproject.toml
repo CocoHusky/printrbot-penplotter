@@ -4,13 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "printrbot-penplotter"
-version = "0.4.0"
-description = "Turn text, handwriting-style strokes, and vector art into physically placed Marlin jobs with USB or ESP32 transport."
+version = "0.5.0"
+description = "Turn text, handwriting, raster images, and vector art into physically placed Marlin jobs with USB or ESP32 transport."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
   "matplotlib>=3.8,<4",
+  "numpy>=1.26,<3",
+  "pillow>=10,<13",
   "pyserial>=3.5,<4",
   "svgpathtools>=1.6,<2",
   "uvicorn[standard]>=0.30,<1",
