@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -15,6 +16,10 @@ class MarlinError(RuntimeError):
 
 class PlotCancelled(MarlinError):
     """Raised after a requested cancellation has been handled."""
+
+
+class UnsafeGcodeError(MarlinError):
+    """Raised when a file contains heater, extrusion, or tool commands."""
 
 
 class CancellationToken:
@@ -32,6 +37,46 @@ class CancellationToken:
 
 
 ProgressCallback = Callable[[int, int, str], None]
+
+# This machine is intentionally configured with EXTRUDERS 0 and no heaters.
+_FORBIDDEN_OPCODES = {
+    "M82",   # absolute extrusion mode
+    "M83",   # relative extrusion mode
+    "M104",  # set hotend temperature
+    "M109",  # set/wait hotend temperature
+    "M140",  # set bed temperature
+    "M141",  # set chamber temperature
+    "M190",  # set/wait bed temperature
+    "M191",  # set/wait chamber temperature
+    "M302",  # allow cold extrusion
+    "M303",  # PID autotune heater
+}
+_MOTION_OPCODES = {"G0", "G00", "G1", "G01", "G2", "G02", "G3", "G03"}
+_TOOL_PATTERN = re.compile(r"^T\d+$", re.IGNORECASE)
+
+
+def validate_plot_commands(commands: list[str]) -> None:
+    """Reject commands that do not belong in a heaterless pen-plotter job."""
+
+    for line_number, command in enumerate(commands, start=1):
+        tokens = command.upper().split()
+        if not tokens:
+            continue
+        opcode = tokens[0]
+        if opcode in _FORBIDDEN_OPCODES:
+            raise UnsafeGcodeError(
+                f"Unsafe command at job line {line_number}: {opcode} is disabled for this pen plotter."
+            )
+        if _TOOL_PATTERN.fullmatch(opcode):
+            raise UnsafeGcodeError(
+                f"Unsafe command at job line {line_number}: tool changes are disabled."
+            )
+        if opcode in _MOTION_OPCODES and any(
+            token.startswith("E") and len(token) > 1 for token in tokens[1:]
+        ):
+            raise UnsafeGcodeError(
+                f"Unsafe command at job line {line_number}: extrusion axis E is disabled."
+            )
 
 
 class MarlinSender:
@@ -147,6 +192,8 @@ class MarlinSender:
             for line in gcode.splitlines()
             if line.split(";", 1)[0].strip()
         ]
+        validate_plot_commands(commands)
+
         sent = 0
         total = len(commands)
         try:
