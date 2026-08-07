@@ -191,13 +191,13 @@ void JobRunner::beginSafeStop(JobState finalState, const String& reason) {
   stopFinalState_ = finalState;
   lastError_ = reason;
   stopping_ = true;
-  stopStage_ = 0;
+  stopStage_ = bridge_.pending() ? -1 : 0;
   state_ = JobState::Cancelling;
   pauseRequested_ = false;
 }
 
 void JobRunner::driveSafeStop() {
-  if (!stopping_ || bridge_.pending()) return;
+  if (!stopping_ || bridge_.pending() || stopStage_ < 0) return;
 
   String command;
   switch (stopStage_) {
@@ -235,7 +235,11 @@ void JobRunner::tick() {
   if (event.type != BridgeEventType::None) {
     if (stopping_) {
       if (event.type == BridgeEventType::Ok) {
-        ++stopStage_;
+        if (stopStage_ < 0) {
+          stopStage_ = 0;
+        } else {
+          ++stopStage_;
+        }
       } else {
         finish(JobState::Failed, "Safe-stop sequence failed: " + event.line);
       }
