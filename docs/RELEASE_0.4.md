@@ -51,6 +51,29 @@ A user can connect to the ESP32, upload final G-code, validate it, start one har
 - [x] Expose all controls through a responsive browser dashboard.
 - [x] Document the HTTP API.
 
+### Desktop and delivery
+
+- [x] Add a Python ESP32 bridge client for status, upload, job control, queries, and emergency stop.
+- [x] Add direct bridge URL configuration and `printrbot.local` support.
+- [x] Produce downloadable CI artifacts containing firmware, bootloader, partition table, and SHA-256 sums.
+- [x] Compile the exact `esp32-c3-devkitc-02` target in CI.
+
+## CI validation for this increment
+
+The first Release 0.4 increment passed:
+
+```text
+Python tests:                 38 passed
+Firmware protocol tests:      5 passed
+ESP32-C3 firmware build:      passed
+RAM used:                     42,444 / 327,680 bytes (13.0%)
+Application flash used:       876,320 / 1,310,720 bytes (66.9%)
+Packaged artifact files:      firmware.bin, bootloader.bin, partitions.bin, SHA256SUMS
+CI artifact ZIP size:         568,875 bytes
+```
+
+These results prove compilation and automated software behavior. They do not prove the electrical UART connection, safe physical movement, Wi-Fi range, power stability, or emergency-stop behavior.
+
 ## Remaining before Release 0.4 is complete
 
 ### Hardware and end-to-end validation
@@ -92,8 +115,7 @@ A user can connect to the ESP32, upload final G-code, validate it, start one har
 
 ### API and desktop integration
 
-- [ ] Add a Python ESP32 transport client implementing the same job-sender boundary as USB serial.
-- [ ] Add bridge discovery through mDNS and direct IP configuration.
+- [ ] Add automatic bridge discovery beyond direct URL and mDNS hostname entry.
 - [ ] Upload generated G-code from the desktop browser UI.
 - [ ] Display ESP32 job progress inside the Python web application.
 - [ ] Add a transport selector: download, USB serial, or ESP32.
@@ -102,21 +124,20 @@ A user can connect to the ESP32, upload final G-code, validate it, start one har
 
 ### Firmware delivery
 
-- [ ] Produce downloadable firmware artifacts from CI.
 - [ ] Add version, Git commit, build time, and configuration hash to `/api/status`.
 - [ ] Add signed OTA updates or document a USB-only update policy.
-- [ ] Add release binaries and SHA-256 values.
+- [ ] Publish formal release binaries and SHA-256 values outside ephemeral CI artifacts.
 - [ ] Add a factory image and recovery procedure.
 
 ### Tests and quality
 
 - [ ] Add native tests for job-state transitions.
 - [ ] Add simulated Marlin tests for `ok`, `busy`, `error`, timeout, and reset banners.
-- [ ] Add multipart upload boundary and oversized-file tests.
+- [ ] Add multipart upload boundary and oversized-file firmware tests.
 - [ ] Add LittleFS failure tests.
 - [ ] Add API contract tests against a hardware-in-loop or emulator target.
 - [ ] Add static analysis and formatting for firmware code.
-- [ ] Track firmware flash and RAM use in CI.
+- [ ] Add flash/RAM regression thresholds rather than only reporting current use.
 
 ## Required validation order
 
