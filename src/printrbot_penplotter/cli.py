@@ -11,6 +11,7 @@ from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleCon
 from .pipeline import render_calibration_job, render_svg_job, render_text_job, write_job
 from .preflight import run_preflight
 from .sender import MarlinSender
+from .stroke_fonts import available_stroke_fonts, get_builtin_stroke_font, load_stroke_font
 
 
 def _machine(args: argparse.Namespace) -> MachineConfig:
@@ -57,6 +58,29 @@ def _pen(args: argparse.Namespace) -> PenConfig:
     )
 
 
+def _style(args: argparse.Namespace) -> StyleConfig:
+    overrides: dict[str, object] = {
+        "font_size_mm": args.font_size,
+        "seed": args.seed,
+    }
+    optional = {
+        "engine": args.engine,
+        "font_family": args.font_family,
+        "font_path": args.font_path,
+        "stroke_font": args.stroke_font,
+        "stroke_font_path": args.stroke_font_path,
+        "wrap_width_mm": args.wrap_width,
+        "connect_letters": args.connect_letters,
+        "word_spacing_em": args.word_spacing,
+        "letter_spacing_mm": args.letter_spacing,
+        "variant_mode": args.variant_mode,
+        "stroke_order": args.stroke_order,
+        "slant_deg": args.slant,
+    }
+    overrides.update({key: value for key, value in optional.items() if value is not None})
+    return StyleConfig.for_preset(args.preset, **overrides)
+
+
 def _add_machine_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--machine-x-min", type=float, default=0.0)
     parser.add_argument("--machine-x-max", type=float, default=152.4)
@@ -94,21 +118,49 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
     _add_machine_options(parser)
 
 
+def _add_text_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--preset", choices=("clean", "human", "cursive", "robot"), default="human"
+    )
+    parser.add_argument(
+        "--engine",
+        choices=("stroke", "outline"),
+        default=None,
+        help="Use centerline writing or conventional TTF/OTF outlines.",
+    )
+    parser.add_argument("--font-family", default=None, help="Outline-engine font family.")
+    parser.add_argument("--font-path", default=None, help="Outline-engine TTF/OTF path.")
+    parser.add_argument("--stroke-font", choices=available_stroke_fonts(), default=None)
+    parser.add_argument("--stroke-font-path", default=None, help="Custom JSON stroke-font pack.")
+    parser.add_argument("--font-size", type=float, default=18.0)
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--wrap-width", type=float, default=None, help="Word-wrap width in mm.")
+    parser.add_argument(
+        "--connect-letters",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Add baseline joins between glyphs that expose entry/exit anchors.",
+    )
+    parser.add_argument("--word-spacing", type=float, default=None, help="Space width in em units.")
+    parser.add_argument("--letter-spacing", type=float, default=None, help="Tracking in mm.")
+    parser.add_argument("--variant-mode", choices=("first", "seeded", "cycle"), default=None)
+    parser.add_argument("--stroke-order", choices=("authored", "nearest"), default=None)
+    parser.add_argument("--slant", type=float, default=None, help="Writing slant in degrees.")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="printrbot-plotter")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    text_parser = subparsers.add_parser("text", help="Render text at physical size.")
+    text_parser = subparsers.add_parser("text", help="Render centerline or outline text.")
     text_parser.add_argument("text", nargs="?", help="Text to draw.")
     text_parser.add_argument("--file", help="Read UTF-8 text from a file.")
-    text_parser.add_argument(
-        "--preset", choices=("clean", "human", "cursive", "robot"), default="human"
-    )
-    text_parser.add_argument("--font-family", default="DejaVu Sans")
-    text_parser.add_argument("--font-path")
-    text_parser.add_argument("--font-size", type=float, default=18.0)
-    text_parser.add_argument("--seed", type=int, default=7)
+    _add_text_options(text_parser)
     _add_output_options(text_parser)
+
+    fonts_parser = subparsers.add_parser("fonts", help="List or inspect stroke fonts.")
+    fonts_parser.add_argument("--font", choices=available_stroke_fonts())
+    fonts_parser.add_argument("--file", help="Inspect a custom JSON stroke-font pack.")
 
     svg_parser = subparsers.add_parser("svg", help="Render SVG paths to G-code.")
     svg_parser.add_argument("source")
@@ -172,23 +224,44 @@ def main(argv: list[str] | None = None) -> int:
         if bool(args.text) == bool(args.file):
             raise SystemExit("Provide exactly one of TEXT or --file.")
         text = args.text if args.text is not None else Path(args.file).read_text(encoding="utf-8")
-        style = StyleConfig.for_preset(
-            args.preset,
-            font_family=args.font_family,
-            font_path=args.font_path,
-            font_size_mm=args.font_size,
-            seed=args.seed,
-        )
         job = render_text_job(
             text,
             page=_page(args),
             machine=_machine(args),
             pen=_pen(args),
-            style=style,
+            style=_style(args),
             layout=_layout(args),
         )
         write_job(job, args.output, args.preview)
         _print_job(job, args.output, args.preview)
+        return 0
+
+    if args.command == "fonts":
+        if args.file:
+            font = load_stroke_font(args.file)
+        elif args.font:
+            font = get_builtin_stroke_font(args.font)
+        else:
+            for name in available_stroke_fonts():
+                font = get_builtin_stroke_font(name)
+                print(f"{font.name}: {font.description}")
+            return 0
+        print(
+            json.dumps(
+                {
+                    "name": font.name,
+                    "description": font.description,
+                    "glyphs": len(font.glyphs),
+                    "variant_counts": {
+                        character: len(variants) for character, variants in font.glyphs.items()
+                    },
+                    "fallback": font.fallback,
+                    "line_height": font.line_height,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
 
     if args.command == "svg":

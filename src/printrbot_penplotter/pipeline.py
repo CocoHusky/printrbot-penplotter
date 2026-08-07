@@ -7,7 +7,7 @@ from pathlib import Path
 from .calibration import square_cross_pattern
 from .gcode import polylines_to_gcode
 from .geometry import bounds, place_on_page, preview_svg, simplify_polylines
-from .inputs import svg_to_polylines, text_to_polylines
+from .inputs import svg_to_polylines, text_to_polylines_with_metadata
 from .models import (
     LayoutConfig,
     MachineConfig,
@@ -77,7 +77,19 @@ def render_text_job(
     style = style or StyleConfig.for_preset("human")
     layout = layout or LayoutConfig(fit_mode="downscale")
 
-    raw = text_to_polylines(text, style)
+    raw, input_metadata = text_to_polylines_with_metadata(text, style)
+    input_metadata.update(
+        {
+            "characters": len(text),
+            "preset": style.preset,
+            "seed": style.seed,
+            "requested_font_size_mm": style.font_size_mm,
+            "variant_mode": style.variant_mode,
+            "connect_letters": style.connect_letters,
+            "wrap_width_mm": style.wrap_width_mm,
+            "stroke_order": style.stroke_order,
+        }
+    )
     return _finish_job(
         raw,
         title="Text plot",
@@ -87,12 +99,7 @@ def render_text_job(
         pen=pen,
         layout=layout,
         simplify_tolerance_mm=simplify_tolerance_mm,
-        metadata={
-            "characters": len(text),
-            "preset": style.preset,
-            "seed": style.seed,
-            "requested_font_size_mm": style.font_size_mm,
-        },
+        metadata=input_metadata,
     )
 
 

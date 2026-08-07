@@ -12,6 +12,9 @@ Polylines: TypeAlias = list[Polyline]
 HorizontalAlign: TypeAlias = Literal["left", "center", "right"]
 VerticalAlign: TypeAlias = Literal["bottom", "center", "top"]
 FitMode: TypeAlias = Literal["none", "downscale", "fit"]
+TextEngine: TypeAlias = Literal["stroke", "outline"]
+VariantMode: TypeAlias = Literal["first", "seeded", "cycle"]
+StrokeOrder: TypeAlias = Literal["authored", "nearest"]
 
 
 def _require_finite(name: str, value: float) -> None:
@@ -152,18 +155,32 @@ class PenConfig:
 
 @dataclass(frozen=True)
 class StyleConfig:
-    """Text appearance and deterministic per-character variation."""
+    """Text appearance for native centerline writing or outline compatibility."""
 
     preset: Literal["clean", "human", "cursive", "robot"] = "human"
+    engine: TextEngine = "stroke"
+
+    # Outline-engine compatibility.
     font_family: str = "DejaVu Sans"
     font_path: str | None = None
+
+    # Centerline stroke-font selection and layout.
+    stroke_font: str = "hand"
+    stroke_font_path: str | None = None
+    wrap_width_mm: float | None = None
+    connect_letters: bool = False
+    word_spacing_em: float = 0.42
+    variant_mode: VariantMode = "seeded"
+    stroke_order: StrokeOrder = "authored"
+    slant_deg: float = 2.0
+
     font_size_mm: float = 18.0
-    line_spacing: float = 1.35
-    letter_spacing_mm: float = 0.8
-    rotation_jitter_deg: float = 1.8
-    baseline_jitter_mm: float = 0.7
-    x_jitter_mm: float = 0.35
-    scale_jitter: float = 0.035
+    line_spacing: float = 1.0
+    letter_spacing_mm: float = 0.55
+    rotation_jitter_deg: float = 1.4
+    baseline_jitter_mm: float = 0.45
+    x_jitter_mm: float = 0.2
+    scale_jitter: float = 0.025
     seed: int = 7
 
     @classmethod
@@ -176,26 +193,40 @@ class StyleConfig:
         if preset == "clean":
             values = {
                 "preset": preset,
+                "engine": "stroke",
+                "stroke_font": "hand",
+                "variant_mode": "first",
+                "connect_letters": False,
+                "slant_deg": 0.0,
                 "rotation_jitter_deg": 0.0,
                 "baseline_jitter_mm": 0.0,
                 "x_jitter_mm": 0.0,
                 "scale_jitter": 0.0,
-                "letter_spacing_mm": 0.5,
+                "letter_spacing_mm": 0.45,
             }
         elif preset == "cursive":
             values = {
                 "preset": preset,
-                "font_family": "cursive",
-                "rotation_jitter_deg": 1.0,
-                "baseline_jitter_mm": 0.45,
-                "x_jitter_mm": 0.2,
-                "scale_jitter": 0.025,
-                "letter_spacing_mm": -0.4,
+                "engine": "stroke",
+                "stroke_font": "hand",
+                "variant_mode": "seeded",
+                "connect_letters": True,
+                "slant_deg": 9.0,
+                "rotation_jitter_deg": 0.7,
+                "baseline_jitter_mm": 0.25,
+                "x_jitter_mm": 0.12,
+                "scale_jitter": 0.018,
+                "letter_spacing_mm": -0.08,
             }
         elif preset == "robot":
             values = {
                 "preset": preset,
-                "font_family": "DejaVu Sans Mono",
+                "engine": "stroke",
+                "stroke_font": "robot",
+                "variant_mode": "first",
+                "connect_letters": False,
+                "stroke_order": "nearest",
+                "slant_deg": 0.0,
                 "rotation_jitter_deg": 0.0,
                 "baseline_jitter_mm": 0.0,
                 "x_jitter_mm": 0.0,
@@ -203,7 +234,14 @@ class StyleConfig:
                 "letter_spacing_mm": 1.2,
             }
         else:
-            values = {"preset": "human"}
+            values = {
+                "preset": "human",
+                "engine": "stroke",
+                "stroke_font": "hand",
+                "variant_mode": "seeded",
+                "connect_letters": False,
+                "slant_deg": 3.0,
+            }
 
         values.update(overrides)
         return cls(**values)  # type: ignore[arg-type]
@@ -213,18 +251,34 @@ class StyleConfig:
             ("font_size_mm", self.font_size_mm),
             ("line_spacing", self.line_spacing),
             ("letter_spacing_mm", self.letter_spacing_mm),
+            ("word_spacing_em", self.word_spacing_em),
+            ("slant_deg", self.slant_deg),
             ("rotation_jitter_deg", self.rotation_jitter_deg),
             ("baseline_jitter_mm", self.baseline_jitter_mm),
             ("x_jitter_mm", self.x_jitter_mm),
             ("scale_jitter", self.scale_jitter),
         ):
             _require_finite(name, value)
+        if self.wrap_width_mm is not None:
+            _require_finite("wrap_width_mm", self.wrap_width_mm)
+            if self.wrap_width_mm <= 0:
+                raise ValueError("Wrap width must be positive when supplied.")
         if self.font_size_mm <= 0:
             raise ValueError("Font size must be positive.")
         if self.line_spacing <= 0:
             raise ValueError("Line spacing must be positive.")
+        if self.word_spacing_em <= 0:
+            raise ValueError("Word spacing must be positive.")
         if self.scale_jitter < 0 or self.scale_jitter >= 1:
             raise ValueError("Scale jitter must be in [0, 1).")
+        if self.engine not in ("stroke", "outline"):
+            raise ValueError("Text engine must be 'stroke' or 'outline'.")
+        if self.variant_mode not in ("first", "seeded", "cycle"):
+            raise ValueError("Variant mode must be first, seeded, or cycle.")
+        if self.stroke_order not in ("authored", "nearest"):
+            raise ValueError("Stroke order must be authored or nearest.")
+        if not self.stroke_font.strip():
+            raise ValueError("Stroke font name cannot be empty.")
 
 
 @dataclass(frozen=True)

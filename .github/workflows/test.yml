@@ -30,3 +30,19 @@ jobs:
           test -s out/calibration.svg
           grep -q '; mode: AIR PLOT' out/calibration.gcode
           ! grep -q 'pen down' out/calibration.gcode
+      - name: Writing engine CLI smoke test
+        run: |
+          printrbot-plotter fonts --font hand > out/font-info.json
+          printrbot-plotter fonts --file fonts/example-stroke-font.json > out/custom-font-info.json
+          printrbot-plotter text "minimum motion" \
+            --preset cursive \
+            --font-size 10 \
+            --wrap-width 80 \
+            --fit-mode none \
+            --air-plot \
+            --output out/writing.gcode \
+            --preview out/writing.svg
+          test -s out/writing.gcode
+          test -s out/writing.svg
+          grep -q '; mode: AIR PLOT' out/writing.gcode
+          ! grep -q 'pen down' out/writing.gcode
