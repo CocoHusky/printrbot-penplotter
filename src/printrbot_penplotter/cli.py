@@ -8,8 +8,16 @@ import sys
 from pathlib import Path
 
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
-from .pipeline import render_calibration_job, render_svg_job, render_text_job, write_job
+from .pipeline import (
+    render_calibration_job,
+    render_handwriting_job,
+    render_image_job,
+    render_svg_job,
+    render_text_job,
+    write_job,
+)
 from .preflight import run_preflight
+from .raster import RasterTraceConfig, editable_trace_svg, trace_raster
 from .sender import MarlinSender
 from .stroke_fonts import available_stroke_fonts, get_builtin_stroke_font, load_stroke_font
 
@@ -81,6 +89,18 @@ def _style(args: argparse.Namespace) -> StyleConfig:
     return StyleConfig.for_preset(args.preset, **overrides)
 
 
+def _raster_trace(args: argparse.Namespace) -> RasterTraceConfig:
+    return RasterTraceConfig(
+        mode=args.trace_mode,
+        threshold=args.threshold,
+        invert=args.invert,
+        blur_radius_px=args.blur_radius,
+        min_component_px=args.min_component,
+        max_dimension_px=args.max_dimension,
+        simplify_px=args.simplify_px,
+    )
+
+
 def _add_machine_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--machine-x-min", type=float, default=0.0)
     parser.add_argument("--machine-x-max", type=float, default=152.4)
@@ -148,6 +168,50 @@ def _add_text_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--slant", type=float, default=None, help="Writing slant in degrees.")
 
 
+def _add_raster_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--trace-mode",
+        choices=("centerline", "contour"),
+        default="contour",
+        help="Trace stroke centers or the foreground outline.",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=int,
+        default=None,
+        help="0-255 foreground threshold. Omit for deterministic Otsu auto-thresholding.",
+    )
+    parser.add_argument(
+        "--invert",
+        action="store_true",
+        help="Treat light marks on a dark background as foreground.",
+    )
+    parser.add_argument("--blur-radius", type=float, default=0.0, help="Gaussian blur radius in px.")
+    parser.add_argument(
+        "--min-component",
+        type=int,
+        default=8,
+        help="Remove connected foreground components smaller than this many pixels.",
+    )
+    parser.add_argument(
+        "--max-dimension",
+        type=int,
+        default=1200,
+        help="Downsample so the longest processed image side does not exceed this many pixels.",
+    )
+    parser.add_argument(
+        "--simplify-px",
+        type=float,
+        default=1.0,
+        help="Pre-placement polyline simplification tolerance in processed pixels.",
+    )
+    parser.add_argument(
+        "--trace-svg",
+        default=None,
+        help="Also save the raw traced paths as an editable SVG before machine placement.",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="printrbot-plotter")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -166,6 +230,30 @@ def build_parser() -> argparse.ArgumentParser:
     svg_parser.add_argument("source")
     _add_output_options(svg_parser)
     svg_parser.set_defaults(fit_mode="fit")
+
+    image_parser = subparsers.add_parser(
+        "image",
+        help="Trace a PNG/JPEG/WebP/TIFF/BMP image into plotter geometry.",
+    )
+    image_parser.add_argument("source")
+    _add_raster_options(image_parser)
+    _add_output_options(image_parser)
+    image_parser.set_defaults(trace_mode="contour", fit_mode="fit")
+
+    handwriting_parser = subparsers.add_parser(
+        "handwriting",
+        help="Centerline-trace photographed or scanned handwriting without OCR.",
+    )
+    handwriting_parser.add_argument("source")
+    _add_raster_options(handwriting_parser)
+    _add_output_options(handwriting_parser)
+    handwriting_parser.set_defaults(
+        trace_mode="centerline",
+        blur_radius=0.3,
+        min_component=4,
+        simplify_px=0.6,
+        fit_mode="fit",
+    )
 
     calibration_parser = subparsers.add_parser(
         "calibrate",
@@ -215,6 +303,16 @@ def _print_job(job: object, output: str, preview: str) -> None:
     print(f"G-code: {output}")
     print(f"Preview: {preview}")
     print(json.dumps(metadata, indent=2, sort_keys=True))
+
+
+def _write_raw_trace(source: str, config: RasterTraceConfig, target: str | None) -> None:
+    if target is None:
+        return
+    traced = trace_raster(source, config)
+    destination = Path(target)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(editable_trace_svg(traced.polylines), encoding="utf-8")
+    print(f"Editable trace: {destination}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -273,6 +371,24 @@ def main(argv: list[str] | None = None) -> int:
             layout=_layout(args),
         )
         write_job(job, args.output, args.preview)
+        _print_job(job, args.output, args.preview)
+        return 0
+
+    if args.command in ("image", "handwriting"):
+        trace = _raster_trace(args)
+        if args.command == "handwriting" and trace.mode != "centerline":
+            raise SystemExit("The handwriting command requires --trace-mode centerline.")
+        renderer = render_image_job if args.command == "image" else render_handwriting_job
+        job = renderer(
+            args.source,
+            trace=trace,
+            page=_page(args),
+            machine=_machine(args),
+            pen=_pen(args),
+            layout=_layout(args),
+        )
+        write_job(job, args.output, args.preview)
+        _write_raw_trace(args.source, trace, args.trace_svg)
         _print_job(job, args.output, args.preview)
         return 0
 
