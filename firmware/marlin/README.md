@@ -39,31 +39,61 @@ This project uses native USB as Marlin serial port 0 and hardware UART1 as secon
 
 That HAL change must be preserved when recreating the firmware from a clean Marlin 2.1.2.8 tree. Until the exact local diff is committed here, the known-good local tree remains the authoritative build source for that patch.
 
-## Apply the tracked configuration values
+## One-command rebuild and flash
 
-From this repository:
+The normal workflow is now one command from anywhere on the Mac:
+
+```bash
+bash ~/printrbot-penplotter/firmware/marlin/rebuild_and_flash.sh
+```
+
+The helper:
+
+1. applies the project-controlled Marlin settings;
+2. builds `at90usb1286_dfu`;
+3. stores the resulting HEX under the local Marlin tree's `build-artifacts/` directory;
+4. prints and verifies the SHA-256;
+5. pauses while the Printrboard is placed in DFU mode;
+6. flashes the AT90USB1286;
+7. reminds the operator to test `M115`, `M119`, and individual X/Y/Z homing before full homing.
+
+Default local Marlin tree:
+
+```text
+~/Desktop/printrboard-marlin-2.1.2.8
+```
+
+A different tree can be supplied as the first argument:
+
+```bash
+bash ~/printrbot-penplotter/firmware/marlin/rebuild_and_flash.sh \
+  /path/to/printrboard-marlin-2.1.2.8
+```
+
+## Individual helpers
+
+Apply only the tracked configuration values:
 
 ```bash
 python3 firmware/marlin/apply_project_config.py \
   ~/Desktop/printrboard-marlin-2.1.2.8
 ```
 
-The script edits `Marlin/Configuration.h` and verifies the values it controls.
-
-## Build
+Build only:
 
 ```bash
 firmware/marlin/build_printrboard.sh \
   ~/Desktop/printrboard-marlin-2.1.2.8
 ```
 
-The script builds:
+Flash an already-built HEX only:
 
-```text
-pio run -e at90usb1286_dfu
+```bash
+firmware/marlin/flash_printrboard.sh \
+  ~/Desktop/printrboard-marlin-2.1.2.8 \
+  ~/Desktop/printrboard-marlin-2.1.2.8/build-artifacts/printrbot-revf4-plotter-wifi-directions-fixed-marlin-2.1.2.8.hex \
+  FLASH
 ```
-
-and copies the resulting HEX to the Marlin tree's `build-artifacts/` directory with a descriptive filename and SHA-256.
 
 ## Physical validation status
 
@@ -75,6 +105,6 @@ As of 2026-08-07:
 - Y homing direction was observed correct;
 - the previous build drove X and Z in the wrong homing direction;
 - X and Z inversion were changed from `false` to `true` and a new build completed successfully;
-- the new X/Z direction build has **not yet been flashed and physically revalidated**.
+- the new X/Z direction build has been flashed, but X/Y/Z homing still needs to be physically revalidated one axis at a time.
 
 Do not run a full `G28` until X, Y, and Z have each been homed individually and observed moving toward the correct switch.
