@@ -1,4 +1,4 @@
-"""Input adapters that turn text and vector art into polylines."""
+"""Input adapters that turn text, vector art, and raster sources into polylines."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .geometry import rotate_scale_translate
 from .models import Polylines, StyleConfig
+from .raster import RasterTraceConfig, trace_raster
 from .writing import stroke_text_to_polylines
 
 POINTS_PER_INCH = 72.0
@@ -169,4 +170,24 @@ def svg_to_polylines(path: str | Path, curve_step: float = 0.01) -> Polylines:
 
     if not polylines:
         raise ValueError("The SVG contains no drawable path geometry.")
+    return polylines
+
+
+def raster_to_polylines_with_metadata(
+    path: str | Path,
+    config: RasterTraceConfig | None = None,
+) -> tuple[Polylines, dict[str, object]]:
+    """Trace a raster image and return the shared geometry plus trace metadata."""
+
+    result = trace_raster(path, config)
+    return result.polylines, result.metadata
+
+
+def raster_to_polylines(
+    path: str | Path,
+    config: RasterTraceConfig | None = None,
+) -> Polylines:
+    """Compatibility wrapper returning raster trace geometry only."""
+
+    polylines, _ = raster_to_polylines_with_metadata(path, config)
     return polylines
