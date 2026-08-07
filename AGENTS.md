@@ -52,6 +52,19 @@ The finished product must let a user type text or supply handwriting, sketches, 
 9. **Keep font data separate from layout.** `stroke_fonts.py` owns glyph definitions and loading; `writing.py` owns selection, wrapping, transforms, and joins; machine placement remains in `geometry.py`.
 10. **Do not overclaim cursive quality.** Baseline connectors are not contextual calligraphy, ligatures, collision avoidance, or continuous handwriting unless those features are implemented and tested.
 
+## Raster image and handwriting rules
+
+1. **Raster input becomes polylines before machine placement.** Thresholding, cleanup, skeletonization, and contour extraction happen upstream of page layout and G-code.
+2. **Centerline and contour tracing are distinct.** Centerline mode is intended for stroke-like input such as handwriting; contour mode follows foreground boundaries. Never describe contour output as one-stroke handwriting.
+3. **Do not claim handwriting recognition.** Release 0.5 traces visible marks. It does not infer characters, retype notes, perform OCR, or reconstruct semantic writing unless a separate recognition feature is explicitly implemented and tested.
+4. **Preprocessing must be deterministic.** Threshold, inversion, blur, component filtering, resize limits, tracing mode, and simplification values belong in metadata or a reproducible job record.
+5. **Raster files are untrusted input.** Enforce source-pixel, processed-pixel, geometry-point, and stroke-count limits before hardware output is possible.
+6. **Large images are downsampled before expensive tracing.** Do not allow phone-camera resolution to become unbounded skeleton or contour geometry.
+7. **Noise removal must be visible and controllable.** Connected-component filtering may remove only components below an explicit configured size; report what was removed.
+8. **Manual correction must preserve the shared pipeline.** Editable trace SVGs or future browser edits become the geometry source that is then previewed and converted to G-code. Do not maintain a separate hidden corrected representation.
+9. **Do not silently apply remote AI or cloud image processing.** Raster tracing is local and deterministic unless the user explicitly opts into a separate external service in a future feature.
+10. **Do not overclaim photographic robustness.** Global thresholding is not perspective correction, adaptive illumination handling, semantic segmentation, or background removal. Those capabilities require their own implementation and tests.
+
 ## ESP32 transport rules
 
 1. **The ESP32 transports final jobs; it does not render them.** Font selection, image tracing, geometry, layout, preview, and G-code generation remain in the Python application.
@@ -78,6 +91,11 @@ The current foundation provides:
 - physical wrapping, tracking, word spacing, and slant;
 - conventional TTF/OTF outline compatibility;
 - SVG path import;
+- deterministic raster preprocessing with EXIF orientation, grayscale conversion, Otsu/manual thresholding, inversion, blur, image-size limits, and connected-component cleanup;
+- centerline raster tracing through skeletonization and graph paths;
+- contour raster tracing through foreground boundary paths;
+- image and handwriting CLI adapters feeding the same polyline pipeline;
+- editable raw trace SVG export for external manual correction;
 - exact machine-space placement and validation;
 - preview generated from final plot paths;
 - Marlin G-code using X/Y motion and Z pen lift;
@@ -85,9 +103,9 @@ The current foundation provides:
 - ESP32-C3 firmware with Wi-Fi, LittleFS upload, safety validation, acknowledgement-based forwarding, job states, browser controls, and UART logs;
 - a Python ESP32 bridge client;
 - local browser UI and CLI;
-- tests proving deterministic output, bounds, safe defaults, font loading, joining, wrapping, bridge request formation, and firmware safety filtering.
+- tests proving deterministic output, bounds, safe defaults, font loading, joining, wrapping, bridge request formation, firmware safety filtering, raster centerline tracing, contour tracing, cleanup, inversion, and raster pipeline integration.
 
-Do not claim raster-image tracing, handwriting recognition, contextual cursive, ligatures, authenticated ESP32 sessions, power-loss resume, autonomous calibration, or completed physical hardware validation until code and tests exist.
+Do not claim handwriting recognition, adaptive/local thresholding, perspective correction, in-browser raster editing, authenticated ESP32 sessions, power-loss resume, autonomous calibration, or completed physical hardware validation until code and tests exist.
 
 ## Development sequence
 
@@ -97,18 +115,19 @@ Software work may proceed in separate releases, but physical drawing remains gat
 2. **Safe machine foundation** — physical coordinates, calibration, air plots, serial failure behavior.
 3. **Writing intelligence** — centerline fonts, alternates, joins, wrapping, and word layout.
 4. **ESP32 transport** — Wi-Fi UI/API forwarding to Marlin UART with status and recovery.
-5. **Image and handwriting ingestion** — thresholding, centerline/contour tracing, cleanup, manual correction.
+5. **Image and handwriting ingestion** — thresholding, centerline/contour tracing, cleanup, manual correction. Release 0.5 is in progress.
 6. **Motion quality** — reduced pen lifts, corner handling, smoothing, and feed optimization.
 7. **Product UX** — job queue, saved profiles, mobile controls, editing, and reproducible job files.
 
-Writing and transport code can be developed and previewed while Release 0.2 physical work is unfinished. Neither may bypass preflight, air-plot, motor-direction, homing, origin, level-shifter, power, or pen-height validation before real plotting.
+Writing, raster, and transport code can be developed and previewed while Release 0.2 physical work is unfinished. None may bypass preflight, air-plot, motor-direction, homing, origin, level-shifter, power, or pen-height validation before real plotting.
 
 ## Code architecture rules
 
 - `stroke_fonts.py` defines centerline font models, built-ins, and validated font-pack loading.
 - `writing.py` selects glyph variants, wraps text, creates joins, and emits millimeter polylines.
+- `raster.py` owns deterministic raster preprocessing, skeletonization, contour extraction, trace simplification, and editable raw-trace SVG generation.
 - `optimize.py` provides deterministic travel metrics and ordering helpers without generating artwork.
-- `inputs.py` dispatches source material into polylines and keeps stroke/outline engines explicit.
+- `inputs.py` dispatches text, SVG, and raster source material into polylines and keeps engine/trace modes explicit.
 - `geometry.py` validates, transforms, places, simplifies, and previews polylines.
 - `gcode.py` is the only Python module that converts final geometry into Marlin movement commands.
 - `sender.py` handles direct USB acknowledgement and errors; it must not generate artwork.
