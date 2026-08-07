@@ -23,9 +23,11 @@ A user can define machine limits and paper placement, generate a known-size patt
 - [x] Add air-plot G-code that never lowers the pen.
 - [x] Add non-moving `M115`, `M119`, `M114`, and `M503` preflight checks.
 - [x] Add cancellable command-by-command sending with progress callback support.
-- [x] Attempt an orderly `M400 → pen up → M400` stop after cancellation or Marlin error.
-- [x] Add mocked Marlin tests for preflight, cancellation, and safe-stop behavior.
+- [x] Attempt an orderly `M400 → pen up → M400` stop after cancellation or serial/Marlin error.
+- [x] Block heater, extrusion, and tool-change commands before they can reach serial.
+- [x] Add mocked Marlin tests for preflight, cancellation, safe-stop behavior, and forbidden commands.
 - [x] Add CLI and browser controls for physical layout and calibration generation.
+- [x] Add compile, unit-test, and calibration CLI smoke checks in GitHub Actions.
 
 ## Remaining before Release 0.2 is complete
 
@@ -70,7 +72,6 @@ A user can define machine limits and paper placement, generate a known-size patt
 - [ ] Add web API tests.
 - [ ] Add SVG import and transform fixtures.
 - [ ] Add disconnect, timeout, malformed response, and serial write-failure tests.
-- [ ] Add tests proving no heater or extrusion command can be generated or sent by the normal job pipeline.
 - [ ] Add golden calibration SVG and G-code fixtures.
 - [ ] Add formatting, linting, type checking, and coverage reporting.
 - [ ] Run CI on macOS and Linux.
