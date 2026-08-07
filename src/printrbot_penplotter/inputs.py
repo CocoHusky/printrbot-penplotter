@@ -9,18 +9,26 @@ from pathlib import Path
 from .geometry import rotate_scale_translate
 from .models import Polylines, StyleConfig
 
+POINTS_PER_INCH = 72.0
+MM_PER_INCH = 25.4
+POINTS_TO_MM = MM_PER_INCH / POINTS_PER_INCH
+
 
 def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
-    """Convert text glyph outlines to deterministic polylines.
+    """Convert text glyph outlines to millimeter-scale polylines.
 
-    The output is deliberately font-agnostic. A user can point to any installed
-    TTF/OTF file, including handwriting and cursive fonts. Per-character
-    variation is deterministic for a given seed.
+    Matplotlib defines font sizes and returned path coordinates in typographic
+    points. The adapter converts those values into millimeters before the
+    geometry reaches layout. Therefore ``font_size_mm`` now controls physical
+    output size instead of merely acting as a relative value later expanded to
+    fill the page.
     """
 
     style.validate()
     if not text:
         raise ValueError("Text input cannot be empty.")
+    if style.font_path is not None and not Path(style.font_path).is_file():
+        raise FileNotFoundError(f"Font file not found: {style.font_path}")
 
     try:
         import matplotlib
@@ -31,33 +39,34 @@ def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
     except ImportError as exc:  # pragma: no cover - dependency error path
         raise RuntimeError("Text rendering requires matplotlib.") from exc
 
+    font_size_points = style.font_size_mm / POINTS_TO_MM
     font = FontProperties(
         family=style.font_family,
         fname=style.font_path,
-        size=style.font_size_mm,
+        size=font_size_points,
     )
     metrics = TextToPath()
     rng = random.Random(style.seed)
 
     lines: Polylines = []
-    cursor_x = 0.0
-    cursor_y = 0.0
-    line_height = style.font_size_mm * style.line_spacing
+    cursor_x_mm = 0.0
+    cursor_y_mm = 0.0
+    line_height_mm = style.font_size_mm * style.line_spacing
 
     for character in text:
         if character == "\n":
-            cursor_x = 0.0
-            cursor_y -= line_height
+            cursor_x_mm = 0.0
+            cursor_y_mm -= line_height_mm
             continue
 
-        width, _, _ = metrics.get_text_width_height_descent(character, font, False)
-        advance = max(float(width), style.font_size_mm * 0.28)
+        width_points, _, _ = metrics.get_text_width_height_descent(character, font, False)
+        advance_mm = max(float(width_points) * POINTS_TO_MM, style.font_size_mm * 0.28)
 
         if character.isspace():
-            cursor_x += advance + style.letter_spacing_mm
+            cursor_x_mm += advance_mm + style.letter_spacing_mm
             continue
 
-        glyph = TextPath((cursor_x, cursor_y), character, prop=font, usetex=False)
+        glyph = TextPath((0.0, 0.0), character, prop=font, usetex=False)
         polygons = glyph.to_polygons(closed_only=False)
 
         rotation = rng.uniform(-style.rotation_jitter_deg, style.rotation_jitter_deg)
@@ -68,11 +77,17 @@ def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
         for polygon in polygons:
             if len(polygon) < 2:
                 continue
-            line = [(float(point[0]), float(point[1])) for point in polygon]
+            line = [
+                (
+                    float(point[0]) * POINTS_TO_MM + cursor_x_mm,
+                    float(point[1]) * POINTS_TO_MM + cursor_y_mm,
+                )
+                for point in polygon
+            ]
             lines.append(
                 rotate_scale_translate(
                     line,
-                    origin=(cursor_x, cursor_y),
+                    origin=(cursor_x_mm, cursor_y_mm),
                     rotation_deg=rotation,
                     scale=scale,
                     translate_x=x_jitter,
@@ -80,7 +95,7 @@ def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
                 )
             )
 
-        cursor_x += advance + style.letter_spacing_mm
+        cursor_x_mm += advance_mm + style.letter_spacing_mm
 
     if not lines:
         raise ValueError("The supplied text produced no drawable glyphs.")
@@ -91,8 +106,7 @@ def svg_to_polylines(path: str | Path, curve_step: float = 0.01) -> Polylines:
     """Convert SVG paths into sampled polylines.
 
     SVG is the bridge format for sketches, handwriting traces, and image-vector
-    conversion. The geometry is normalized later, so SVG units do not need to
-    be millimeters.
+    conversion. SVG geometry is scaled and placed by the shared layout stage.
     """
 
     try:
