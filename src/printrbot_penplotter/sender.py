@@ -157,7 +157,10 @@ class MarlinSender:
                 sent += 1
                 if progress is not None:
                     progress(sent, total, command)
-        except (PlotCancelled, MarlinError):
+        except Exception:
+            # Serial write/read failures, timeouts, Marlin errors, and normal
+            # cancellation all stop new commands and attempt a calibrated
+            # pen-up sequence. KeyboardInterrupt remains handled by the CLI.
             self.safe_stop(safe_z_up_mm, log=log)
             raise
         return sent
