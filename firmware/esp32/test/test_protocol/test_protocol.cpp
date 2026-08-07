@@ -1,3 +1,4 @@
+#include <cstring>
 #include <unity.h>
 
 #include "plotter_protocol.h"
