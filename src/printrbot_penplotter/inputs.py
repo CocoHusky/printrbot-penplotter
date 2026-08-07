@@ -8,20 +8,19 @@ from pathlib import Path
 
 from .geometry import rotate_scale_translate
 from .models import Polylines, StyleConfig
+from .writing import stroke_text_to_polylines
 
 POINTS_PER_INCH = 72.0
 MM_PER_INCH = 25.4
 POINTS_TO_MM = MM_PER_INCH / POINTS_PER_INCH
 
 
-def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
-    """Convert text glyph outlines to millimeter-scale polylines.
+def outline_text_to_polylines(text: str, style: StyleConfig) -> Polylines:
+    """Convert conventional font outlines to millimeter-scale polylines.
 
-    Matplotlib defines font sizes and returned path coordinates in typographic
-    points. The adapter converts those values into millimeters before the
-    geometry reaches layout. Therefore ``font_size_mm`` now controls physical
-    output size instead of merely acting as a relative value later expanded to
-    fill the page.
+    This compatibility engine traces the edges of filled TTF/OTF glyphs. It is
+    useful for outlined lettering and logos, but the native stroke engine is the
+    preferred path for handwriting because it draws each centerline once.
     """
 
     style.validate()
@@ -37,7 +36,7 @@ def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
         from matplotlib.font_manager import FontProperties
         from matplotlib.textpath import TextPath, TextToPath
     except ImportError as exc:  # pragma: no cover - dependency error path
-        raise RuntimeError("Text rendering requires matplotlib.") from exc
+        raise RuntimeError("Outline text rendering requires matplotlib.") from exc
 
     font_size_points = style.font_size_mm / POINTS_TO_MM
     font = FontProperties(
@@ -100,6 +99,37 @@ def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
     if not lines:
         raise ValueError("The supplied text produced no drawable glyphs.")
     return lines
+
+
+def text_to_polylines_with_metadata(
+    text: str,
+    style: StyleConfig,
+) -> tuple[Polylines, dict[str, object]]:
+    """Render text and return engine-specific metadata."""
+
+    if style.engine == "stroke":
+        result = stroke_text_to_polylines(text, style)
+        return result.polylines, {
+            "text_engine": "stroke",
+            "stroke_font": result.font_name,
+            "glyphs": result.glyph_count,
+            "connectors": result.connector_count,
+            "lines": result.line_count,
+            "glyph_variants": list(result.variant_labels),
+            "unsupported_characters": list(result.unsupported_characters),
+        }
+    return outline_text_to_polylines(text, style), {
+        "text_engine": "outline",
+        "font_family": style.font_family,
+        "font_path": style.font_path,
+    }
+
+
+def text_to_polylines(text: str, style: StyleConfig) -> Polylines:
+    """Compatibility wrapper returning geometry only."""
+
+    polylines, _ = text_to_polylines_with_metadata(text, style)
+    return polylines
 
 
 def svg_to_polylines(path: str | Path, curve_step: float = 0.01) -> Polylines:
