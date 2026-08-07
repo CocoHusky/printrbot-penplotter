@@ -4,37 +4,94 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .calibration import square_cross_pattern
 from .gcode import polylines_to_gcode
-from .geometry import fit_to_page, preview_svg, simplify_polylines
+from .geometry import bounds, place_on_page, preview_svg, simplify_polylines
 from .inputs import svg_to_polylines, text_to_polylines
-from .models import PageConfig, PenConfig, RenderedJob, StyleConfig
+from .models import (
+    LayoutConfig,
+    MachineConfig,
+    PageConfig,
+    PenConfig,
+    Polylines,
+    RenderedJob,
+    StyleConfig,
+)
+
+
+def _finish_job(
+    raw: Polylines,
+    *,
+    title: str,
+    input_type: str,
+    page: PageConfig,
+    machine: MachineConfig,
+    pen: PenConfig,
+    layout: LayoutConfig,
+    simplify_tolerance_mm: float,
+    metadata: dict[str, object] | None = None,
+) -> RenderedJob:
+    placed = place_on_page(raw, page, layout, machine)
+    simplified = simplify_polylines(placed, simplify_tolerance_mm)
+    min_x, min_y, max_x, max_y = bounds(simplified)
+    complete_metadata: dict[str, object] = {
+        "input_type": input_type,
+        "strokes": len(simplified),
+        "width_mm": round(max_x - min_x, 3),
+        "height_mm": round(max_y - min_y, 3),
+        "minimum_x_mm": round(min_x, 3),
+        "minimum_y_mm": round(min_y, 3),
+        "air_plot": pen.air_plot,
+        "fit_mode": layout.fit_mode,
+    }
+    if metadata:
+        complete_metadata.update(metadata)
+
+    return RenderedJob(
+        polylines=simplified,
+        gcode=polylines_to_gcode(
+            simplified,
+            page,
+            pen,
+            machine,
+            title=title,
+        ),
+        preview_svg=preview_svg(simplified, page, machine),
+        metadata=complete_metadata,
+    )
 
 
 def render_text_job(
     text: str,
     *,
     page: PageConfig | None = None,
+    machine: MachineConfig | None = None,
     pen: PenConfig | None = None,
     style: StyleConfig | None = None,
+    layout: LayoutConfig | None = None,
     simplify_tolerance_mm: float = 0.04,
 ) -> RenderedJob:
     page = page or PageConfig()
+    machine = machine or MachineConfig()
     pen = pen or PenConfig()
     style = style or StyleConfig.for_preset("human")
+    layout = layout or LayoutConfig(fit_mode="downscale")
 
     raw = text_to_polylines(text, style)
-    fitted = fit_to_page(raw, page)
-    simplified = simplify_polylines(fitted, simplify_tolerance_mm)
-    return RenderedJob(
-        polylines=simplified,
-        gcode=polylines_to_gcode(simplified, page, pen, title="Text plot"),
-        preview_svg=preview_svg(simplified, page),
+    return _finish_job(
+        raw,
+        title="Text plot",
+        input_type="text",
+        page=page,
+        machine=machine,
+        pen=pen,
+        layout=layout,
+        simplify_tolerance_mm=simplify_tolerance_mm,
         metadata={
-            "input_type": "text",
             "characters": len(text),
-            "strokes": len(simplified),
             "preset": style.preset,
             "seed": style.seed,
+            "requested_font_size_mm": style.font_size_mm,
         },
     )
 
@@ -43,24 +100,55 @@ def render_svg_job(
     source: str | Path,
     *,
     page: PageConfig | None = None,
+    machine: MachineConfig | None = None,
     pen: PenConfig | None = None,
+    layout: LayoutConfig | None = None,
     simplify_tolerance_mm: float = 0.04,
 ) -> RenderedJob:
     page = page or PageConfig()
+    machine = machine or MachineConfig()
     pen = pen or PenConfig()
+    layout = layout or LayoutConfig(fit_mode="fit")
 
     raw = svg_to_polylines(source)
-    fitted = fit_to_page(raw, page)
-    simplified = simplify_polylines(fitted, simplify_tolerance_mm)
-    return RenderedJob(
-        polylines=simplified,
-        gcode=polylines_to_gcode(simplified, page, pen, title="SVG plot"),
-        preview_svg=preview_svg(simplified, page),
-        metadata={
-            "input_type": "svg",
-            "source": str(source),
-            "strokes": len(simplified),
-        },
+    return _finish_job(
+        raw,
+        title="SVG plot",
+        input_type="svg",
+        page=page,
+        machine=machine,
+        pen=pen,
+        layout=layout,
+        simplify_tolerance_mm=simplify_tolerance_mm,
+        metadata={"source": str(source)},
+    )
+
+
+def render_calibration_job(
+    *,
+    size_mm: float = 10.0,
+    page: PageConfig | None = None,
+    machine: MachineConfig | None = None,
+    pen: PenConfig | None = None,
+    layout: LayoutConfig | None = None,
+) -> RenderedJob:
+    """Create the known-size Release 0.2 calibration job."""
+
+    page = page or PageConfig()
+    machine = machine or MachineConfig()
+    pen = pen or PenConfig(air_plot=True)
+    layout = layout or LayoutConfig(fit_mode="none")
+    raw = square_cross_pattern(size_mm=size_mm)
+    return _finish_job(
+        raw,
+        title=f"{size_mm:g} mm calibration pattern",
+        input_type="calibration",
+        page=page,
+        machine=machine,
+        pen=pen,
+        layout=layout,
+        simplify_tolerance_mm=0.0,
+        metadata={"nominal_square_size_mm": size_mm},
     )
 
 
