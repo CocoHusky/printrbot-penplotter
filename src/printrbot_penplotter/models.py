@@ -115,6 +115,8 @@ class PenConfig:
     z_down_mm: float = 0.0
     travel_feed_mm_min: float = 3000.0
     draw_feed_mm_min: float = 1200.0
+    corner_feed_mm_min: float = 650.0
+    corner_angle_deg: float = 70.0
     z_feed_mm_min: float = 300.0
     home_before_plot: bool = False
     air_plot: bool = False
@@ -127,16 +129,23 @@ class PenConfig:
             ("z_down_mm", self.z_down_mm),
             ("travel_feed_mm_min", self.travel_feed_mm_min),
             ("draw_feed_mm_min", self.draw_feed_mm_min),
+            ("corner_feed_mm_min", self.corner_feed_mm_min),
+            ("corner_angle_deg", self.corner_angle_deg),
             ("z_feed_mm_min", self.z_feed_mm_min),
         ):
             _require_finite(name, value)
         for name, value in (
             ("travel_feed_mm_min", self.travel_feed_mm_min),
             ("draw_feed_mm_min", self.draw_feed_mm_min),
+            ("corner_feed_mm_min", self.corner_feed_mm_min),
             ("z_feed_mm_min", self.z_feed_mm_min),
         ):
             if value <= 0:
                 raise ValueError(f"{name} must be positive.")
+        if not 0 < self.corner_angle_deg < 180:
+            raise ValueError("corner_angle_deg must be between 0 and 180 degrees.")
+        if self.corner_feed_mm_min > self.draw_feed_mm_min:
+            raise ValueError("corner feed must not exceed the normal drawing feed.")
         if self.park_x_mm is None and self.park_y_mm is not None:
             raise ValueError("Park X and Y must either both be set or both be unset.")
         if self.park_y_mm is None and self.park_x_mm is not None:
