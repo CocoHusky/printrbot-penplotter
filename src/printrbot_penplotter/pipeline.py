@@ -7,7 +7,11 @@ from pathlib import Path
 from .calibration import square_cross_pattern
 from .gcode import polylines_to_gcode
 from .geometry import bounds, place_on_page, preview_svg, simplify_polylines
-from .inputs import svg_to_polylines, text_to_polylines_with_metadata
+from .inputs import (
+    raster_to_polylines_with_metadata,
+    svg_to_polylines,
+    text_to_polylines_with_metadata,
+)
 from .models import (
     LayoutConfig,
     MachineConfig,
@@ -17,6 +21,7 @@ from .models import (
     RenderedJob,
     StyleConfig,
 )
+from .raster import RasterTraceConfig
 
 
 def _finish_job(
@@ -128,6 +133,100 @@ def render_svg_job(
         layout=layout,
         simplify_tolerance_mm=simplify_tolerance_mm,
         metadata={"source": str(source)},
+    )
+
+
+def _render_raster_job(
+    source: str | Path,
+    *,
+    input_type: str,
+    title: str,
+    trace: RasterTraceConfig,
+    page: PageConfig | None,
+    machine: MachineConfig | None,
+    pen: PenConfig | None,
+    layout: LayoutConfig | None,
+    simplify_tolerance_mm: float,
+    metadata: dict[str, object] | None = None,
+) -> RenderedJob:
+    page = page or PageConfig()
+    machine = machine or MachineConfig()
+    pen = pen or PenConfig()
+    layout = layout or LayoutConfig(fit_mode="fit")
+
+    raw, trace_metadata = raster_to_polylines_with_metadata(source, trace)
+    if metadata:
+        trace_metadata.update(metadata)
+    return _finish_job(
+        raw,
+        title=title,
+        input_type=input_type,
+        page=page,
+        machine=machine,
+        pen=pen,
+        layout=layout,
+        simplify_tolerance_mm=simplify_tolerance_mm,
+        metadata=trace_metadata,
+    )
+
+
+def render_image_job(
+    source: str | Path,
+    *,
+    trace: RasterTraceConfig | None = None,
+    page: PageConfig | None = None,
+    machine: MachineConfig | None = None,
+    pen: PenConfig | None = None,
+    layout: LayoutConfig | None = None,
+    simplify_tolerance_mm: float = 0.04,
+) -> RenderedJob:
+    """Trace a raster image as contours or centerlines and render one plot job."""
+
+    trace = trace or RasterTraceConfig(mode="contour", min_component_px=8, simplify_px=1.0)
+    return _render_raster_job(
+        source,
+        input_type="image",
+        title="Raster image plot",
+        trace=trace,
+        page=page,
+        machine=machine,
+        pen=pen,
+        layout=layout,
+        simplify_tolerance_mm=simplify_tolerance_mm,
+    )
+
+
+def render_handwriting_job(
+    source: str | Path,
+    *,
+    trace: RasterTraceConfig | None = None,
+    page: PageConfig | None = None,
+    machine: MachineConfig | None = None,
+    pen: PenConfig | None = None,
+    layout: LayoutConfig | None = None,
+    simplify_tolerance_mm: float = 0.04,
+) -> RenderedJob:
+    """Trace photographed or scanned handwriting without recognizing/retyping it."""
+
+    trace = trace or RasterTraceConfig(
+        mode="centerline",
+        blur_radius_px=0.3,
+        min_component_px=4,
+        simplify_px=0.6,
+    )
+    if trace.mode != "centerline":
+        raise ValueError("Handwriting input uses centerline tracing; trace.mode must be centerline.")
+    return _render_raster_job(
+        source,
+        input_type="handwriting",
+        title="Handwriting trace plot",
+        trace=trace,
+        page=page,
+        machine=machine,
+        pen=pen,
+        layout=layout,
+        simplify_tolerance_mm=simplify_tolerance_mm,
+        metadata={"handwriting_recognition": False},
     )
 
 

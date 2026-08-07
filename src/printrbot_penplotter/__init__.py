@@ -10,7 +10,14 @@ from .models import (
     StyleConfig,
 )
 from .optimize import optimize_stroke_order, pen_up_distance
-from .pipeline import render_calibration_job, render_svg_job, render_text_job
+from .pipeline import (
+    render_calibration_job,
+    render_handwriting_job,
+    render_image_job,
+    render_svg_job,
+    render_text_job,
+)
+from .raster import RasterTraceConfig, RasterTraceResult, editable_trace_svg, trace_raster
 from .stroke_fonts import (
     GlyphVariant,
     StrokeFont,
@@ -28,19 +35,25 @@ __all__ = [
     "MachineConfig",
     "PageConfig",
     "PenConfig",
+    "RasterTraceConfig",
+    "RasterTraceResult",
     "RenderedJob",
     "StrokeFont",
     "StyleConfig",
     "WritingResult",
     "available_stroke_fonts",
+    "editable_trace_svg",
     "get_builtin_stroke_font",
     "load_stroke_font",
     "optimize_stroke_order",
     "pen_up_distance",
     "render_calibration_job",
+    "render_handwriting_job",
+    "render_image_job",
     "render_svg_job",
     "render_text_job",
     "stroke_text_to_polylines",
+    "trace_raster",
 ]
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
