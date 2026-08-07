@@ -1,4 +1,4 @@
-"""Local web interface for physical-size preview and guarded plotting."""
+"""Local web interface for writing preview and guarded plotting."""
 
 from __future__ import annotations
 
@@ -12,17 +12,28 @@ from pydantic import BaseModel, Field
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
 from .pipeline import render_calibration_job, render_text_job
 from .sender import MarlinSender
+from .stroke_fonts import available_stroke_fonts, get_builtin_stroke_font
 
-app = FastAPI(title="Printrbot Pen Plotter", version="0.2.0")
+app = FastAPI(title="Printrbot Pen Plotter", version="0.3.0")
 
 
 class RenderRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
     preset: Literal["clean", "human", "cursive", "robot"] = "human"
+    engine: Literal["stroke", "outline"] = "stroke"
     font_family: str = "DejaVu Sans"
     font_path: str | None = None
+    stroke_font: str = "hand"
+    stroke_font_path: str | None = None
     seed: int = 7
     font_size_mm: float = Field(default=18.0, gt=1, le=100)
+    wrap_width_mm: float | None = Field(default=None, gt=0, le=1000)
+    connect_letters: bool = False
+    word_spacing_em: float = Field(default=0.42, gt=0, le=4)
+    letter_spacing_mm: float = Field(default=0.55, ge=-10, le=20)
+    variant_mode: Literal["first", "seeded", "cycle"] = "seeded"
+    stroke_order: Literal["authored", "nearest"] = "authored"
+    slant_deg: float = Field(default=3.0, ge=-45, le=45)
     page_width_mm: float = Field(default=152.4, gt=1, le=1000)
     page_height_mm: float = Field(default=152.4, gt=1, le=1000)
     page_origin_x_mm: float = 0.0
@@ -53,46 +64,68 @@ HTML = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Printrbot Pen Plotter 0.2</title>
+<title>Printrbot Pen Plotter 0.3</title>
 <style>
 :root { font-family: system-ui, sans-serif; color-scheme: dark; }
 body { margin:0; background:#0b1017; color:#eef3f8; }
-main { width:min(1180px,calc(100% - 28px)); margin:24px auto; }
+main { width:min(1240px,calc(100% - 28px)); margin:24px auto; }
 h1 { margin-bottom:4px; } p { color:#aebdca; }
-.grid { display:grid; grid-template-columns:minmax(300px,390px) 1fr; gap:16px; }
+.grid { display:grid; grid-template-columns:minmax(320px,430px) 1fr; gap:16px; }
 .card { background:#131b25; border:1px solid #263545; border-radius:16px; padding:16px; }
 .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 label { display:block; margin:12px 0 5px; color:#c7d3dd; }
 textarea,input,select,button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid #34475b; padding:10px; font:inherit; }
 textarea,input,select { background:#0c131b; color:#eef3f8; }
-textarea { min-height:150px; resize:vertical; }
+textarea { min-height:142px; resize:vertical; }
 button { margin-top:12px; background:#2b74ad; color:white; font-weight:700; cursor:pointer; }
 button.secondary { background:#304052; }
 button.safe { background:#276847; }
-#preview { background:#dce4eb; min-height:540px; display:grid; place-items:center; overflow:auto; }
-#preview svg { width:100%; height:auto; max-height:78vh; }
-pre { white-space:pre-wrap; max-height:220px; overflow:auto; color:#9ed1ff; }
+#preview { background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
+#preview svg { width:100%; height:auto; max-height:80vh; }
+pre { white-space:pre-wrap; max-height:250px; overflow:auto; color:#9ed1ff; }
 .status { min-height:24px; color:#77e2a7; margin-top:10px; }
 .check { display:flex; align-items:center; gap:8px; margin-top:12px; }
 .check input { width:auto; }
-@media(max-width:820px){ .grid{grid-template-columns:1fr;} #preview{min-height:350px;} }
+details { margin-top:12px; border-top:1px solid #263545; padding-top:8px; }
+summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
+@media(max-width:860px){ .grid{grid-template-columns:1fr;} #preview{min-height:350px;} }
 </style>
 </head>
 <body><main>
-<h1>Printrbot Pen Plotter 0.2</h1>
-<p>Physical-size layout, machine-space preview, dashed pen-up travel, and air-plot calibration.</p>
+<h1>Printrbot Pen Plotter 0.3</h1>
+<p>Native single-line writing, seeded glyph alternates, cursive joins, physical wrapping, and exact machine-space preview.</p>
 <div class="grid">
 <section class="card">
 <label for="text">Text</label>
 <textarea id="text">Hello from Printrbot</textarea>
 <div class="row">
-  <div><label for="preset">Style</label><select id="preset"><option>human</option><option>clean</option><option>cursive</option><option>robot</option></select></div>
-  <div><label for="fontSize">Font size (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
+  <div><label for="preset">Writing style</label><select id="preset" onchange="applyPreset()"><option>human</option><option>clean</option><option>cursive</option><option>robot</option></select></div>
+  <div><label for="fontSize">Cap height (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
 </div>
 <div class="row">
-  <div><label for="font">Font family</label><input id="font" value="DejaVu Sans"></div>
+  <div><label for="engine">Text engine</label><select id="engine"><option value="stroke">Single-line stroke</option><option value="outline">TTF/OTF outline</option></select></div>
+  <div><label for="strokeFont">Stroke font</label><select id="strokeFont"><option>hand</option><option>robot</option></select></div>
+</div>
+<div class="row">
+  <div><label for="variantMode">Glyph variants</label><select id="variantMode"><option value="seeded">Seeded</option><option value="cycle">Cycle</option><option value="first">First only</option></select></div>
   <div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div>
 </div>
+<div class="row">
+  <div><label for="wrapWidth">Wrap width (mm; blank = none)</label><input id="wrapWidth" type="number" placeholder="e.g. 110"></div>
+  <div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div>
+</div>
+<div class="row">
+  <div><label for="letterSpacing">Letter spacing (mm)</label><input id="letterSpacing" type="number" value="0.55" step="0.05"></div>
+  <div><label for="wordSpacing">Word spacing (em)</label><input id="wordSpacing" type="number" value="0.42" step="0.02"></div>
+</div>
+<div class="check"><input id="connectLetters" type="checkbox"><label for="connectLetters" style="margin:0">Join letters when glyph anchors permit</label></div>
+<details>
+<summary>Outline compatibility and custom font paths</summary>
+<label for="font">Outline font family</label><input id="font" value="DejaVu Sans">
+<label for="strokeFontPath">Custom stroke-font JSON path on host</label><input id="strokeFontPath" placeholder="/absolute/path/font.json">
+</details>
+<details>
+<summary>Page and machine placement</summary>
 <div class="row">
   <div><label for="fitMode">Fit behavior</label><select id="fitMode"><option value="downscale">Preserve size; shrink only</option><option value="none">Exact size or error</option><option value="fit">Fill page</option></select></div>
   <div><label for="align">Horizontal alignment</label><select id="align"><option>center</option><option>left</option><option>right</option></select></div>
@@ -105,8 +138,9 @@ pre { white-space:pre-wrap; max-height:220px; overflow:auto; color:#9ed1ff; }
   <div><label for="originX">Page origin X (mm)</label><input id="originX" type="number" value="0"></div>
   <div><label for="originY">Page origin Y (mm)</label><input id="originY" type="number" value="0"></div>
 </div>
+</details>
 <div class="check"><input id="airPlot" type="checkbox"><label for="airPlot" style="margin:0">Generate air plot (never lower pen)</label></div>
-<button onclick="renderJob()">Render physical preview</button>
+<button onclick="renderJob()">Render writing preview</button>
 <button class="safe" onclick="renderCalibration()">Generate 10 mm air calibration</button>
 <button class="secondary" onclick="downloadGcode()">Download G-code</button>
 <div class="status" id="status"></div>
@@ -117,19 +151,34 @@ pre { white-space:pre-wrap; max-height:220px; overflow:auto; color:#9ed1ff; }
 <script>
 let latestGcode = "";
 const byId = id => document.getElementById(id);
+function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
+function applyPreset(){
+ const value=byId('preset').value;
+ if(value==='cursive'){
+  byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='seeded';
+  byId('connectLetters').checked=true; byId('slant').value=9; byId('letterSpacing').value=-0.08;
+ } else if(value==='robot'){
+  byId('engine').value='stroke'; byId('strokeFont').value='robot'; byId('variantMode').value='first';
+  byId('connectLetters').checked=false; byId('slant').value=0; byId('letterSpacing').value=1.2;
+ } else if(value==='clean'){
+  byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='first';
+  byId('connectLetters').checked=false; byId('slant').value=0; byId('letterSpacing').value=0.45;
+ } else {
+  byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='seeded';
+  byId('connectLetters').checked=false; byId('slant').value=3; byId('letterSpacing').value=0.55;
+ }
+}
 function payload(){ return {
- text:byId('text').value,
- preset:byId('preset').value,
- font_family:byId('font').value,
- seed:Number(byId('seed').value),
- font_size_mm:Number(byId('fontSize').value),
- page_width_mm:Number(byId('pageWidth').value),
- page_height_mm:Number(byId('pageHeight').value),
- page_origin_x_mm:Number(byId('originX').value),
- page_origin_y_mm:Number(byId('originY').value),
- margin_mm:8,
- fit_mode:byId('fitMode').value,
- horizontal_align:byId('align').value,
+ text:byId('text').value, preset:byId('preset').value, engine:byId('engine').value,
+ font_family:byId('font').value, font_path:null, stroke_font:byId('strokeFont').value,
+ stroke_font_path:byId('strokeFontPath').value.trim()||null,
+ seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
+ wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:byId('connectLetters').checked,
+ word_spacing_em:Number(byId('wordSpacing').value), letter_spacing_mm:Number(byId('letterSpacing').value),
+ variant_mode:byId('variantMode').value, stroke_order:'authored', slant_deg:Number(byId('slant').value),
+ page_width_mm:Number(byId('pageWidth').value), page_height_mm:Number(byId('pageHeight').value),
+ page_origin_x_mm:Number(byId('originX').value), page_origin_y_mm:Number(byId('originY').value),
+ margin_mm:8, fit_mode:byId('fitMode').value, horizontal_align:byId('align').value,
  vertical_align:'center', offset_x_mm:0, offset_y_mm:0, scale:1,
  z_up_mm:5, z_down_mm:0, air_plot:byId('airPlot').checked
 }; }
@@ -140,8 +189,7 @@ async function postJson(url, body){
  return data;
 }
 function showJob(data){
- byId('preview').innerHTML=data.preview_svg;
- latestGcode=data.gcode;
+ byId('preview').innerHTML=data.preview_svg; latestGcode=data.gcode;
  byId('meta').textContent=JSON.stringify(data.metadata,null,2);
  byId('status').textContent='Ready: preview and G-code use the same machine-space paths.';
 }
@@ -160,7 +208,7 @@ function downloadGcode(){
  const blob=new Blob([latestGcode],{type:'text/plain'});
  const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download='plot.gcode'; link.click(); URL.revokeObjectURL(link.href);
 }
-renderJob();
+applyPreset(); renderJob();
 </script>
 </main></body></html>"""
 
@@ -188,10 +236,20 @@ def _render(request: RenderRequest):
     )
     style = StyleConfig.for_preset(
         request.preset,
+        engine=request.engine,
         font_family=request.font_family,
         font_path=request.font_path,
+        stroke_font=request.stroke_font,
+        stroke_font_path=request.stroke_font_path,
         font_size_mm=request.font_size_mm,
         seed=request.seed,
+        wrap_width_mm=request.wrap_width_mm,
+        connect_letters=request.connect_letters,
+        word_spacing_em=request.word_spacing_em,
+        letter_spacing_mm=request.letter_spacing_mm,
+        variant_mode=request.variant_mode,
+        stroke_order=request.stroke_order,
+        slant_deg=request.slant_deg,
     )
     return render_text_job(
         request.text,
@@ -210,6 +268,20 @@ def _render(request: RenderRequest):
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return HTML
+
+
+@app.get("/api/fonts")
+def fonts() -> dict[str, object]:
+    return {
+        "fonts": [
+            {
+                "name": name,
+                "description": get_builtin_stroke_font(name).description,
+                "glyphs": len(get_builtin_stroke_font(name).glyphs),
+            }
+            for name in available_stroke_fonts()
+        ]
+    }
 
 
 @app.post("/api/render")
