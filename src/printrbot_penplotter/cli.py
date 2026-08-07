@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
+from .optimize import MotionConfig
 from .pipeline import (
     render_calibration_job,
     render_handwriting_job,
@@ -60,9 +61,23 @@ def _pen(args: argparse.Namespace) -> PenConfig:
         z_down_mm=args.z_down,
         travel_feed_mm_min=args.travel_feed,
         draw_feed_mm_min=args.draw_feed,
+        corner_feed_mm_min=args.corner_feed,
+        corner_angle_deg=args.corner_angle,
         z_feed_mm_min=args.z_feed,
         home_before_plot=args.home,
         air_plot=args.air_plot,
+    )
+
+
+def _motion(args: argparse.Namespace) -> MotionConfig:
+    return MotionConfig(
+        route_mode=args.motion_route,
+        allow_reverse=args.motion_reverse,
+        join_tolerance_mm=args.join_tolerance,
+        rdp_tolerance_mm=args.rdp_tolerance,
+        resample_spacing_mm=args.resample_spacing,
+        smooth_passes=args.smooth_passes,
+        two_opt_passes=args.two_opt_passes,
     )
 
 
@@ -128,12 +143,68 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--z-down", type=float, default=0.0)
     parser.add_argument("--travel-feed", type=float, default=3000.0)
     parser.add_argument("--draw-feed", type=float, default=1200.0)
+    parser.add_argument(
+        "--corner-feed",
+        type=float,
+        default=650.0,
+        help="Drawing feed for segments touching corners sharper than --corner-angle.",
+    )
+    parser.add_argument(
+        "--corner-angle",
+        type=float,
+        default=70.0,
+        help="Interior angle in degrees at or below which corner feed is used.",
+    )
     parser.add_argument("--z-feed", type=float, default=300.0)
     parser.add_argument("--home", action="store_true")
     parser.add_argument(
         "--air-plot",
         action="store_true",
         help="Trace XY paths while keeping the pen at the configured Z-up height.",
+    )
+
+    motion = parser.add_argument_group("Release 0.6 motion quality")
+    motion.add_argument(
+        "--motion-route",
+        choices=("authored", "nearest", "two_opt"),
+        default="authored",
+        help="Stroke route optimization. Authored is the safe/default writing order.",
+    )
+    motion.add_argument(
+        "--motion-reverse",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Allow route optimization to reverse independent stroke direction.",
+    )
+    motion.add_argument(
+        "--join-tolerance",
+        type=float,
+        default=0.0,
+        help="Join consecutive endpoints within this many mm; may add a tiny drawn connector.",
+    )
+    motion.add_argument(
+        "--rdp-tolerance",
+        type=float,
+        default=0.0,
+        help="Ramer-Douglas-Peucker simplification tolerance in mm.",
+    )
+    motion.add_argument(
+        "--resample-spacing",
+        type=float,
+        default=0.0,
+        help="Split long segments to approximately this spacing in mm.",
+    )
+    motion.add_argument(
+        "--smooth-passes",
+        type=int,
+        default=0,
+        help="Endpoint-preserving smoothing passes; 0 leaves geometry untouched.",
+    )
+    motion.add_argument(
+        "--two-opt-passes",
+        type=int,
+        default=8,
+        help="Maximum deterministic route-improvement passes for two_opt mode.",
     )
     _add_machine_options(parser)
 
@@ -329,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
             pen=_pen(args),
             style=_style(args),
             layout=_layout(args),
+            motion=_motion(args),
         )
         write_job(job, args.output, args.preview)
         _print_job(job, args.output, args.preview)
@@ -369,6 +441,7 @@ def main(argv: list[str] | None = None) -> int:
             machine=_machine(args),
             pen=_pen(args),
             layout=_layout(args),
+            motion=_motion(args),
         )
         write_job(job, args.output, args.preview)
         _print_job(job, args.output, args.preview)
@@ -386,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
             machine=_machine(args),
             pen=_pen(args),
             layout=_layout(args),
+            motion=_motion(args),
         )
         write_job(job, args.output, args.preview)
         _write_raw_trace(args.source, trace, args.trace_svg)

@@ -13,6 +13,8 @@ text / handwriting / sketch / image
                 ↓
  style + controlled variation
                 ↓
+      motion-quality stage
+                ↓
       exact visual preview
                 ↓
  safety checks + calibration
@@ -61,13 +63,28 @@ The finished product must let a user type text or supply handwriting, sketches, 
 5. **Raster files are untrusted input.** Enforce source-pixel, processed-pixel, geometry-point, and stroke-count limits before hardware output is possible.
 6. **Large images are downsampled before expensive tracing.** Do not allow phone-camera resolution to become unbounded skeleton or contour geometry.
 7. **Noise removal must be visible and controllable.** Connected-component filtering may remove only components below an explicit configured size; report what was removed.
-8. **Manual correction must preserve the shared pipeline.** Editable trace SVGs or future browser edits become the geometry source that is then previewed and converted to G-code. Do not maintain a separate hidden corrected representation.
+8. **Manual correction must preserve the shared pipeline.** Browser edits or editable trace SVGs become the geometry source that is then previewed and converted to G-code. Do not maintain a separate hidden corrected representation.
 9. **Do not silently apply remote AI or cloud image processing.** Raster tracing is local and deterministic unless the user explicitly opts into a separate external service in a future feature.
 10. **Do not overclaim photographic robustness.** Global thresholding is not perspective correction, adaptive illumination handling, semantic segmentation, or background removal. Those capabilities require their own implementation and tests.
 
+## Motion-quality rules
+
+1. **Motion optimization happens after artwork generation and page placement.** `optimize.py` may transform final plot polylines, but it must not become another text, raster, or SVG renderer.
+2. **Authored order is the default.** Text and cursive must retain authored language order unless the user explicitly enables global route optimization.
+3. **Route optimization is deterministic.** Nearest and two-opt routing must produce identical results for identical geometry and settings.
+4. **Stroke reversal preserves geometry.** Reversing a stroke may change traversal direction only; it must not change the set of points that will be drawn.
+5. **Endpoint joining is opt-in.** A non-zero gap becomes ink. Never silently join nearby endpoints, especially in text or handwriting.
+6. **Shape-changing cleanup is opt-in.** RDP simplification, resampling, and smoothing default to zero/off because they modify physical geometry.
+7. **Calibration bypasses motion transforms.** Known-size calibration patterns must not be rerouted, joined, simplified, resampled, or smoothed by Release 0.6 settings.
+8. **The post-motion polylines are the source of truth.** Preview, bounds validation, metadata, and G-code must all use the exact same optimized geometry.
+9. **Python does not replace Marlin's real-time planner.** Python may select route/order and request feed values. Marlin remains responsible for acceleration, junction behavior, and step timing.
+10. **Corner speed is conservative and explicit.** Corner feed and angle threshold are configured values; corner feed must never result in a faster command than normal drawing feed.
+11. **Metrics are estimates.** Pen-up distance, pen-down distance, lift count, and idealized duration are planning metrics, not claims about measured physical runtime.
+12. **Optimization must never worsen route cost by design.** A refinement such as two-opt should retain the prior route when no tested improvement exists.
+
 ## ESP32 transport rules
 
-1. **The ESP32 transports final jobs; it does not render them.** Font selection, image tracing, geometry, layout, preview, and G-code generation remain in the Python application.
+1. **The ESP32 transports final jobs; it does not render them.** Font selection, image tracing, geometry, layout, preview, motion optimization, and G-code generation remain in the Python application.
 2. **One command must be acknowledged before the next is sent.** Do not add blind streaming, speculative buffering, or movement retries that can desynchronize Marlin state.
 3. **One hardware job at a time.** Upload replacement, query traffic, and network reconfiguration must not race with an active job.
 4. **Validate the complete stored job before start.** A partial upload or unvalidated file must never become runnable.
@@ -91,21 +108,24 @@ The current foundation provides:
 - physical wrapping, tracking, word spacing, and slant;
 - conventional TTF/OTF outline compatibility;
 - SVG path import;
-- deterministic raster preprocessing with EXIF orientation, grayscale conversion, Otsu/manual thresholding, inversion, blur, image-size limits, and connected-component cleanup;
-- centerline raster tracing through skeletonization and graph paths;
-- contour raster tracing through foreground boundary paths;
-- image and handwriting CLI adapters feeding the same polyline pipeline;
-- editable raw trace SVG export for external manual correction;
+- deterministic raster preprocessing and explicit centerline/contour tracing;
+- Image & Handwriting Studio with four-stage browser inspection and manual path editing;
+- source hashing and raster job sidecars;
 - exact machine-space placement and validation;
-- preview generated from final plot paths;
+- authored, nearest, and two-opt motion route modes;
+- optional stroke reversal and endpoint joining;
+- optional RDP simplification, resampling, and endpoint-preserving smoothing;
+- motion metrics for draw/travel distance, pen lifts, point count, and estimated time;
+- corner-aware drawing feed requests;
+- preview generated from the exact final post-motion paths;
 - Marlin G-code using X/Y motion and Z pen lift;
 - guarded direct USB serial sending;
 - ESP32-C3 firmware with Wi-Fi, LittleFS upload, safety validation, acknowledgement-based forwarding, job states, browser controls, and UART logs;
 - a Python ESP32 bridge client;
 - local browser UI and CLI;
-- tests proving deterministic output, bounds, safe defaults, font loading, joining, wrapping, bridge request formation, firmware safety filtering, raster centerline tracing, contour tracing, cleanup, inversion, and raster pipeline integration.
+- tests covering deterministic rendering, bounds, safety, writing, raster tracing/editing, transport, and motion optimization.
 
-Do not claim handwriting recognition, adaptive/local thresholding, perspective correction, in-browser raster editing, authenticated ESP32 sessions, power-loss resume, autonomous calibration, or completed physical hardware validation until code and tests exist.
+Do not claim handwriting recognition, contextual calligraphy, adaptive/local thresholding, perspective correction, authenticated ESP32 sessions, power-loss resume, autonomous calibration, measured runtime prediction, or completed physical hardware validation until code and tests exist.
 
 ## Development sequence
 
@@ -113,26 +133,28 @@ Software work may proceed in separate releases, but physical drawing remains gat
 
 1. **Geometry foundation** — text/SVG → polylines → preview/G-code.
 2. **Safe machine foundation** — physical coordinates, calibration, air plots, serial failure behavior.
-3. **Writing intelligence** — centerline fonts, alternates, joins, wrapping, and word layout.
+3. **Writing foundation** — centerline fonts, alternates, joins, wrapping, and word layout.
 4. **ESP32 transport** — Wi-Fi UI/API forwarding to Marlin UART with status and recovery.
-5. **Image and handwriting ingestion** — thresholding, centerline/contour tracing, cleanup, manual correction. Release 0.5 is in progress.
-6. **Motion quality** — reduced pen lifts, corner handling, smoothing, and feed optimization.
-7. **Product UX** — job queue, saved profiles, mobile controls, editing, and reproducible job files.
+5. **Image and handwriting ingestion** — thresholding, centerline/contour tracing, browser cleanup, manual correction.
+6. **Motion quality** — route optimization, reduced pen lifts, path cleanup, corner handling, feed optimization, and metrics.
+7. **Writing intelligence** — contextual forms, richer alternates, ligatures, and collision-aware joins.
+8. **Product UX** — job queue, saved profiles, mobile controls, editing, and reproducible job files.
 
-Writing, raster, and transport code can be developed and previewed while Release 0.2 physical work is unfinished. None may bypass preflight, air-plot, motor-direction, homing, origin, level-shifter, power, or pen-height validation before real plotting.
+Writing, raster, motion, and transport code can be developed and previewed while Release 0.2 physical work is unfinished. None may bypass preflight, air-plot, motor-direction, homing, origin, level-shifter, power, or pen-height validation before real plotting.
 
 ## Code architecture rules
 
 - `stroke_fonts.py` defines centerline font models, built-ins, and validated font-pack loading.
 - `writing.py` selects glyph variants, wraps text, creates joins, and emits millimeter polylines.
 - `raster.py` owns deterministic raster preprocessing, skeletonization, contour extraction, trace simplification, and editable raw-trace SVG generation.
-- `optimize.py` provides deterministic travel metrics and ordering helpers without generating artwork.
+- `raster_studio.py` owns browser raster upload and manual pre-machine path correction.
+- `optimize.py` owns deterministic Release 0.6 motion transforms, route metrics, and route ordering without generating artwork or machine commands.
 - `inputs.py` dispatches text, SVG, and raster source material into polylines and keeps engine/trace modes explicit.
 - `geometry.py` validates, transforms, places, simplifies, and previews polylines.
 - `gcode.py` is the only Python module that converts final geometry into Marlin movement commands.
 - `sender.py` handles direct USB acknowledgement and errors; it must not generate artwork.
 - `esp32_client.py` uploads and controls already-generated jobs; it must not generate artwork.
-- `pipeline.py` composes modules without duplicating their logic.
+- `pipeline.py` composes modules without duplicating their logic and applies motion optimization only after page placement.
 - `firmware/esp32/include/plotter_protocol.h` owns firmware-side command sanitation shared with native tests.
 - `firmware/esp32/src/printer_bridge.*` owns UART framing, acknowledgement, timeout, and logs.
 - `firmware/esp32/src/job_runner.*` owns stored-job state and one-command-at-a-time execution.

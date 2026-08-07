@@ -9,7 +9,21 @@ from .models import (
     RenderedJob,
     StyleConfig,
 )
-from .optimize import optimize_stroke_order, pen_up_distance
+from .optimize import (
+    MotionConfig,
+    MotionMetrics,
+    MotionPlan,
+    draw_distance,
+    join_nearby_strokes,
+    motion_metrics,
+    optimize_motion,
+    optimize_stroke_order,
+    pen_up_distance,
+    rdp_simplify,
+    resample_polyline,
+    smooth_polyline,
+    two_opt_stroke_order,
+)
 from .pipeline import (
     render_calibration_job,
     render_handwriting_job,
@@ -33,6 +47,9 @@ __all__ = [
     "GlyphVariant",
     "LayoutConfig",
     "MachineConfig",
+    "MotionConfig",
+    "MotionMetrics",
+    "MotionPlan",
     "PageConfig",
     "PenConfig",
     "RasterTraceConfig",
@@ -42,18 +59,26 @@ __all__ = [
     "StyleConfig",
     "WritingResult",
     "available_stroke_fonts",
+    "draw_distance",
     "editable_trace_svg",
     "get_builtin_stroke_font",
+    "join_nearby_strokes",
     "load_stroke_font",
+    "motion_metrics",
+    "optimize_motion",
     "optimize_stroke_order",
     "pen_up_distance",
+    "rdp_simplify",
     "render_calibration_job",
     "render_handwriting_job",
     "render_image_job",
     "render_svg_job",
     "render_text_job",
+    "resample_polyline",
+    "smooth_polyline",
     "stroke_text_to_polylines",
     "trace_raster",
+    "two_opt_stroke_order",
 ]
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
