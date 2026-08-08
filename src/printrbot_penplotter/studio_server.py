@@ -1,13 +1,15 @@
-"""Unified local web application with writing, raster, and Studio 2 routes."""
+"""Unified local web application with writing, raster, Studio 2, and product routes."""
 
 from __future__ import annotations
 
+from .product_api import router as product_router
 from .raster_studio import router as raster_router
 from .studio2 import router as studio2_router
 from .web import app
 
 app.include_router(raster_router)
 app.include_router(studio2_router)
+app.include_router(product_router)
 
 
 def main() -> None:
