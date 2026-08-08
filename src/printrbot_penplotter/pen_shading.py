@@ -60,6 +60,7 @@ class PenShadingConfig:
     seed: int = 0
     angle_offset_deg: float = 0.0
     density_scale: float = 1.0
+    outline_join_distance_px: float = 0.0
 
     def validate(self) -> None:
         if self.style not in SHADING_STYLE_NAMES:
@@ -80,6 +81,8 @@ class PenShadingConfig:
             raise ValueError("angle_offset_deg must be between -180 and 180 degrees.")
         if not math.isfinite(self.density_scale) or not 0.25 <= self.density_scale <= 4:
             raise ValueError("density_scale must be between 0.25 and 4.")
+        if not math.isfinite(self.outline_join_distance_px) or not 0 <= self.outline_join_distance_px <= 20:
+            raise ValueError("outline_join_distance_px must be between 0 and 20 pixels.")
 
 
 @dataclass(frozen=True)
@@ -309,7 +312,13 @@ def _halftone_strokes(analysis: ImageUnderstandingResult, config: PenShadingConf
 def _outline(analysis: ImageUnderstandingResult, config: PenShadingConfig, style: str | None = None) -> Polylines:
     if not config.include_outline:
         return []
-    result = render_line_art_from_analysis(analysis, LineArtConfig(style=style or config.outline_style))
+    result = render_line_art_from_analysis(
+        analysis,
+        LineArtConfig(
+            style=style or config.outline_style,
+            join_distance_px=config.outline_join_distance_px,
+        ),
+    )
     return [line[:] for line in result.polylines]
 
 
@@ -395,6 +404,7 @@ def render_pen_shading_from_analysis(
         "seed": config.seed,
         "angle_offset_deg": config.angle_offset_deg,
         "density_scale": config.density_scale,
+        "outline_join_distance_px": config.outline_join_distance_px,
     })
     metadata.update(extra)
     return PenShadingResult(polylines=polylines, metadata=metadata)
