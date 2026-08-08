@@ -16,6 +16,7 @@ from . import studio2 as legacy
 from .gcode import polylines_to_gcode
 from .geometry import preview_svg, validate_polylines
 from .models import MachineConfig, PageConfig, PenConfig, Polylines
+from .optimize import motion_metrics
 
 router = APIRouter()
 
@@ -272,6 +273,7 @@ async def render_studio2(request: Request) -> dict[str, object]:
             shading_min_stroke_px=_float(form, "shading_min_stroke_px", 1.25),
             artistic_stroke_limit=_int(form, "artistic_stroke_limit", 20_000),
             artistic_point_limit=_int(form, "artistic_point_limit", 2_000_000),
+            plot_stroke_limit=_int(form, "plot_stroke_limit", 5_000),
             bypass_artistic_limit=_bool(form, "bypass_artistic_limit", False),
             max_skeleton_iterations=_int(form, "max_skeleton_iterations", 256),
             style_edge_threshold=_float(form, "style_edge_threshold", 0.58),
@@ -309,6 +311,7 @@ async def render_studio2(request: Request) -> dict[str, object]:
         preview = preview_svg(final, page, machine)
         filename = str(result.get("metadata", {}).get("source_filename") or "image")
         gcode = polylines_to_gcode(final, page, pen, machine, title=f"Studio 2: {filename}")
+        final_motion = motion_metrics(final, pen)
 
         result["polylines"] = final
         result["preview_svg"] = preview
@@ -319,6 +322,9 @@ async def render_studio2(request: Request) -> dict[str, object]:
         metadata["requested_quality"] = requested_quality
         metadata["effective_quality"] = effective_quality
         metadata["auto_interactive_preview"] = mode == "auto" and requested_quality != effective_quality
+        metadata["estimated_print_time_seconds"] = round(final_motion.estimated_seconds, 2)
+        metadata["estimated_print_time_minutes"] = round(final_motion.estimated_seconds / 60.0, 2)
+        metadata["estimated_print_time"] = f"{int(final_motion.estimated_seconds // 60)}m {int(final_motion.estimated_seconds % 60):02d}s"
         result["metadata"] = metadata
         return result
     except HTTPException:
