@@ -213,7 +213,8 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
     if len(polylines) > config.max_output_strokes or points > config.max_output_points:
         raise ValueError("Line-art style output exceeds configured geometry limits.")
     validate_polylines(polylines)
-    metadata: dict[str, object] = {
+    metadata: dict[str, object] = dict(analysis.metadata)
+    metadata.update({
         "line_art_schema": "printrbot-line-art/v1",
         "line_art_style": config.style,
         "input_selected_edge_pixels": int(np.count_nonzero(analysis.selected_edges)),
@@ -222,7 +223,7 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
         "output_style_strokes": len(polylines),
         "output_style_points": points,
         "cleanup": cleaned.metadata,
-    }
+    })
     metadata.update(extra)
     return LineArtResult(polylines=polylines, metadata=metadata)
 
