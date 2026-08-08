@@ -8,12 +8,13 @@ from typing import Literal
 
 import numpy as np
 
+from .fast_cleanup import cleanup_polylines_fast
 from .geometry import validate_polylines
 from .image_preprocess import ImagePreprocessConfig
 from .image_understanding import ImageUnderstandingConfig, ImageUnderstandingResult, analyze_image
 from .models import Polylines
 from .raster import _skeletonize, _trace_contours, _trace_skeleton
-from .vector_cleanup import VectorCleanupConfig, cleanup_polylines
+from .vector_cleanup import VectorCleanupConfig
 
 LineArtStyle = Literal[
     "minimal_outline", "clean_outline", "detailed_outline", "continuous_contour",
@@ -101,12 +102,7 @@ def _combine(*groups: Polylines) -> Polylines:
 
 
 def _ordered_one_line(lines: Polylines) -> tuple[Polylines, int, float]:
-    """Build a deterministic linear-time-ish artistic chain.
-
-    Open strokes are normalized to lexicographically smaller start endpoints,
-    sorted spatially, then connected in that order. This intentionally inserts
-    visible bridge ink and reports it. Closed loops remain separate.
-    """
+    """Build a deterministic linear-time-ish artistic chain."""
     open_lines: Polylines = []
     closed_lines: Polylines = []
     for source in lines:
@@ -197,7 +193,7 @@ def _recipe(analysis: ImageUnderstandingResult, style: str, iterations: int) -> 
     if style == "topographic":
         raw = _combine(_strokes(tones, iterations), _strokes(outer, iterations))
         return raw, VectorCleanupConfig.for_quality("smooth"), meta
-    raise ValueError(style)  # pragma: no cover
+    raise ValueError(style)
 
 
 def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: LineArtConfig | None = None) -> LineArtResult:
@@ -207,14 +203,11 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
     if not raw:
         raise ValueError("Line-art style produced no drawable geometry.")
 
-    # Closed contours currently bypass Step 4 RDP simplification because the
-    # Step 4 closed-loop simplifier is intentionally not required by these style
-    # recipes. Other cleanup operations remain active and deterministic.
     if any(len(line) >= 3 and line[0] == line[-1] for line in raw) and cleanup_config.simplify_tolerance_px > 0:
         cleanup_config = replace(cleanup_config, simplify_tolerance_px=0.0)
         extra["closed_loop_simplification_bypassed"] = True
 
-    cleaned = cleanup_polylines(raw, cleanup_config)
+    cleaned = cleanup_polylines_fast(raw, cleanup_config)
     polylines = cleaned.polylines
     points = sum(len(line) for line in polylines)
     if len(polylines) > config.max_output_strokes or points > config.max_output_points:
