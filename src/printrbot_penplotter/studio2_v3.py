@@ -271,6 +271,16 @@ async def render_studio2(request: Request) -> dict[str, object]:
             artistic_stroke_limit=_int(form, "artistic_stroke_limit", 20_000),
             artistic_point_limit=_int(form, "artistic_point_limit", 2_000_000),
             bypass_artistic_limit=_bool(form, "bypass_artistic_limit", False),
+            max_skeleton_iterations=_int(form, "max_skeleton_iterations", 256),
+            style_edge_threshold=_float(form, "style_edge_threshold", 0.58),
+            style_strong_edge_threshold=_float(form, "style_strong_edge_threshold", 0.72),
+            style_tone_threshold=_int(form, "style_tone_threshold", 170),
+            style_dilation_passes=_int(form, "style_dilation_passes", 1),
+            style_simplify_tolerance_px=_float(form, "style_simplify_tolerance_px", -1.0),
+            style_smooth_passes=_int(form, "style_smooth_passes", -1),
+            shading_seed=_int(form, "shading_seed", 0),
+            shading_angle_offset_deg=_float(form, "shading_angle_offset_deg", 0.0),
+            shading_density_scale=_float(form, "shading_density_scale", 1.0),
         )
 
         page = PageConfig()
