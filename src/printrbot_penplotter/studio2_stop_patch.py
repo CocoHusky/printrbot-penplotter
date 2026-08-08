@@ -6,6 +6,8 @@ prevents stale results from replacing the current preview after the user stops.
 """
 from __future__ import annotations
 
+from functools import wraps
+
 from fastapi.responses import HTMLResponse
 
 
@@ -16,6 +18,7 @@ def apply_stop_button(router) -> None:
             continue
         original = route.endpoint
 
+        @wraps(original)
         async def endpoint(*args, __original=original, **kwargs):
             result = __original(*args, **kwargs)
             if hasattr(result, "__await__"):
@@ -86,8 +89,8 @@ def apply_stop_button(router) -> None:
     stop.textContent='Stopping…';
     controller.abort();
     window.__studioLast=null;
-    const saveSvg=document.getElementById('saveSvg');
-    const saveGcode=document.getElementById('saveGcode');
+    const saveSvg=document.getElementById('floatingSaveSvg')||document.getElementById('saveSvg');
+    const saveGcode=document.getElementById('floatingSaveGcode')||document.getElementById('saveGcode');
     if(saveSvg) saveSvg.disabled=true;
     if(saveGcode) saveGcode.disabled=true;
     if(status){
