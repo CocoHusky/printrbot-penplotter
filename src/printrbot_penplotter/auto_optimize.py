@@ -29,6 +29,8 @@ class AutoOptimizeConfig:
     max_candidates: int = 8
     prefer_shading: bool = True
     seed: int = 0
+    max_output_strokes: int = 20_000
+    max_output_points: int = 2_000_000
 
     def validate(self) -> None:
         if self.quality not in ("quick", "balanced", "best"):
@@ -37,6 +39,10 @@ class AutoOptimizeConfig:
             raise ValueError("max_candidates must be between 1 and 24")
         if not isinstance(self.seed, int):
             raise ValueError("seed must be an integer")
+        if not isinstance(self.max_output_strokes, int) or self.max_output_strokes < 1:
+            raise ValueError("max_output_strokes must be positive")
+        if not isinstance(self.max_output_points, int) or self.max_output_points < 2:
+            raise ValueError("max_output_points must be at least two")
 
 
 @dataclass(frozen=True)
@@ -189,10 +195,22 @@ def _render_candidate(
     cfg: AutoOptimizeConfig,
 ):
     if candidate.kind == "line_art":
-        return render_line_art_from_analysis(analysis, LineArtConfig(style=candidate.style))
+        return render_line_art_from_analysis(
+            analysis,
+            LineArtConfig(
+                style=candidate.style,
+                max_output_strokes=cfg.max_output_strokes,
+                max_output_points=cfg.max_output_points,
+            ),
+        )
     return render_pen_shading_from_analysis(
         analysis,
-        PenShadingConfig(style=candidate.style, seed=cfg.seed),
+        PenShadingConfig(
+            style=candidate.style,
+            seed=cfg.seed,
+            max_output_strokes=cfg.max_output_strokes,
+            max_output_points=cfg.max_output_points,
+        ),
     )
 
 
