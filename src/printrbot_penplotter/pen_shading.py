@@ -194,7 +194,6 @@ def _tone_boundary_strokes(analysis: ImageUnderstandingResult) -> Polylines:
     mask[1:, :] |= diff_y
     mask[:-1, :] |= diff_y
     mask &= analysis.foreground_mask.astype(bool)
-    # Local import avoids exporting raster internals through this public module.
     from .raster import _skeletonize, _trace_skeleton
 
     skeleton, _, _ = _skeletonize(mask, 256)
@@ -355,7 +354,7 @@ def _recipe(analysis: ImageUnderstandingResult, config: PenShadingConfig) -> tup
         shading = _flow_strokes(analysis, config, spacing_scale=0.85, length_scale=2.4, tangent=True, threshold=0.28)
         meta["texture_is_semantic"] = False
         return _outline(analysis, config, "portrait") + shading, meta
-    else:  # pragma: no cover - validated above
+    else:
         raise ValueError(style)
 
     return _outline(analysis, config) + shading, meta
@@ -376,7 +375,8 @@ def render_pen_shading_from_analysis(
     if len(polylines) > config.max_output_strokes or points > config.max_output_points:
         raise ValueError("Pen-shading style output exceeds configured geometry limits.")
     validate_polylines(polylines)
-    metadata: dict[str, object] = {
+    metadata: dict[str, object] = dict(analysis.metadata)
+    metadata.update({
         "pen_shading_schema": "printrbot-pen-shading/v1",
         "pen_shading_style": config.style,
         "include_outline": config.include_outline,
@@ -387,7 +387,7 @@ def render_pen_shading_from_analysis(
         "output_shading_strokes": len(polylines),
         "output_shading_points": points,
         "seed": config.seed,
-    }
+    })
     metadata.update(extra)
     return PenShadingResult(polylines=polylines, metadata=metadata)
 
