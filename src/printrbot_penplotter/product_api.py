@@ -1,9 +1,10 @@
-"""Local-only Step 10 product APIs for profiles, history, and queue."""
+"""Local-only Step 10 product APIs for profiles, handwriting packs, history, and queue."""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from .handwriting_packs import HandwritingPackStore
 from .product_store import ProductStore
 
 router = APIRouter()
@@ -12,6 +13,10 @@ class ProfileRequest(BaseModel):
     kind: str
     name: str = Field(min_length=1, max_length=80)
     values: dict[str, object]
+
+class HandwritingPackRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    font: dict[str, object]
 
 class JobRecordRequest(BaseModel):
     metadata: dict[str, object]
@@ -23,6 +28,9 @@ class QueueRequest(BaseModel):
 
 def _store() -> ProductStore:
     return ProductStore.default()
+
+def _pack_store() -> HandwritingPackStore:
+    return HandwritingPackStore(_store().root)
 
 @router.get("/api/product/profiles")
 def list_profiles(kind: str | None = None) -> dict[str, object]:
@@ -36,6 +44,17 @@ def save_profile(request: ProfileRequest) -> dict[str, object]:
     try:
         return _store().save_profile(request.kind, request.name, request.values)  # type: ignore[arg-type]
     except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@router.get("/api/product/handwriting-packs")
+def list_handwriting_packs() -> dict[str, object]:
+    return {"packs": _pack_store().list()}
+
+@router.post("/api/product/handwriting-packs")
+def install_handwriting_pack(request: HandwritingPackRequest) -> dict[str, object]:
+    try:
+        return _pack_store().install(request.name, request.font)
+    except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
 @router.get("/api/product/jobs")
