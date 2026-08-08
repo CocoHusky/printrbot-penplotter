@@ -8,8 +8,12 @@ from collections.abc import Iterable
 
 from .models import LayoutConfig, MachineConfig, PageConfig, Point, Polyline, Polylines
 
-MAX_STROKES = 20_000
-MAX_POINTS = 1_000_000
+# Core geometry limits are hard memory guards, not normal artistic quality limits.
+# Studio 2 applies its own adjustable soft limits before geometry reaches this layer.
+# Keeping the hard guard higher allows an explicitly raised/bypassed Studio soft limit
+# to pass through placement, preview, and G-code validation without disabling bounds.
+MAX_STROKES = 200_000
+MAX_POINTS = 20_000_000
 
 
 def validate_polylines(polylines: Iterable[Polyline]) -> None:
@@ -197,7 +201,7 @@ def rotate_scale_translate(
         transformed.append(
             (
                 ox + local_x * cos_value - local_y * sin_value + translate_x,
-                oy + local_x * sin_value + local_y * cos_value + translate_y,
+                ox * 0 + oy + local_x * sin_value + local_y * cos_value + translate_y,
             )
         )
     return transformed
