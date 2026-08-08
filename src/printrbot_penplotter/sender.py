@@ -9,6 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TextIO
 
+from .job_validator import JobValidationError, validate_hardware_job
+
 
 class MarlinError(RuntimeError):
     """Raised when Marlin rejects a command or stops responding."""
@@ -19,7 +21,7 @@ class PlotCancelled(MarlinError):
 
 
 class UnsafeGcodeError(MarlinError):
-    """Raised when a file contains heater, extrusion, or tool commands."""
+    """Raised when a file violates the guarded hardware-job contract."""
 
 
 class CancellationToken:
@@ -38,7 +40,9 @@ class CancellationToken:
 
 ProgressCallback = Callable[[int, int, str], None]
 
-# This machine is intentionally configured with EXTRUDERS 0 and no heaters.
+# Defense in depth for the low-level sender. Complete sequence validation is
+# performed first by validate_hardware_job(); these checks remain here so this
+# transport never becomes permissive if the contract validator changes later.
 _FORBIDDEN_OPCODES = {
     "M82",   # absolute extrusion mode
     "M83",   # relative extrusion mode
@@ -187,6 +191,13 @@ class MarlinSender:
         progress: ProgressCallback | None = None,
         safe_z_up_mm: float | None = None,
     ) -> int:
+        # Direct USB and Wi-Fi use the same complete hardware-job contract.
+        # Validation happens before the first byte is written to Marlin.
+        try:
+            validate_hardware_job(gcode)
+        except JobValidationError as exc:
+            raise UnsafeGcodeError(str(exc)) from exc
+
         commands = [
             line.split(";", 1)[0].strip()
             for line in gcode.splitlines()
