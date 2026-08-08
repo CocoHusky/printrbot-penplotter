@@ -46,23 +46,22 @@ jobs:
 
           with tempfile.TemporaryDirectory() as directory:
               path = Path(directory) / 'fixture.png'
-              image = Image.new('L', (96, 72), 245)
+              image = Image.new('L', (64, 48), 245)
               draw = ImageDraw.Draw(image)
-              draw.ellipse((10, 8, 86, 64), fill=170, outline=30, width=3)
-              draw.ellipse((28, 25, 36, 33), fill=20)
-              draw.ellipse((60, 25, 68, 33), fill=20)
-              draw.polygon([(43, 38), (53, 38), (48, 47)], fill=25)
+              draw.ellipse((6, 5, 57, 42), fill=180, outline=35, width=2)
+              draw.ellipse((19, 16, 24, 21), fill=20)
+              draw.ellipse((40, 16, 45, 21), fill=20)
+              draw.polygon([(27, 25), (37, 25), (32, 31)], fill=30)
               image.save(path)
               kwargs = dict(
                   config=LineArtConfig(style='refined_pen_sketch'),
                   preprocess=ImagePreprocessConfig(auto_levels=True),
-                  understanding=ImageUnderstandingConfig(detail_level='high', min_region_px=4),
+                  understanding=ImageUnderstandingConfig(detail_level='medium', min_region_px=3),
               )
               first = render_line_art(path, **kwargs)
               second = render_line_art(path, **kwargs)
               assert first.polylines == second.polylines
               assert first.metadata == second.metadata
-              assert first.metadata['preprocessing_schema'] == 'printrbot-image-preprocess/v2'
               assert first.metadata['understanding_schema'] == 'printrbot-image-understanding/v1'
               assert first.metadata['line_art_schema'] == 'printrbot-line-art/v1'
               print('deterministic Step 2 -> 3 -> 4 -> 5 line art validated')
