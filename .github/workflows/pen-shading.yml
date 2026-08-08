@@ -1,0 +1,70 @@
+name: Pen Shading
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pen-shading:
+    name: Pen shading (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Compile Steps 2 through 6
+        run: python -m compileall -q src/printrbot_penplotter/image_preprocess.py src/printrbot_penplotter/image_understanding.py src/printrbot_penplotter/vector_cleanup.py src/printrbot_penplotter/line_art.py src/printrbot_penplotter/pen_shading.py
+      - name: Step 6 tests
+        run: python -m pytest -q tests/test_pen_shading.py
+      - name: Step 5 regression tests
+        run: python -m pytest -q tests/test_line_art.py
+      - name: Step 4 regression tests
+        run: python -m pytest -q tests/test_vector_cleanup.py
+      - name: Step 3 regression tests
+        run: python -m pytest -q tests/test_image_understanding.py
+      - name: Step 2 raster regression tests
+        run: python -m pytest -q tests/test_image_preprocess.py tests/test_raster.py tests/test_raster_studio.py
+      - name: Deterministic image to shading smoke test
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tempfile
+          from PIL import Image, ImageDraw
+          from printrbot_penplotter.image_preprocess import ImagePreprocessConfig
+          from printrbot_penplotter.image_understanding import ImageUnderstandingConfig
+          from printrbot_penplotter.pen_shading import PenShadingConfig, render_pen_shading
+
+          with tempfile.TemporaryDirectory() as directory:
+              path = Path(directory) / 'fixture.png'
+              image = Image.new('L', (72, 54), 245)
+              draw = ImageDraw.Draw(image)
+              draw.ellipse((7, 5, 65, 49), fill=175, outline=30, width=2)
+              draw.ellipse((20, 18, 27, 25), fill=20)
+              draw.ellipse((45, 18, 52, 25), fill=20)
+              draw.rectangle((18, 35, 54, 44), fill=100)
+              image.save(path)
+              kwargs = dict(
+                  config=PenShadingConfig(style='crosshatch', hatch_spacing_px=6.0, seed=9),
+                  preprocess=ImagePreprocessConfig(auto_levels=True),
+                  understanding=ImageUnderstandingConfig(detail_level='high', min_region_px=3),
+              )
+              first = render_pen_shading(path, **kwargs)
+              second = render_pen_shading(path, **kwargs)
+              assert first.polylines == second.polylines
+              assert first.metadata == second.metadata
+              assert first.metadata['understanding_schema'] == 'printrbot-image-understanding/v1'
+              assert first.metadata['pen_shading_schema'] == 'printrbot-pen-shading/v1'
+              print('deterministic Step 2 -> 3 -> 5 -> 6 pen shading validated')
+          PY
