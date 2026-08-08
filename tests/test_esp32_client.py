@@ -7,6 +7,7 @@ from urllib.request import Request
 import pytest
 
 from printrbot_penplotter.esp32_client import BridgeError, Esp32BridgeClient
+from printrbot_penplotter.job_validator import JobValidationError
 
 
 class FakeTransport:
@@ -21,6 +22,26 @@ class FakeTransport:
         return self.status, json.dumps(self.payload).encode()
 
 
+def _safe_plot_gcode() -> str:
+    return "\n".join(
+        [
+            "G21",
+            "G90",
+            "M400",
+            "G28",
+            "M400",
+            "G0 Z5 F120",
+            "G0 X10 Y10 F1000",
+            "G1 X20 Y20 F600",
+            "G0 Z5 F120",
+            "M400",
+            "G28 X Y",
+            "M400",
+            "",
+        ]
+    )
+
+
 def test_status_uses_expected_endpoint() -> None:
     transport = FakeTransport(payload={"firmware": "bridge", "job": {"state": "idle"}})
     client = Esp32BridgeClient("http://bridge.local/", transport=transport)
@@ -32,7 +53,7 @@ def test_status_uses_expected_endpoint() -> None:
 
 def test_upload_builds_multipart_job_request(tmp_path: Path) -> None:
     gcode = tmp_path / "plot.gcode"
-    gcode.write_text("G21\nG90\nG0 Z5\n", encoding="utf-8")
+    gcode.write_text(_safe_plot_gcode(), encoding="utf-8")
     transport = FakeTransport()
     client = Esp32BridgeClient(transport=transport)
     client.upload(gcode)
@@ -42,7 +63,41 @@ def test_upload_builds_multipart_job_request(tmp_path: Path) -> None:
     assert request.method == "POST"
     assert request.headers["Content-type"].startswith("multipart/form-data; boundary=")
     assert b'name="job"' in request.data
-    assert b"G21\nG90\nG0 Z5" in request.data
+    assert b"G28\n" in request.data
+    assert b"G1 X20 Y20 F600" in request.data
+    assert b"G28 X Y" in request.data
+
+
+def test_upload_rejects_plot_without_homing_before_network(tmp_path: Path) -> None:
+    gcode = tmp_path / "unsafe.gcode"
+    gcode.write_text("G21\nG90\nG0 Z5 F120\nG0 X10 Y10 F600\n", encoding="utf-8")
+    transport = FakeTransport()
+    client = Esp32BridgeClient(transport=transport)
+    with pytest.raises(JobValidationError, match="G28 Z"):
+        client.upload(gcode)
+    assert transport.requests == []
+
+
+def test_upload_rejects_plot_without_end_rehome_before_network(tmp_path: Path) -> None:
+    gcode = tmp_path / "unsafe-end.gcode"
+    gcode.write_text(
+        "G21\nG90\nG28\nG0 Z5 F120\nG0 X10 Y10 F600\nG0 Z5 F120\n",
+        encoding="utf-8",
+    )
+    transport = FakeTransport()
+    client = Esp32BridgeClient(transport=transport)
+    with pytest.raises(JobValidationError, match="re-homing X/Y"):
+        client.upload(gcode)
+    assert transport.requests == []
+
+
+def test_upload_allows_home_only_diagnostic(tmp_path: Path) -> None:
+    gcode = tmp_path / "home-x.gcode"
+    gcode.write_text("G28 X\nM400\n", encoding="utf-8")
+    transport = FakeTransport()
+    client = Esp32BridgeClient(transport=transport)
+    client.upload(gcode)
+    assert len(transport.requests) == 1
 
 
 def test_oversized_upload_is_rejected_before_network(tmp_path: Path) -> None:

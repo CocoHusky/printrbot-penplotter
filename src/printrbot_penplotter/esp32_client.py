@@ -14,6 +14,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .job_validator import JobValidationError, validate_hardware_job
+
 Transport = Callable[[Request, float], tuple[int, bytes]]
 
 
@@ -98,6 +100,14 @@ class Esp32BridgeClient:
             raise ValueError("G-code file is empty.")
         if len(data) > 512 * 1024:
             raise ValueError("G-code file exceeds the bridge's 512 KiB limit.")
+        try:
+            gcode = data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("G-code file must be UTF-8 text.") from exc
+
+        # Fail locally before network upload. The ESP32 independently repeats
+        # guarded validation so bypassing this client does not bypass safety.
+        validate_hardware_job(gcode)
 
         boundary = "----PrintrbotBoundary" + secrets.token_hex(12)
         content_type = mimetypes.guess_type(path.name)[0] or "text/plain"
@@ -173,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
             result = client.emergency_stop()
         else:  # pragma: no cover
             raise BridgeError("Unknown command.")
-    except (BridgeError, FileNotFoundError, ValueError) as exc:
+    except (BridgeError, JobValidationError, FileNotFoundError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 

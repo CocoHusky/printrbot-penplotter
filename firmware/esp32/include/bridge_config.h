@@ -25,6 +25,19 @@ inline constexpr char kMdnsHostname[] = "printrbot";
 inline constexpr char kJobPath[] = "/active-job.gcode";
 inline constexpr std::size_t kMaximumJobBytes = 512 * 1024;
 inline constexpr std::size_t kMaximumCommands = 100000;
+
+// These limits mirror the physically validated Rev F4 plotter configuration.
+// The ESP32 uses them only to reject unsafe uploaded jobs; Marlin remains the
+// real-time motion controller and enforces its own limits as well.
+inline constexpr float kMachineXMinMm = 0.0F;
+inline constexpr float kMachineXMaxMm = 152.4F;
+inline constexpr float kMachineYMinMm = 0.0F;
+inline constexpr float kMachineYMaxMm = 152.4F;
+inline constexpr float kMachineZMinMm = 0.0F;
+inline constexpr float kMachineZMaxMm = 152.4F;
+inline constexpr float kMaximumXYFeedMmMin = 7500.0F;
+inline constexpr float kMaximumZFeedMmMin = 300.0F;
+
 inline constexpr float kSafeZUpMm = 5.0F;
 inline constexpr std::uint32_t kSafeZFeedMmMin = 300;
 

@@ -61,7 +61,11 @@ def polylines_to_gcode(
 ) -> str:
     """Create absolute-coordinate Marlin G-code.
 
-    Homing is opt-in. ``air_plot`` traces every XY path while keeping the pen at
+    Homing is opt-in. When ``home_before_plot`` is enabled, the generated
+    hardware job establishes all axes with ``G28`` before drawing and, after
+    raising the pen, re-homes X/Y at the end. Z is deliberately not re-homed
+    after drawing because this plotter's Z-min home direction moves the pen
+    toward the paper. ``air_plot`` traces every XY path while keeping the pen at
     ``z_up_mm``. Drawing feed automatically slows on segments touching corners
     sharper than ``corner_angle_deg``.
     """
@@ -83,7 +87,7 @@ def polylines_to_gcode(
     ]
 
     if pen.home_before_plot:
-        lines.extend(["G28 ; home all configured axes", "M400"])
+        lines.extend(["G28 ; home X/Y/Z before plot", "M400"])
 
     lines.append(f"G0 Z{pen.z_up_mm:.3f} F{pen.z_feed_mm_min:.1f} ; pen up")
 
@@ -114,13 +118,32 @@ def polylines_to_gcode(
                 f"Generated job exceeds the {MAX_GCODE_COMMANDS} command safety limit."
             )
 
-    lines.extend(["M400", f"G0 Z{pen.z_up_mm:.3f} F{pen.z_feed_mm_min:.1f}"])
+    # Standard safe end sequence: wait, guarantee pen-up, optionally park, then
+    # re-home only the planar axes. Never G28 Z after ink motion.
+    lines.extend(
+        [
+            "M400 ; finish drawing motion",
+            f"G0 Z{pen.z_up_mm:.3f} F{pen.z_feed_mm_min:.1f} ; final pen up",
+            "M400 ; confirm pen-up motion",
+        ]
+    )
 
     if pen.park_x_mm is not None and pen.park_y_mm is not None:
-        lines.append(
-            f"G0 X{pen.park_x_mm:.3f} Y{pen.park_y_mm:.3f} "
-            f"F{pen.travel_feed_mm_min:.1f} ; park"
+        lines.extend(
+            [
+                f"G0 X{pen.park_x_mm:.3f} Y{pen.park_y_mm:.3f} "
+                f"F{pen.travel_feed_mm_min:.1f} ; park",
+                "M400 ; finish park motion",
+            ]
         )
 
-    lines.extend(["M400", "; end of job", ""])
+    if pen.home_before_plot:
+        lines.extend(
+            [
+                "G28 X Y ; re-home X/Y with pen safely raised",
+                "M400 ; finish end homing",
+            ]
+        )
+
+    lines.extend(["; end of job", ""])
     return "\n".join(lines)
