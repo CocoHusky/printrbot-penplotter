@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from . import studio2 as studio2_module
 from .geometry import MAX_POINTS, MAX_STROKES
 from .product_api import router as product_router
 from .raster_studio import router as raster_router
-from .studio2 import router as studio2_router
+from .studio2_fixes import apply_studio2_fixes
 from .web import app
+
+# Apply Studio-only integration fixes before the router serves HTML or renders jobs.
+apply_studio2_fixes(studio2_module)
+studio2_router = studio2_module.router
 
 app.include_router(raster_router)
 app.include_router(studio2_router)
