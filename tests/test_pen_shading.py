@@ -72,6 +72,24 @@ def test_shading_render_is_deterministic(tmp_path: Path) -> None:
     assert first.metadata["pen_shading_schema"] == "printrbot-pen-shading/v1"
 
 
+def test_style_controls_are_applied_and_recorded(tmp_path: Path) -> None:
+    path = tmp_path / "fixture.png"
+    _fixture(path)
+    result = render_pen_shading(
+        path,
+        PenShadingConfig(
+            style="crosshatch",
+            include_outline=False,
+            angle_offset_deg=25.0,
+            density_scale=1.5,
+            seed=42,
+        ),
+    )
+    assert result.metadata["angle_offset_deg"] == 25.0
+    assert result.metadata["density_scale"] == 1.5
+    assert result.metadata["seed"] == 42
+
+
 def test_crosshatch_adds_tonal_layers(tmp_path: Path) -> None:
     path = tmp_path / "fixture.png"
     _fixture(path)
