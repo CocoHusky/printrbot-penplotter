@@ -51,7 +51,10 @@ def test_trace_endpoint_returns_four_stage_workflow() -> None:
     assert "<svg" in data["raw_trace_svg"]
     assert "<svg" in data["final_preview_svg"]
     assert "; mode: AIR PLOT" in data["gcode"]
-    assert "G28 ; home all configured axes" in data["gcode"]
+    assert "G28 ; home X/Y/Z before plot" in data["gcode"]
+    assert "G28 X Y ; re-home X/Y with pen safely raised" in data["gcode"]
+    assert data["gcode"].index("G28 ; home X/Y/Z before plot") < data["gcode"].index("G0 Z5.000")
+    assert data["gcode"].rindex("G28 X Y ; re-home X/Y with pen safely raised") > data["gcode"].rindex("final pen up")
     assert "pen down" not in data["gcode"]
     assert data["raw_polylines"]
     assert len(data["job_sidecar"]["source"]["sha256"]) == 64
@@ -75,7 +78,8 @@ def test_finalize_uses_edited_geometry_for_preview_and_gcode() -> None:
     assert len(data["machine_polylines"]) == 2
     assert "<svg" in data["final_preview_svg"]
     assert "; mode: AIR PLOT" in data["gcode"]
-    assert "G28 ; home all configured axes" in data["gcode"]
+    assert "G28 ; home X/Y/Z before plot" in data["gcode"]
+    assert "G28 X Y ; re-home X/Y with pen safely raised" in data["gcode"]
     assert "pen down" not in data["gcode"]
     assert data["metadata"]["home_before_plot"] is True
 
