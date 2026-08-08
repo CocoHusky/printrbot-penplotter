@@ -17,7 +17,7 @@ def _png() -> bytes:
     return out.getvalue()
 
 
-def test_studio2_page_exposes_advanced_controls_and_pipeline_locks() -> None:
+def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> None:
     response = client.get("/studio2")
     assert response.status_code == 200
     text = response.text
@@ -33,6 +33,11 @@ def test_studio2_page_exposes_advanced_controls_and_pipeline_locks() -> None:
     assert "Home before plot" in text
     assert "Max artistic strokes" in text
     assert "Bypass soft artistic limit" in text
+    assert "Final drawing size" in text
+    assert "Fit inside box" in text
+    assert "Force exact width" in text
+    assert "Final scale (%)" in text
+    assert "Save SVG" in text and "Save G-code" in text
 
 
 def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> None:
@@ -57,11 +62,17 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
             "edge_method": "sobel",
             "edge_low": "0.08",
             "edge_high": "0.20",
+            "size_mode": "fit_box",
+            "target_width_mm": "80",
+            "target_height_mm": "60",
+            "keep_aspect": "true",
+            "final_scale_percent": "100",
+            "clamp_to_bed": "true",
         },
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["metadata"]["studio_schema"] == "printrbot-studio2/v2"
+    assert body["metadata"]["studio_schema"] == "printrbot-studio2/v3"
     assert body["metadata"]["home_before_plot"] is True
     assert body["metadata"]["studio_working_max_dimension_px"] == 480
     assert body["metadata"]["effective_pipeline"] == "line_art"
@@ -70,6 +81,9 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert body["metadata"]["studio_component_min_px"] == 4
     assert body["metadata"]["artistic_stroke_limit_effective"] == 20_000
     assert body["metadata"]["artistic_limit_bypassed"] is False
+    assert body["metadata"]["size_mode"] == "fit_box"
+    assert body["metadata"]["final_width_mm"] <= 80.0001
+    assert body["metadata"]["final_height_mm"] <= 60.0001
     assert body["stages"]["source"].startswith("data:image/png;base64,")
     assert body["stages"]["corrected"].startswith("data:image/png;base64,")
     assert body["stages"]["mask"].startswith("data:image/png;base64,")
@@ -77,6 +91,32 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert "G28" in body["gcode"]
     assert "G28 X Y" in body["gcode"]
     assert body["polylines"]
+
+
+def test_studio2_force_exact_size_and_final_scale() -> None:
+    response = client.post(
+        "/api/studio2/render",
+        files={"file": ("fixture.png", _png(), "image/png")},
+        data={
+            "mode": "line_art",
+            "style": "clean_outline",
+            "quality": "quick",
+            "detail": "medium",
+            "background_mode": "suppress",
+            "size_mode": "force_exact",
+            "target_width_mm": "50",
+            "target_height_mm": "30",
+            "keep_aspect": "false",
+            "final_scale_percent": "80",
+            "clamp_to_bed": "true",
+        },
+    )
+    assert response.status_code == 200, response.text
+    metadata = response.json()["metadata"]
+    assert abs(metadata["final_width_mm"] - 40.0) < 0.05
+    assert abs(metadata["final_height_mm"] - 24.0) < 0.05
+    assert metadata["keep_aspect"] is False
+    assert metadata["final_scale_percent"] == 80.0
 
 
 def test_studio2_expert_bypass_raises_soft_artistic_limit_but_keeps_hard_guard() -> None:
@@ -125,7 +165,7 @@ def test_studio2_auto_ignores_manual_style_and_reports_effective_choice() -> Non
         data={
             "mode": "auto",
             "style": "fur_texture",
-            "quality": "quick",
+            "quality": "balanced",
             "detail": "medium",
             "background_mode": "suppress",
         },
@@ -135,3 +175,6 @@ def test_studio2_auto_ignores_manual_style_and_reports_effective_choice() -> Non
     assert body["metadata"]["requested_style"] is None
     assert body["metadata"]["effective_style"]
     assert body["metadata"]["effective_pipeline"] in ("line_art", "shading")
+    assert body["metadata"]["requested_quality"] == "balanced"
+    assert body["metadata"]["effective_quality"] == "quick"
+    assert body["metadata"]["auto_interactive_preview"] is True
