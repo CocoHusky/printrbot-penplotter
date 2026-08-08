@@ -35,7 +35,7 @@ The finished product must let a user type text or supply handwriting, sketches, 
 3. **Deterministic variation.** Humanization and randomized character variation must accept a seed and reproduce the same output with the same inputs.
 4. **Input adapters remain separate from machine output.** Text, SVG, handwriting, and image tracing should all produce the same internal polyline model before G-code is generated.
 5. **Hardware motion is opt-in.** Rendering and previewing must work without connected hardware. Sending motion requires explicit confirmation and a configured transport.
-6. **No hidden homing or calibration assumptions.** Homing, pen-up height, pen-down height, page bounds, feed rates, and origin must be explicit configuration.
+6. **No hidden homing or calibration assumptions.** Homing, pen-up height, pen-down height, page bounds, feed rates, and origin must be explicit configuration. Hardware-bound XY jobs must nevertheless satisfy the documented guarded start/end envelope before any transport will execute them.
 7. **Never send heaters, extrusion, or tool-change commands.** This machine is a heaterless pen plotter with `EXTRUDERS 0`.
 8. **Do not bypass voltage conversion.** The Printrboard UART is 5 V logic and the ESP32-C3 GPIO domain is 3.3 V. Keep the documented level-translation boundary.
 9. **Preserve Marlin compatibility.** The AT90USB1286 Printrboard remains the real-time motion controller. The ESP32 is a network/host bridge, not a replacement motion planner.
@@ -88,7 +88,7 @@ The finished product must let a user type text or supply handwriting, sketches, 
 2. **One command must be acknowledged before the next is sent.** Do not add blind streaming, speculative buffering, or movement retries that can desynchronize Marlin state.
 3. **One hardware job at a time.** Upload replacement, query traffic, and network reconfiguration must not race with an active job.
 4. **Validate the complete stored job before start.** A partial upload or unvalidated file must never become runnable.
-5. **Apply safety filtering at both ends.** Python generation and ESP32 upload validation both block heaters, extrusion, tool changes, embedded emergency stop, and `E`-axis motion.
+5. **Apply safety filtering at every hardware boundary.** Direct USB sending, host-side ESP32 upload, and firmware-side stored-job validation all enforce the guarded job contract, including homing, safe pen state, limits, and forbidden heater/extrusion/tool commands.
 6. **Pause is cooperative.** Pause occurs between Marlin acknowledgements and does not pretend to interrupt an already accepted motion command.
 7. **Orderly cancel and emergency stop are different operations.** Normal cancel stops new commands and attempts `M400 → calibrated pen up → M400`. Emergency stop sends `M112` immediately and may require controller reset.
 8. **Never auto-resume after reset, reconnect, or power loss.** Recovery requires explicit operator review and confirmation.
@@ -119,9 +119,10 @@ The current foundation provides:
 - corner-aware drawing feed requests;
 - preview generated from the exact final post-motion paths;
 - Marlin G-code using X/Y motion and Z pen lift;
-- guarded direct USB serial sending;
-- ESP32-C3 firmware with Wi-Fi, LittleFS upload, safety validation, acknowledgement-based forwarding, job states, browser controls, and UART logs;
-- a Python ESP32 bridge client;
+- guarded direct USB serial sending with complete-job validation before the first serial write;
+- ESP32-C3 firmware with Wi-Fi, LittleFS upload, complete stored-job safety validation, acknowledgement-based forwarding, job states, browser controls, and UART logs;
+- a Python ESP32 bridge client with host-side complete-job validation;
+- dedicated Safety Contract CI covering Python validation, canonical G-code, ESP32 native protocol tests, and firmware compilation;
 - local browser UI and CLI;
 - tests covering deterministic rendering, bounds, safety, writing, raster tracing/editing, transport, and motion optimization.
 
@@ -152,10 +153,11 @@ Writing, raster, motion, and transport code can be developed and previewed while
 - `inputs.py` dispatches text, SVG, and raster source material into polylines and keeps engine/trace modes explicit.
 - `geometry.py` validates, transforms, places, simplifies, and previews polylines.
 - `gcode.py` is the only Python module that converts final geometry into Marlin movement commands.
-- `sender.py` handles direct USB acknowledgement and errors; it must not generate artwork.
-- `esp32_client.py` uploads and controls already-generated jobs; it must not generate artwork.
+- `job_validator.py` owns the host-side complete hardware-job contract shared by direct USB and ESP32 upload clients.
+- `sender.py` handles direct USB acknowledgement and errors; it must validate complete hardware jobs but must not generate artwork.
+- `esp32_client.py` uploads and controls already-generated jobs; it validates hardware jobs but must not generate artwork.
 - `pipeline.py` composes modules without duplicating their logic and applies motion optimization only after page placement.
-- `firmware/esp32/include/plotter_protocol.h` owns firmware-side command sanitation shared with native tests.
+- `firmware/esp32/include/plotter_protocol.h` owns firmware-side command sanitation and complete-job sequence validation shared with native tests.
 - `firmware/esp32/src/printer_bridge.*` owns UART framing, acknowledgement, timeout, and logs.
 - `firmware/esp32/src/job_runner.*` owns stored-job state and one-command-at-a-time execution.
 - `firmware/esp32/src/main.cpp` owns Wi-Fi, HTTP routing, Preferences, LittleFS upload, and device lifecycle.
@@ -166,16 +168,18 @@ Writing, raster, motion, and transport code can be developed and previewed while
 Before merging hardware-moving code, verify:
 
 - no command exceeds configured X/Y paper or machine bounds;
-- the first motion occurs with the pen up;
-- the final state leaves the pen up;
-- homing is disabled by default unless explicitly requested;
+- the first XY motion occurs only after same-job X/Y/Z homing and a safe pen-up move;
+- the final state leaves the pen up and re-homes X/Y without re-homing Z;
+- offline/render-only jobs may omit homing only as an explicit configuration choice, while hardware execution rejects XY jobs without the guarded envelope;
+- diagonal X+Y motion remains valid and only simultaneous XY+Z motion is rejected;
 - feed rates are configurable and conservative;
 - malformed input cannot create NaN, infinity, extreme coordinates, oversized files, or unsafe commands;
 - serial errors and timeouts stop new job commands instead of continuing blindly;
 - physical motion still requires a deliberate start action;
 - orderly cancellation and emergency stop remain separate;
 - no automatic resume occurs after reset or reconnect;
-- physical emergency power removal remains reachable during first validation.
+- physical emergency power removal remains reachable during first validation;
+- the dedicated Safety Contract CI and existing repository checks pass.
 
 ## Documentation rules
 
