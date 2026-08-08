@@ -6,6 +6,7 @@ from pathlib import Path
 
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
+from . import studio2 as studio2_module
 from .geometry import MAX_POINTS, MAX_STROKES
 from .product_api import router as product_router
 from .raster_studio import router as raster_router
@@ -17,6 +18,7 @@ from .web import app
 # final orientation transform and persistent action bar itself, so do not apply
 # the older HTML/orientation monkey patches here.
 studio2_fixes._patch_large_job_limits()
+studio2_fixes._patch_image_orientation(studio2_module)
 # request.form() returns Starlette's UploadFile instance; Studio 2.1 accepts it
 # directly while still passing it to the established FastAPI render function.
 studio2_v3.UploadFile = StarletteUploadFile
