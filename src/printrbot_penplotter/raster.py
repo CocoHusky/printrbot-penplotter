@@ -1,4 +1,9 @@
-"""Raster image and handwriting tracing into the shared polyline model."""
+"""Raster image and handwriting tracing into the shared polyline model.
+
+Step 2 keeps image normalization separate from geometry extraction.  Raster
+input is first normalized by :mod:`image_preprocess`, then thresholded, cleaned,
+and finally converted into the same polyline model used by every other input.
+"""
 
 from __future__ import annotations
 
@@ -10,9 +15,15 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-from PIL import Image, ImageFilter, ImageOps
 
 from .geometry import validate_polylines
+from .image_preprocess import (
+    ImagePreprocessConfig,
+    ThresholdConfig,
+    otsu_threshold,
+    preprocess_image,
+    threshold_image,
+)
 from .models import Point, Polyline, Polylines
 
 TraceMode = Literal["centerline", "contour"]
@@ -20,7 +31,13 @@ TraceMode = Literal["centerline", "contour"]
 
 @dataclass(frozen=True)
 class RasterTraceConfig:
-    """Deterministic preprocessing and tracing controls for raster inputs."""
+    """Deterministic preprocessing and tracing controls for raster inputs.
+
+    The original Release 0.5 fields remain supported.  Step 2 adds the nested
+    ``preprocess`` and ``thresholding`` records so richer normalization can be
+    configured without mixing image operations into tracing or G-code code.
+    When a nested record is supplied it is the source of truth for that stage.
+    """
 
     mode: TraceMode = "centerline"
     threshold: int | None = None
@@ -32,6 +49,8 @@ class RasterTraceConfig:
     max_processed_pixels: int = 1_500_000
     skeleton_max_iterations: int = 256
     simplify_px: float = 0.8
+    preprocess: ImagePreprocessConfig | None = None
+    thresholding: ThresholdConfig | None = None
 
     def validate(self) -> None:
         if self.mode not in ("centerline", "contour"):
@@ -52,6 +71,27 @@ class RasterTraceConfig:
             raise ValueError("Skeleton iteration limit must be positive.")
         if not math.isfinite(self.simplify_px) or self.simplify_px < 0:
             raise ValueError("Raster simplification tolerance must be finite and non-negative.")
+        self.effective_preprocess().validate()
+        self.effective_thresholding().validate()
+
+    def effective_preprocess(self) -> ImagePreprocessConfig:
+        if self.preprocess is not None:
+            return self.preprocess
+        return ImagePreprocessConfig(
+            gaussian_blur_radius_px=self.blur_radius_px,
+            max_dimension_px=self.max_dimension_px,
+            max_input_pixels=self.max_input_pixels,
+            max_processed_pixels=self.max_processed_pixels,
+        )
+
+    def effective_thresholding(self) -> ThresholdConfig:
+        if self.thresholding is not None:
+            return self.thresholding
+        return ThresholdConfig(
+            mode="manual" if self.threshold is not None else "otsu",
+            manual_threshold=self.threshold,
+            invert=self.invert,
+        )
 
 
 @dataclass(frozen=True)
@@ -61,93 +101,23 @@ class RasterTraceResult:
 
 
 def _otsu_threshold(gray: np.ndarray) -> int:
-    histogram = np.bincount(gray.ravel(), minlength=256).astype(np.float64)
-    total = float(gray.size)
-    weighted_total = float(np.dot(np.arange(256, dtype=np.float64), histogram))
-    background_weight = 0.0
-    background_sum = 0.0
-    best_variance = -1.0
-    best_threshold = 127
+    """Backward-compatible private alias used by the Release 0.5 Studio."""
 
-    for threshold in range(256):
-        count = histogram[threshold]
-        background_weight += count
-        if background_weight <= 0:
-            continue
-        foreground_weight = total - background_weight
-        if foreground_weight <= 0:
-            break
-        background_sum += threshold * count
-        background_mean = background_sum / background_weight
-        foreground_mean = (weighted_total - background_sum) / foreground_weight
-        variance = (
-            background_weight
-            * foreground_weight
-            * (background_mean - foreground_mean) ** 2
-        )
-        if variance > best_variance:
-            best_variance = variance
-            best_threshold = threshold
-
-    return int(best_threshold)
+    return otsu_threshold(gray)
 
 
 def _load_grayscale(
     source: Path,
     config: RasterTraceConfig,
 ) -> tuple[np.ndarray, tuple[int, int], float]:
-    if not source.is_file():
-        raise FileNotFoundError(source)
+    """Backward-compatible grayscale loader used by the existing Studio."""
 
-    try:
-        image = Image.open(source)
-    except Exception as exc:
-        raise ValueError(f"Raster image could not be opened: {source}") from exc
-
-    with image:
-        image = ImageOps.exif_transpose(image)
-        original_width, original_height = image.size
-        if original_width < 1 or original_height < 1:
-            raise ValueError("Raster image has invalid dimensions.")
-        if original_width * original_height > config.max_input_pixels:
-            raise ValueError(
-                f"Raster image exceeds the {config.max_input_pixels:,}-pixel input limit."
-            )
-
-        if image.mode in ("RGBA", "LA") or "transparency" in image.info:
-            rgba = image.convert("RGBA")
-            white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
-            white.alpha_composite(rgba)
-            image = white.convert("L")
-        else:
-            image = image.convert("L")
-
-        longest = max(image.size)
-        scale = min(1.0, config.max_dimension_px / float(longest))
-        if scale < 1.0:
-            resized = (
-                max(1, int(round(image.width * scale))),
-                max(1, int(round(image.height * scale))),
-            )
-            image = image.resize(resized, Image.Resampling.LANCZOS)
-
-        if image.width * image.height > config.max_processed_pixels:
-            secondary_scale = math.sqrt(
-                config.max_processed_pixels / float(image.width * image.height)
-            )
-            resized = (
-                max(1, int(math.floor(image.width * secondary_scale))),
-                max(1, int(math.floor(image.height * secondary_scale))),
-            )
-            image = image.resize(resized, Image.Resampling.LANCZOS)
-            scale *= secondary_scale
-
-        if config.blur_radius_px > 0:
-            image = image.filter(ImageFilter.GaussianBlur(config.blur_radius_px))
-
-        gray = np.asarray(image, dtype=np.uint8)
-
-    return gray, (original_width, original_height), scale
+    result = preprocess_image(source, config.effective_preprocess())
+    original = (
+        int(result.metadata["original_width_px"]),
+        int(result.metadata["original_height_px"]),
+    )
+    return result.gray, original, float(result.metadata["resize_scale"])
 
 
 _NEIGHBORS_8 = (
@@ -255,12 +225,7 @@ def _skeletonize(
                 + ((~p8) & p9).astype(np.uint8)
                 + ((~p9) & p2).astype(np.uint8)
             )
-            remove = (
-                image
-                & (neighbor_count >= 2)
-                & (neighbor_count <= 6)
-                & (transitions == 1)
-            )
+            remove = image & (neighbor_count >= 2) & (neighbor_count <= 6) & (transitions == 1)
             if phase == 0:
                 remove &= ~(p2 & p4 & p6)
                 remove &= ~(p4 & p6 & p8)
@@ -322,8 +287,7 @@ def _trace_skeleton(mask: np.ndarray) -> Polylines:
             candidates = [
                 candidate
                 for candidate in neighbors(current)
-                if candidate != previous
-                and _edge_key(current, candidate) not in visited_edges
+                if candidate != previous and _edge_key(current, candidate) not in visited_edges
             ]
             if not candidates:
                 break
@@ -355,10 +319,7 @@ def _trace_skeleton(mask: np.ndarray) -> Polylines:
 
     height = mask.shape[0]
     return [
-        [
-            (float(column) + 0.5, float(height - 1 - row) + 0.5)
-            for row, column in line
-        ]
+        [(float(column) + 0.5, float(height - 1 - row) + 0.5) for row, column in line]
         for line in pixel_lines
     ]
 
@@ -469,16 +430,12 @@ def _rdp_closed(line: Polyline, epsilon: float) -> Polyline:
 
     first_split = max(
         range(len(points)),
-        key=lambda index: math.hypot(
-            points[index][0] - points[0][0],
-            points[index][1] - points[0][1],
-        ),
+        key=lambda index: math.hypot(points[index][0] - points[0][0], points[index][1] - points[0][1]),
     )
     second_split = max(
         range(len(points)),
         key=lambda index: math.hypot(
-            points[index][0] - points[first_split][0],
-            points[index][1] - points[first_split][1],
+            points[index][0] - points[first_split][0], points[index][1] - points[first_split][1]
         ),
     )
     first_split, second_split = sorted((first_split, second_split))
@@ -514,19 +471,18 @@ def trace_raster(
     source: str | Path,
     config: RasterTraceConfig | None = None,
 ) -> RasterTraceResult:
-    """Trace an image into centerlines or contours before machine placement."""
+    """Normalize and trace an image before machine placement."""
 
     config = config or RasterTraceConfig()
     config.validate()
     source_path = Path(source)
-    gray, original_size, resize_scale = _load_grayscale(source_path, config)
-    threshold = config.threshold if config.threshold is not None else _otsu_threshold(gray)
-    mask = gray > threshold if config.invert else gray <= threshold
+
+    preprocessed = preprocess_image(source_path, config.effective_preprocess())
+    thresholded = threshold_image(preprocessed.gray, config.effective_thresholding())
+    mask = thresholded.mask
     initial_foreground = int(np.count_nonzero(mask))
     if initial_foreground == 0:
-        raise ValueError(
-            "Raster preprocessing found no foreground pixels. Adjust threshold or inversion."
-        )
+        raise ValueError("Raster preprocessing found no foreground pixels. Adjust threshold or inversion.")
 
     cleaned, kept_components, removed_components, removed_pixels = _remove_small_components(
         mask,
@@ -534,9 +490,7 @@ def trace_raster(
     )
     cleaned_foreground = int(np.count_nonzero(cleaned))
     if cleaned_foreground == 0:
-        raise ValueError(
-            "Raster cleanup removed every foreground component. Reduce min_component_px."
-        )
+        raise ValueError("Raster cleanup removed every foreground component. Reduce min_component_px.")
 
     skeleton_iterations = 0
     skeleton_converged = True
@@ -555,28 +509,27 @@ def trace_raster(
         raise ValueError("Raster tracing produced no drawable polylines.")
     validate_polylines(polylines)
 
-    metadata: dict[str, object] = {
-        "source": str(source_path),
-        "trace_mode": config.mode,
-        "threshold": threshold,
-        "threshold_mode": "manual" if config.threshold is not None else "otsu",
-        "invert": config.invert,
-        "blur_radius_px": config.blur_radius_px,
-        "min_component_px": config.min_component_px,
-        "original_width_px": original_size[0],
-        "original_height_px": original_size[1],
-        "processed_width_px": int(gray.shape[1]),
-        "processed_height_px": int(gray.shape[0]),
-        "resize_scale": round(float(resize_scale), 6),
-        "foreground_pixels_before_cleanup": initial_foreground,
-        "foreground_pixels_after_cleanup": cleaned_foreground,
-        "components_kept": kept_components,
-        "components_removed": removed_components,
-        "pixels_removed": removed_pixels,
-        "trace_strokes": len(polylines),
-        "trace_points": sum(len(line) for line in polylines),
-        "simplify_px": config.simplify_px,
-    }
+    metadata: dict[str, object] = dict(preprocessed.metadata)
+    metadata.update(thresholded.metadata)
+    metadata.update(
+        {
+            "source": str(source_path),
+            "trace_mode": config.mode,
+            "threshold": thresholded.metadata["effective_threshold"],
+            "invert": bool(thresholded.metadata["invert"]),
+            "blur_radius_px": config.effective_preprocess().gaussian_blur_radius_px,
+            "min_component_px": config.min_component_px,
+            "foreground_pixels_before_cleanup": initial_foreground,
+            "foreground_pixels_after_cleanup": cleaned_foreground,
+            "components_kept": kept_components,
+            "components_removed": removed_components,
+            "pixels_removed": removed_pixels,
+            "trace_strokes": len(polylines),
+            "trace_points": sum(len(line) for line in polylines),
+            "simplify_px": config.simplify_px,
+            "preprocessing_schema": "printrbot-image-preprocess/v2",
+        }
+    )
     if config.mode == "centerline":
         metadata.update(
             {
