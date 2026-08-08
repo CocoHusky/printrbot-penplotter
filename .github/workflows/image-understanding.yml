@@ -58,7 +58,9 @@ jobs:
               assert np.array_equal(first.tone_labels, second.tone_labels)
               assert first.regions == second.regions
               assert first.metadata == second.metadata
-              assert first.metadata['preprocessing_schema'] == 'printrbot-image-preprocess/v2'
+              assert first.metadata['auto_levels'] is True
+              assert first.metadata['background_mode'] == 'suppress'
+              assert first.metadata['processed_width_px'] == first.gray.shape[1]
               assert first.metadata['understanding_schema'] == 'printrbot-image-understanding/v1'
               print('deterministic Step 2 -> Step 3 analysis validated')
           PY
