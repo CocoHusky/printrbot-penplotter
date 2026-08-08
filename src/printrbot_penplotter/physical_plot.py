@@ -26,6 +26,7 @@ class PhysicalPlotConfig:
     allow_reverse: bool = True
     max_strokes: int = 20_000
     max_points: int = 2_000_000
+    max_two_opt_strokes: int = 180
 
     def validate(self) -> None:
         if not math.isfinite(self.pen_tip_mm) or not 0.05 <= self.pen_tip_mm <= 5.0:
@@ -40,6 +41,8 @@ class PhysicalPlotConfig:
             raise ValueError("invalid route_mode")
         if self.max_strokes < 1 or self.max_points < 2:
             raise ValueError("geometry limits must be positive")
+        if not isinstance(self.max_two_opt_strokes, int) or self.max_two_opt_strokes < 3:
+            raise ValueError("max_two_opt_strokes must be at least 3")
 
 @dataclass(frozen=True)
 class PhysicalPlotResult:
@@ -82,6 +85,25 @@ def _filter_physical(lines: Polylines, cfg: PhysicalPlotConfig) -> tuple[Polylin
             removed_points += len(cleaned)
     return out, removed_strokes, removed_points
 
+
+def _effective_route_mode(cfg: PhysicalPlotConfig, stroke_count: int) -> tuple[str, str | None]:
+    """Bound expensive route refinement for interactive image jobs.
+
+    The generic two-opt implementation is exhaustive enough that hundreds of
+    independent photo-derived strokes can make a preview appear frozen. Quick
+    and balanced quality therefore use deterministic nearest-neighbor routing.
+    Best quality keeps two-opt only for small jobs and falls back to nearest for
+    larger ones. Explicit authored/nearest requests are always preserved.
+    """
+    if cfg.route_mode != "two_opt":
+        return cfg.route_mode, None
+    if cfg.quality in ("quick", "balanced"):
+        return "nearest", f"two_opt_bounded_for_{cfg.quality}_quality"
+    if stroke_count > cfg.max_two_opt_strokes:
+        return "nearest", "two_opt_bounded_for_large_job"
+    return "two_opt", None
+
+
 def prepare_physical_plot(polylines: Polylines, config: PhysicalPlotConfig | None = None, *, pen: PenConfig | None = None) -> PhysicalPlotResult:
     cfg = config or PhysicalPlotConfig(); cfg.validate()
     pen = pen or PenConfig()
@@ -92,16 +114,18 @@ def prepare_physical_plot(polylines: Polylines, config: PhysicalPlotConfig | Non
     points = sum(len(line) for line in filtered)
     if len(filtered) > cfg.max_strokes or points > cfg.max_points:
         raise ValueError("Physical plot exceeds configured geometry limits.")
+
+    effective_route_mode, route_fallback_reason = _effective_route_mode(cfg, len(filtered))
     join_tolerance = cfg.pen_tip_mm * cfg.min_gap_factor if cfg.quality == "quick" else 0.0
     rdp = cfg.pen_tip_mm * {"quick": 0.45, "balanced": 0.20, "best": 0.08}[cfg.quality]
     motion_cfg = MotionConfig(
-        route_mode=cfg.route_mode,
+        route_mode=effective_route_mode,
         allow_reverse=cfg.allow_reverse,
         join_tolerance_mm=join_tolerance,
         rdp_tolerance_mm=rdp,
         resample_spacing_mm=0.0,
         smooth_passes=0,
-        two_opt_passes={"quick": 2, "balanced": 6, "best": 12}[cfg.quality],
+        two_opt_passes=2 if effective_route_mode == "two_opt" else 0,
     )
     plan = optimize_motion(filtered, motion_cfg, pen=pen)
     metadata = {
@@ -115,6 +139,10 @@ def prepare_physical_plot(polylines: Polylines, config: PhysicalPlotConfig | Non
         "input_strokes": len(polylines),
         "output_strokes": len(plan.polylines),
         "output_points": sum(len(line) for line in plan.polylines),
+        "requested_route_mode": cfg.route_mode,
+        "effective_route_mode": effective_route_mode,
+        "route_fallback_reason": route_fallback_reason,
+        "max_two_opt_strokes": cfg.max_two_opt_strokes,
         "motion": plan.metadata(),
     }
     return PhysicalPlotResult(polylines=plan.polylines, before=plan.before, after=plan.after, metadata=metadata)
