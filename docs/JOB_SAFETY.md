@@ -1,10 +1,10 @@
 # Guarded hardware job envelope
 
-Real-hardware jobs use a self-contained start/end envelope so a stored G-code file does not depend on stale Marlin coordinates from an earlier session.
+Real-hardware jobs use one self-contained start/end contract so a stored G-code file never depends on stale Marlin coordinates from an earlier session.
 
 ## Standard plotting sequence
 
-A normal Wi-Fi plotting job that contains XY motion must establish its own coordinate system and leave the machine in a known state.
+Any normal hardware job that contains XY motion must establish its own coordinate system and leave the machine in a known state.
 
 ```gcode
 G21                 ; millimeters
@@ -27,12 +27,21 @@ M400
 
 The end sequence intentionally does **not** home Z. On this Printrbot, Z homes toward the Z-min sensor/paper side, so end-of-job Z homing is rejected after plotting motion. The pen is raised first and only X/Y are re-homed.
 
+## Generation versus hardware execution
+
+Rendering and previewing remain hardware-independent. A user may deliberately generate a no-home file for offline inspection, geometry debugging, or other non-hardware work. That file is **not** a runnable XY hardware job.
+
+The Image & Handwriting Studio exposes **Home all axes before plot** and enables it by default. CLI users generating a hardware-bound job must include `--home`. The hardware execution boundaries do not rely on the user remembering this: they reject XY jobs that do not contain the complete guarded envelope.
+
+This keeps homing visible and configurable while making stale logical coordinates impossible to accept at a hardware boundary.
+
 ## Validator behavior
 
-Hardware G-code is validated twice:
+Hardware G-code is guarded at every execution path:
 
-1. `printrbot-bridge upload` performs host-side sequence validation before sending the file over the network.
-2. ESP32 firmware validates the complete stored file before it can enter the `ready` state.
+1. `printrbot-bridge upload` performs host-side complete-job validation before sending a file over the network.
+2. Direct USB `MarlinSender.send_gcode()` / `printrbot-plotter send` performs the same complete-job validation before writing the first byte to Marlin.
+3. ESP32 firmware validates the complete stored file again before it can enter the `ready` state.
 
 For any job that performs XY motion, the validators reject:
 
@@ -61,6 +70,14 @@ M400
 
 This keeps individual axis validation possible without requiring a full plotting envelope.
 
-## Studio behavior
+## CI contract
 
-The Image & Handwriting Studio exposes **Home all axes before plot** and enables it by default. When enabled, generated G-code includes the full start home and the safe end sequence above. A Studio job with homing deliberately disabled can still be generated for offline/non-bridge inspection, but `printrbot-bridge upload` and the updated ESP32 validator will refuse XY hardware motion that lacks the guarded envelope.
+`.github/workflows/safety-contract.yml` is the regression gate for this contract. On every pull request and push to `main` it:
+
+- runs the full Python test suite on Python 3.11 and 3.13;
+- generates and validates a canonical homed hardware job;
+- verifies that an otherwise valid no-home XY job is rejected for hardware execution;
+- runs the ESP32 native protocol tests;
+- compiles the ESP32-C3 firmware.
+
+The existing general Python and ESP32 workflows remain useful independent checks. A safety-contract change is not considered complete until the dedicated contract workflow and the existing repository checks pass.

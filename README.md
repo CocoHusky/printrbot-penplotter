@@ -75,9 +75,15 @@ Sharp corners can request a separate slower drawing feed using `--corner-feed` a
 - Calibration deliberately bypasses Release 0.6 route/smoothing transforms.
 - Air-plot mode that never emits a pen-down move.
 - Finite-coordinate, machine-bound, paper-bound, Z-bound, point-count, and command-count validation.
+- Canonical hardware job envelope: `G21 → G90 → G28 → pen up` before XY plotting, then final pen up and `G28 X Y` at the end.
+- Direct USB and host-side Wi-Fi uploads perform complete-job validation before hardware receives the file.
+- ESP32 firmware validates the complete stored file again before a job can become runnable.
 - USB serial sending one command at a time with Marlin `ok` acknowledgement.
 - Heater, extrusion, tool-change, and `E`-axis commands blocked from normal jobs.
 - Separate orderly cancellation and immediate emergency stop behavior.
+- Dedicated Safety Contract CI runs the full Python suite on Python 3.11/3.13, safety smoke tests, ESP32 native protocol tests, and the ESP32-C3 firmware build.
+
+Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ### Release 0.4 ESP32 transport
 
@@ -104,7 +110,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
-pytest
+python -m pytest
 ```
 
 ## Generate single-line handwriting
@@ -308,6 +314,8 @@ The browser studio lets you:
 6. regenerate the final preview from those exact edited paths;
 7. download edited SVG, G-code, or a JSON sidecar containing the source SHA-256, trace settings, and geometry.
 
+The Studio exposes **Home all axes before plot** and enables it by default. Turning it off is useful only for offline inspection or special non-hardware workflows; the hardware validators will refuse normal XY plotting without the guarded envelope.
+
 The original writing interface remains available at `http://127.0.0.1:8000/` in the same process.
 
 Release 0.5 details: [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md)
@@ -315,7 +323,7 @@ Release 0.5 details: [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md)
 ## Generate an air-plot calibration
 
 ```bash
-printrbot-plotter calibrate
+printrbot-plotter calibrate --home
 ```
 
 This creates:
@@ -325,7 +333,7 @@ out/calibration.svg
 out/calibration.gcode
 ```
 
-The default calibration file is an air plot. Do not use `--pen-plot` until motor direction, homing, machine origin, travel, and Z-up/Z-down have been physically validated.
+The default calibration file is an air plot. Use `--home` for any calibration that will actually be sent to hardware. Do not use `--pen-plot` until motor direction, homing, machine origin, travel, and Z-up/Z-down have been physically validated.
 
 ## Run direct USB preflight
 
@@ -338,14 +346,27 @@ This only queries firmware identity, endstops, position, and stored settings. It
 
 ## Send a reviewed job directly over USB
 
+Generate hardware-bound XY jobs with `--home` so they contain the canonical guarded start/end sequence. For example:
+
 ```bash
-printrbot-plotter send out/calibration.gcode \
+printrbot-plotter text "Hello" \
+  --preset human \
+  --air-plot \
+  --home \
+  --output out/hello.gcode \
+  --preview out/hello.svg
+```
+
+Then send the reviewed job:
+
+```bash
+printrbot-plotter send out/hello.gcode \
   --port /dev/cu.usbmodemPrintrbot123451 \
   --safe-z-up 5 \
   --confirm DRAW
 ```
 
-The sender waits for Marlin `ok` after every command and attempts `M400 → pen up → M400` after an ordinary cancellation or communication failure.
+The direct USB sender validates the complete job before writing the first byte to Marlin. XY jobs without same-job X/Y/Z homing, a safe first XY state, bounds-safe motion, final pen-up, and final `G28 X Y` are rejected. The sender then waits for Marlin `ok` after every command and attempts `M400 → pen up → M400` after an ordinary cancellation or communication failure.
 
 ## Run the writing browser application only
 
@@ -381,9 +402,11 @@ HTTP API: [`docs/ESP32_API.md`](docs/ESP32_API.md)
 
 ## Use the Python ESP32 client
 
+Generate a hardware-bound job with `--home`, then:
+
 ```bash
 printrbot-bridge status
-printrbot-bridge upload out/calibration.gcode
+printrbot-bridge upload out/plot.gcode
 printrbot-bridge start
 printrbot-bridge pause
 printrbot-bridge resume
@@ -391,6 +414,8 @@ printrbot-bridge cancel
 printrbot-bridge query M119
 printrbot-bridge emergency --confirm STOP
 ```
+
+`printrbot-bridge upload` performs complete-job validation before network upload. The ESP32 repeats complete stored-job validation before the job can enter `ready`.
 
 Use another bridge address with `--url`:
 
@@ -409,6 +434,7 @@ Python application
   motion routing / optional path cleanup
   exact post-motion preview
   G-code generation
+  complete hardware-job validation
             ↓ HTTP upload
 ESP32-C3 bridge
   Wi-Fi and browser UI
@@ -447,7 +473,7 @@ Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 
 ## Safety defaults
 
-- Homing is off unless explicitly enabled.
+- Rendering and preview can deliberately omit homing, but every normal hardware-bound XY job must contain the guarded same-job homing/start/end envelope. Studio enables the visible homing control by default; CLI users include `--home` for hardware-bound generation.
 - Physical font size remains meaningful instead of silently filling the page.
 - Raster images are bounded and downsampled before tracing to limit geometry growth.
 - Manually edited raster geometry is validated before final placement.
@@ -456,20 +482,24 @@ Detailed hardware record: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 - Calibration bypasses Release 0.6 motion transforms.
 - Every final coordinate must be finite and inside configured bounds.
 - Preview and G-code use the same exact post-motion geometry.
-- The first and final pen state is up.
+- The first XY motion occurs only after homing and a safe pen-up move; the final state is pen-up with X/Y re-homed and Z left raised.
+- X+Y coordinated diagonal movement is valid; simultaneous XY+Z movement is rejected.
 - Air-plot mode cannot lower the pen.
 - Heater, extrusion, tool-change, and `E`-axis commands are rejected.
-- USB physical sending requires `--confirm DRAW`.
+- USB physical sending requires `--confirm DRAW` and complete-job validation.
+- Host-side ESP32 upload validates the complete job before network transfer; firmware validates it again before `ready`.
 - ESP32 embedded `M112` is rejected inside uploaded files and exposed only through a separate emergency endpoint.
 - ESP32 pause and orderly cancellation occur between acknowledged commands.
 - Only one ESP32 hardware job can be active.
 - The current bridge must remain on a trusted network because request-level authentication is not finished.
+- Safety-contract regressions are covered by dedicated CI in addition to the repository's general Python and ESP32 checks.
 
 The software cannot detect a loose pen, reversed motor, incorrect endstop direction, wiring fault, shifted paper, obstruction, incorrect level shifter, unstable power supply, bad photograph perspective, or unwanted trace artifacts that were not removed during review. Motion runtime values are estimates rather than measured hardware timing.
 
 ## Project documentation
 
 - [`AGENTS.md`](AGENTS.md) — non-negotiable architecture and development guardrails
+- [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md) — canonical hardware job envelope and validator contract
 - [`docs/RELEASE_0.2.md`](docs/RELEASE_0.2.md) — safe-machine foundation and remaining physical validation
 - [`docs/RELEASE_0.3.md`](docs/RELEASE_0.3.md) — native writing engine and current limitations
 - [`docs/RELEASE_0.4.md`](docs/RELEASE_0.4.md) — ESP32 transport progress and acceptance criteria

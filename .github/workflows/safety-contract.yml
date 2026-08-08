@@ -1,0 +1,83 @@
+name: Safety Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python-contract:
+    name: Python contract (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Compile
+        run: python -m compileall -q src tests
+      - name: Full Python test suite
+        run: python -m pytest -q
+      - name: Canonical hardware-job smoke test
+        run: |
+          printrbot-plotter text "Safety diagonal" \
+            --home \
+            --air-plot \
+            --font-size 10 \
+            --output out/safety.gcode \
+            --preview out/safety.svg
+          test -s out/safety.gcode
+          test -s out/safety.svg
+          grep -q '^G21 ' out/safety.gcode
+          grep -q '^G90 ' out/safety.gcode
+          grep -q '^G28 ; home X/Y/Z before plot' out/safety.gcode
+          grep -q '^G28 X Y ; re-home X/Y with pen safely raised' out/safety.gcode
+          python - <<'PY'
+          from pathlib import Path
+          from printrbot_penplotter.job_validator import validate_hardware_job
+          validate_hardware_job(Path('out/safety.gcode').read_text())
+          print('canonical hardware job validated')
+          PY
+      - name: Missing-homing regression guard
+        run: |
+          printrbot-plotter text "Offline only" \
+            --air-plot \
+            --font-size 10 \
+            --output out/no-home.gcode \
+            --preview out/no-home.svg
+          python - <<'PY'
+          from pathlib import Path
+          from printrbot_penplotter.job_validator import JobValidationError, validate_hardware_job
+          try:
+              validate_hardware_job(Path('out/no-home.gcode').read_text())
+          except JobValidationError:
+              print('unsafe no-home hardware job correctly rejected')
+          else:
+              raise SystemExit('validator accepted XY hardware motion without same-job homing')
+          PY
+
+  esp32-contract:
+    name: ESP32 native tests + firmware build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install PlatformIO
+        run: python -m pip install platformio==6.1.19
+      - name: Native protocol tests
+        run: pio test -d firmware/esp32 -e native
+      - name: Build ESP32-C3 firmware
+        run: pio run -d firmware/esp32
