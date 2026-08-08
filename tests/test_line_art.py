@@ -8,23 +8,17 @@ import pytest
 
 from printrbot_penplotter.image_preprocess import ImagePreprocessConfig
 from printrbot_penplotter.image_understanding import ImageUnderstandingConfig, analyze_image
-from printrbot_penplotter.line_art import (
-    STYLE_NAMES,
-    LineArtConfig,
-    render_line_art,
-    render_line_art_from_analysis,
-)
+from printrbot_penplotter.line_art import STYLE_NAMES, LineArtConfig, render_line_art, render_line_art_from_analysis
 
 
 def _fixture(path: Path) -> None:
-    image = Image.new("L", (120, 90), 245)
+    image = Image.new("L", (64, 48), 245)
     draw = ImageDraw.Draw(image)
-    draw.ellipse((12, 12, 105, 78), fill=185, outline=35, width=3)
-    draw.ellipse((35, 30, 44, 39), fill=20)
-    draw.ellipse((76, 30, 85, 39), fill=20)
-    draw.polygon([(52, 47), (68, 47), (60, 57)], fill=30)
-    draw.arc((40, 45, 80, 70), 15, 165, fill=60, width=2)
-    draw.line((15, 68, 105, 68), fill=95, width=2)
+    draw.ellipse((6, 5, 57, 42), fill=180, outline=35, width=2)
+    draw.ellipse((19, 16, 24, 21), fill=20)
+    draw.ellipse((40, 16, 45, 21), fill=20)
+    draw.polygon([(27, 25), (37, 25), (32, 31)], fill=30)
+    draw.arc((20, 23, 44, 38), 20, 160, fill=60, width=1)
     image.save(path)
 
 
@@ -34,8 +28,8 @@ def _analysis(path: Path):
         preprocess=ImagePreprocessConfig(auto_levels=True),
         understanding=ImageUnderstandingConfig(
             edge_method="multiscale_canny",
-            detail_level="high",
-            min_region_px=4,
+            detail_level="medium",
+            min_region_px=3,
         ),
     )
 
@@ -59,7 +53,7 @@ def test_render_is_deterministic(tmp_path: Path) -> None:
     kwargs = dict(
         config=LineArtConfig(style="refined_pen_sketch"),
         preprocess=ImagePreprocessConfig(auto_levels=True, background_mode="suppress"),
-        understanding=ImageUnderstandingConfig(edge_method="multiscale_canny", detail_level="medium", min_region_px=4),
+        understanding=ImageUnderstandingConfig(edge_method="multiscale_canny", detail_level="medium", min_region_px=3),
     )
     first = render_line_art(path, **kwargs)
     second = render_line_art(path, **kwargs)
