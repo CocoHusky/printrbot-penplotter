@@ -31,6 +31,7 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 # reduces skeletonization/edge-tracing cost for camera-sized uploads while
 # balanced and best retain their existing quality ceilings.
 _WORKING_DIMENSION = {"quick": 320, "balanced": 720, "best": 960}
+_AUTO_WORKING_DIMENSION = {"quick": 192, "balanced": 320, "best": 960}
 _DEFAULT_ART_STROKES = 20_000
 _DEFAULT_ART_POINTS = 2_000_000
 _HARD_ART_STROKES = 200_000
@@ -213,6 +214,7 @@ def _render_pipeline(
     max_strokes, max_points = _effective_art_limits(
         artistic_stroke_limit, artistic_point_limit, bypass_artistic_limit
     )
+    working_dimension = (_AUTO_WORKING_DIMENSION if mode == "auto" else _WORKING_DIMENSION)[quality]
     preprocess = ImagePreprocessConfig(
         grayscale_mode=grayscale_mode,  # type: ignore[arg-type]
         rgb_weights=(rgb_red, rgb_green, rgb_blue),
@@ -231,7 +233,7 @@ def _render_pipeline(
         background_mode=("keep" if background_mode == "none" else background_mode),  # type: ignore[arg-type]
         background_radius_px=background_radius_px,
         background_strength=background_strength,
-        max_dimension_px=_WORKING_DIMENSION[quality],
+        max_dimension_px=working_dimension,
     )
     understanding = ImageUnderstandingConfig(
         edge_method=edge_method,  # type: ignore[arg-type]
@@ -259,6 +261,7 @@ def _render_pipeline(
                 quality=quality,
                 max_output_strokes=max_strokes,
                 max_output_points=max_points,
+                max_skeleton_iterations=64 if quality == "quick" else 256,
             ),
         )  # type: ignore[arg-type]
         raw = artistic.polylines
@@ -333,7 +336,7 @@ def _render_pipeline(
     metadata.update(physical.metadata)
     metadata.update(
         {
-            "studio_working_max_dimension_px": _WORKING_DIMENSION[quality],
+            "studio_working_max_dimension_px": working_dimension,
             "effective_pipeline": effective_pipeline,
             "effective_style": effective_style,
             "artistic_stroke_limit_requested": artistic_stroke_limit,

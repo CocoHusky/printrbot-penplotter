@@ -56,3 +56,8 @@ def test_auto_optimizer_honors_output_limits(tmp_path: Path) -> None:
             path,
             AutoOptimizeConfig(quality="quick", max_output_strokes=1, max_output_points=2),
         )
+
+
+def test_auto_optimizer_validates_skeleton_budget() -> None:
+    with pytest.raises(ValueError, match="max_skeleton_iterations"):
+        AutoOptimizeConfig(max_skeleton_iterations=0).validate()
