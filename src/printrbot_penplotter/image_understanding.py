@@ -46,6 +46,7 @@ class ImageUnderstandingConfig:
     foreground_threshold: int | None = None
     foreground_invert: bool = False
     max_regions: int = 4096
+    compute_edges: bool = True
 
     def validate(self) -> None:
         if self.edge_method not in (
@@ -326,8 +327,13 @@ def analyze_gray(gray: np.ndarray, config: ImageUnderstandingConfig | None = Non
     config = config or ImageUnderstandingConfig()
     config.validate()
     gray = _as_gray(gray)
-    edge_strength, edge_mask = _detector(gray, config)
-    selected = _select_edges(edge_strength, edge_mask, config.detail_level)
+    if config.compute_edges:
+        edge_strength, edge_mask = _detector(gray, config)
+        selected = _select_edges(edge_strength, edge_mask, config.detail_level)
+    else:
+        edge_strength = np.zeros(gray.shape, dtype=np.float32)
+        edge_mask = np.zeros(gray.shape, dtype=bool)
+        selected = edge_mask
     foreground, effective_foreground_threshold = _foreground(gray, config)
     tones = _tone_labels(gray, config.tonal_bands)
     regions = _regions(foreground, gray, edge_strength, config)
@@ -352,6 +358,7 @@ def analyze_gray(gray: np.ndarray, config: ImageUnderstandingConfig | None = Non
         "region_pixels": int(sum(region.area_px for region in regions)),
         "min_region_px": config.min_region_px,
         "max_regions": config.max_regions,
+        "edge_analysis_skipped": not config.compute_edges,
     }
     return ImageUnderstandingResult(
         gray=gray,

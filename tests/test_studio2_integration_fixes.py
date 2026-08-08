@@ -20,8 +20,15 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert 'id="rasterPreview"' in text
     assert "Quick raster preview is ready" in text
     assert "let rendering=false" in text
+    assert "let renderGeneration=0" in text
+    assert "function clearGeneratedResult" in text
+    assert "Ready for another image." in text
+    assert "requestSerial=0" in text
     assert "setupControlSections" in text
     assert "className='control-section'" in text
+    assert 'class="stage-tabs"' in text
+    assert 'data-stage="gray"' in text
+    assert "Not required for this style." in text
 
 
 def test_studio2_image_geometry_is_mirrored_into_cartesian_y_before_placement() -> None:

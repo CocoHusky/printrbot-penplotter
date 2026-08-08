@@ -55,19 +55,22 @@ def apply_stop_button(router) -> None:
   const priorFetch=window.fetch.bind(window);
   let controller=null;
   let stopped=false;
+  let requestSerial=0;
 
   window.fetch=async(...args)=>{
     const target=String(args[0]&&args[0].url?args[0].url:args[0]);
     if(!target.includes('/api/studio2/render')) return priorFetch(...args);
 
     if(controller) controller.abort();
-    controller=new AbortController();
+    const requestId=++requestSerial;
+    const localController=new AbortController();
+    controller=localController;
     stopped=false;
     stop.disabled=false;
     stop.textContent='Stop';
     if(floatingGenerate) floatingGenerate.disabled=true;
 
-    const options={...(args[1]||{}),signal:controller.signal};
+    const options={...(args[1]||{}),signal:localController.signal};
     try{
       return await priorFetch(args[0],options);
     }catch(err){
@@ -76,8 +79,10 @@ def apply_stop_button(router) -> None:
       }
       throw err;
     }finally{
+      if(controller!==localController)return;
       controller=null;
       setTimeout(()=>{
+        if(requestId!==requestSerial)return;
         stop.disabled=true;
         stop.textContent='Stop';
         if(mainGenerate) mainGenerate.disabled=false;
@@ -93,9 +98,12 @@ def apply_stop_button(router) -> None:
   stop.addEventListener('click',()=>{
     if(!controller)return;
     stopped=true;
+    requestSerial++;
+    const activeController=controller;
+    controller=null;
     stop.disabled=true;
     stop.textContent='Stopping…';
-    controller.abort();
+    activeController.abort();
     window.__studioLast=null;
     const saveSvg=document.getElementById('floatingSaveSvg')||document.getElementById('saveSvg');
     const saveGcode=document.getElementById('floatingSaveGcode')||document.getElementById('saveGcode');

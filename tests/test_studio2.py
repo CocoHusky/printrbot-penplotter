@@ -127,6 +127,26 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert body["polylines"]
 
 
+def test_studio2_skips_unused_edge_stage_for_fill_style() -> None:
+    response = client.post(
+        "/api/studio2/render",
+        files={"file": ("fixture.png", _png(), "image/png")},
+        data={
+            "mode": "shading",
+            "style": "stipple",
+            "quality": "quick",
+            "detail": "low",
+            "include_outline": "false",
+            "plot_stroke_limit": "100",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["metadata"]["studio_edge_analysis_skipped"] is True
+    assert body["metadata"]["edge_analysis_skipped"] is True
+    assert body["stages"]["edges"] == ""
+
+
 def test_studio2_force_exact_size_and_final_scale() -> None:
     response = client.post(
         "/api/studio2/render",
