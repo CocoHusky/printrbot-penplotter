@@ -1,4 +1,4 @@
-"""Studio 2.0: unified Steps 2-8 image-to-plot browser interface."""
+"""Studio 2.0: unified image-to-plot browser interface with advanced controls."""
 from __future__ import annotations
 
 import base64
@@ -28,6 +28,10 @@ from .raster import _remove_small_components
 router = APIRouter()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 _WORKING_DIMENSION = {"quick": 480, "balanced": 720, "best": 960}
+_DEFAULT_ART_STROKES = 20_000
+_DEFAULT_ART_POINTS = 2_000_000
+_HARD_ART_STROKES = 200_000
+_HARD_ART_POINTS = 20_000_000
 
 
 @router.get("/studio2", response_class=HTMLResponse)
@@ -53,11 +57,24 @@ def _parse_tonal_bands(value: str) -> tuple[int, ...]:
         raise ValueError("Tonal bands must be comma-separated integers from 1 to 254.") from exc
     if not bands:
         return (42, 84, 126, 168, 210)
-    if tuple(sorted(set(bands))) != bands or not all(1 <= value <= 254 for value in bands):
+    if tuple(sorted(set(bands))) != bands or not all(1 <= item <= 254 for item in bands):
         raise ValueError("Tonal bands must be unique, strictly increasing integers from 1 to 254.")
     if len(bands) > 15:
         raise ValueError("At most 15 tonal bands are allowed.")
     return bands
+
+
+def _effective_art_limits(strokes: int, points: int, bypass: bool) -> tuple[int, int]:
+    if strokes < 1 or points < 2:
+        raise ValueError("Artistic geometry limits must be positive.")
+    if strokes > _HARD_ART_STROKES or points > _HARD_ART_POINTS:
+        raise ValueError(
+            f"Requested artistic limit exceeds the hard memory guard "
+            f"({_HARD_ART_STROKES:,} strokes / {_HARD_ART_POINTS:,} points)."
+        )
+    if bypass:
+        return _HARD_ART_STROKES, _HARD_ART_POINTS
+    return strokes, points
 
 
 def _apply_threshold_and_component_cleanup(
@@ -95,7 +112,6 @@ def _apply_threshold_and_component_cleanup(
     selected_edges, edge_kept, edge_removed, edge_removed_pixels = _remove_small_components(
         analysis.selected_edges, min_component_px
     )
-
     metadata = dict(analysis.metadata)
     metadata.update(threshold.metadata)
     metadata.update(
@@ -166,8 +182,10 @@ def _render_pipeline(
     hatch_spacing_px: float,
     darkness_threshold: float,
     shading_min_stroke_px: float,
+    artistic_stroke_limit: int,
+    artistic_point_limit: int,
+    bypass_artistic_limit: bool,
 ) -> tuple[str, str, list[list[tuple[float, float]]], dict[str, object], int, int, dict[str, str]]:
-    """Run the CPU-heavy image pipeline outside the ASGI event loop."""
     if mode == "line_art" and style not in STYLE_NAMES:
         raise ValueError(f"Style '{style}' is not valid for the Line art pipeline.")
     if mode == "shading" and style not in SHADING_STYLE_NAMES:
@@ -175,6 +193,9 @@ def _render_pipeline(
     if mode not in ("auto", "line_art", "shading"):
         raise ValueError(f"Unknown pipeline: {mode}")
 
+    max_strokes, max_points = _effective_art_limits(
+        artistic_stroke_limit, artistic_point_limit, bypass_artistic_limit
+    )
     preprocess = ImagePreprocessConfig(
         grayscale_mode=grayscale_mode,  # type: ignore[arg-type]
         rgb_weights=(rgb_red, rgb_green, rgb_blue),
@@ -221,7 +242,10 @@ def _render_pipeline(
         effective_style = str(artistic.metadata.get("auto_selected_style", "auto"))
         effective_pipeline = str(artistic.metadata.get("auto_selected_kind", "auto"))
     elif mode == "line_art":
-        artistic = render_line_art_from_analysis(analysis, LineArtConfig(style=style))  # type: ignore[arg-type]
+        artistic = render_line_art_from_analysis(
+            analysis,
+            LineArtConfig(style=style, max_output_strokes=max_strokes, max_output_points=max_points),  # type: ignore[arg-type]
+        )
         raw = artistic.polylines
         artistic_meta = artistic.metadata
         effective_style = style
@@ -238,12 +262,18 @@ def _render_pipeline(
                 hatch_spacing_px=hatch_spacing_px,
                 darkness_threshold=darkness_threshold,
                 min_stroke_length_px=shading_min_stroke_px,
+                max_output_strokes=max_strokes,
+                max_output_points=max_points,
             ),
         )
         raw = artistic.polylines
         artistic_meta = artistic.metadata
         effective_style = style
         effective_pipeline = "shading"
+
+    # Always preserve preprocessing/threshold metadata even for from-analysis style APIs.
+    metadata = dict(analysis.metadata)
+    metadata.update(artistic_meta)
 
     machine = MachineConfig()
     page = PageConfig()
@@ -260,13 +290,19 @@ def _render_pipeline(
     preview = preview_svg(final, page, machine)
     gcode = polylines_to_gcode(final, page, pen, machine, title=f"Studio 2: {filename}")
 
-    metadata = dict(artistic_meta)
     metadata.update(physical.metadata)
     metadata.update(
         {
             "studio_working_max_dimension_px": _WORKING_DIMENSION[quality],
             "effective_pipeline": effective_pipeline,
             "effective_style": effective_style,
+            "artistic_stroke_limit_requested": artistic_stroke_limit,
+            "artistic_point_limit_requested": artistic_point_limit,
+            "artistic_limit_bypassed": bypass_artistic_limit,
+            "artistic_stroke_limit_effective": max_strokes,
+            "artistic_point_limit_effective": max_points,
+            "artistic_hard_stroke_guard": _HARD_ART_STROKES,
+            "artistic_hard_point_guard": _HARD_ART_POINTS,
         }
     )
     stages = {
@@ -321,6 +357,9 @@ async def render_studio2(
     hatch_spacing_px: float = Form(5.0),
     darkness_threshold: float = Form(0.22),
     shading_min_stroke_px: float = Form(1.25),
+    artistic_stroke_limit: int = Form(_DEFAULT_ART_STROKES),
+    artistic_point_limit: int = Form(_DEFAULT_ART_POINTS),
+    bypass_artistic_limit: bool = Form(False),
 ) -> dict[str, object]:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
@@ -379,6 +418,9 @@ async def render_studio2(
                 hatch_spacing_px=hatch_spacing_px,
                 darkness_threshold=darkness_threshold,
                 shading_min_stroke_px=shading_min_stroke_px,
+                artistic_stroke_limit=artistic_stroke_limit,
+                artistic_point_limit=artistic_point_limit,
+                bypass_artistic_limit=bypass_artistic_limit,
             )
     except (ValueError, RuntimeError, FileNotFoundError) as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -415,13 +457,13 @@ async def render_studio2(
 STUDIO2_HTML = r'''<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Printrbot Studio 2.0</title>
 <style>
-:root{font-family:system-ui,-apple-system,sans-serif;color:#111;background:#f6f6f6}*{box-sizing:border-box}body{margin:0}main{width:min(1540px,calc(100% - 28px));margin:18px auto 50px}.grid{display:grid;grid-template-columns:360px 1fr;gap:18px}.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px}h1{margin:0 0 4px}.tabs{font-size:12px;color:#666;margin-bottom:12px}label{display:block;margin:9px 0 4px;font-size:13px;font-weight:600}select,input,button{width:100%;padding:8px;box-sizing:border-box;border:1px solid #bbb;border-radius:7px;background:#fff}button{margin-top:12px;font-weight:700;cursor:pointer}button:disabled,select:disabled,input:disabled{opacity:.5;cursor:not-allowed}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.check{display:flex;align-items:center;gap:7px;font-weight:500}.check input{width:auto}.hint{font-size:12px;color:#666;margin:4px 0 8px}.locked{padding:8px;background:#f2f2f2;border-radius:7px;color:#666;font-size:12px}.advanced-toggle{background:#f3f3f3}.advanced{display:none;border-top:1px solid #ddd;margin-top:12px;padding-top:4px}.advanced.open{display:block}.group{border:1px solid #e2e2e2;border-radius:9px;padding:10px;margin-top:10px}.group h3{font-size:14px;margin:0 0 7px}.group.hidden{display:none}.preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pane{border:1px solid #e0e0e0;border-radius:10px;padding:10px;min-height:270px;background:#fafafa}.pane h3{margin:0 0 7px;font-size:14px}.pane img{display:block;width:100%;height:250px;object-fit:contain}.pane svg{width:100%;height:250px}.placeholder{height:250px;display:flex;align-items:center;justify-content:center;color:#777;text-align:center}.status{margin-top:10px;padding:10px;border-radius:8px;background:#f2f2f2;font-size:13px}.status.busy{background:#fff4cc}.status.error{background:#ffe2e2;color:#8b0000}.selected-style{font-weight:700;margin-top:8px;padding:8px;border-radius:8px;background:#eef6ff}.spinner{display:inline-block;width:12px;height:12px;border:2px solid #aaa;border-top-color:#111;border-radius:50%;animation:spin .8s linear infinite;margin-right:7px;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}pre{white-space:pre-wrap;max-height:260px;overflow:auto;font-size:11px}@media(max-width:900px){.grid{grid-template-columns:1fr}.preview-grid{grid-template-columns:1fr}}
+:root{font-family:system-ui,-apple-system,sans-serif;color:#111;background:#f6f6f6}*{box-sizing:border-box}body{margin:0}main{width:min(1540px,calc(100% - 28px));margin:18px auto 50px}.grid{display:grid;grid-template-columns:360px 1fr;gap:18px}.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px}h1{margin:0 0 4px}.tabs{font-size:12px;color:#666;margin-bottom:12px}label{display:block;margin:9px 0 4px;font-size:13px;font-weight:600}select,input,button{width:100%;padding:8px;box-sizing:border-box;border:1px solid #bbb;border-radius:7px;background:#fff}button{margin-top:12px;font-weight:700;cursor:pointer}button:disabled,select:disabled,input:disabled{opacity:.5;cursor:not-allowed}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.check{display:flex;align-items:center;gap:7px;font-weight:500}.check input{width:auto}.hint{font-size:12px;color:#666;margin:4px 0 8px}.advanced-toggle{background:#f3f3f3}.advanced{display:none;border-top:1px solid #ddd;margin-top:12px;padding-top:4px}.advanced.open{display:block}.group{border:1px solid #e2e2e2;border-radius:9px;padding:10px;margin-top:10px}.group h3{font-size:14px;margin:0 0 7px}.group.hidden{display:none}.warning{background:#fff4d6;border:1px solid #ebcf7a;border-radius:8px;padding:8px;font-size:12px;margin-top:8px}.preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pane{border:1px solid #e0e0e0;border-radius:10px;padding:10px;min-height:270px;background:#fafafa}.pane h3{margin:0 0 7px;font-size:14px}.pane img{display:block;width:100%;height:250px;object-fit:contain}.pane svg{width:100%;height:250px}.placeholder{height:250px;display:flex;align-items:center;justify-content:center;color:#777;text-align:center}.status{margin-top:10px;padding:10px;border-radius:8px;background:#f2f2f2;font-size:13px}.status.busy{background:#fff4cc}.status.error{background:#ffe2e2;color:#8b0000}.selected-style{font-weight:700;margin-top:8px;padding:8px;border-radius:8px;background:#eef6ff}.spinner{display:inline-block;width:12px;height:12px;border:2px solid #aaa;border-top-color:#111;border-radius:50%;animation:spin .8s linear infinite;margin-right:7px;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}pre{white-space:pre-wrap;max-height:260px;overflow:auto;font-size:11px}@media(max-width:900px){.grid{grid-template-columns:1fr}.preview-grid{grid-template-columns:1fr}}
 </style></head>
 <body><main><h1>Printrbot Studio 2.0</h1><div class="tabs">SOURCE · AUTO · STYLE · IMAGE · DETECTION · LINES · SHADING · MOTION · MACHINE</div>
 <div class="grid"><form id="f" class="card">
 <label>Source image</label><input id="file" name="file" type="file" accept="image/*" required>
 <label>Pipeline</label><select id="mode" name="mode"><option value="auto">Auto</option><option value="line_art">Line art</option><option value="shading">Pen shading</option></select>
-<div id="styleWrap"><label>Style</label><select id="style" name="style"></select><div id="styleHint" class="hint"></div></div>
+<div><label>Style</label><select id="style" name="style"></select><div id="styleHint" class="hint"></div></div>
 <label>Quality</label><select name="quality"><option>quick</option><option selected>balanced</option><option>best</option></select>
 <label>Detail</label><select name="detail"><option>low</option><option>medium</option><option selected>high</option><option>extreme</option></select>
 <label>Background</label><select name="background_mode"><option>none</option><option selected>suppress</option><option>remove</option></select>
@@ -458,6 +500,11 @@ STUDIO2_HTML = r'''<!doctype html>
 <div class="row"><div><label>Hatch / texture spacing (px)</label><input name="hatch_spacing_px" type="number" min="1" max="100" step="0.5" value="5"></div><div><label>Darkness cutoff</label><input name="darkness_threshold" type="number" min="0" max="1" step="0.01" value="0.22"></div></div>
 <label>Minimum shading stroke (px)</label><input name="shading_min_stroke_px" type="number" min="0" step="0.25" value="1.25">
 </div>
+<div id="geometryLimits" class="group"><h3>Artistic geometry limit</h3>
+<div class="row"><div><label>Max artistic strokes</label><input id="strokeLimit" name="artistic_stroke_limit" type="number" min="1" max="200000" value="20000"></div><div><label>Max artistic points</label><input id="pointLimit" name="artistic_point_limit" type="number" min="2" max="20000000" value="2000000"></div></div>
+<label class="check"><input id="bypassLimit" name="bypass_artistic_limit" type="checkbox"> Bypass soft artistic limit (expert)</label>
+<div class="warning">Bypass raises the soft limit to a hard memory guard of 200,000 strokes / 20,000,000 points. This can be slow and can create very large plot jobs.</div>
+</div>
 </div>
 <button id="generate">Generate drawing</button><div id="status" class="status">Choose an image. The original will appear immediately.</div><div id="selectedStyle" class="selected-style" style="display:none"></div></form>
 <section class="card"><h2>Preview stages</h2><div class="preview-grid">
@@ -470,15 +517,16 @@ STUDIO2_HTML = r'''<!doctype html>
 <script>
 const lineStyles=['minimal_outline','clean_outline','detailed_outline','continuous_contour','one_line_art','loose_sketch','refined_pen_sketch','pet_portrait','portrait','comic_ink','architectural_pen','technical_drawing','silhouette','topographic'];
 const shadingStyles=['parallel_hatch','crosshatch','dense_crosshatch','curved_hatch','contour_hatch','directional_hatch','scribble','stipple','pointillism','halftone','engraving','etching','woodcut','scratchboard','fur_texture','hair_texture'];
-const form=document.getElementById('f'),mode=document.getElementById('mode'),style=document.getElementById('style'),styleHint=document.getElementById('styleHint'),fileInput=document.getElementById('file'),sourcePreview=document.getElementById('sourcePreview'),preview=document.getElementById('preview'),corrected=document.getElementById('corrected'),mask=document.getElementById('mask'),edges=document.getElementById('edges'),meta=document.getElementById('meta'),status=document.getElementById('status'),button=document.getElementById('generate'),selectedStyle=document.getElementById('selectedStyle'),advanced=document.getElementById('advanced'),advancedToggle=document.getElementById('advancedToggle'),shadingAdvanced=document.getElementById('shadingAdvanced'),outlineStyle=document.getElementById('outlineStyle'),grayMode=document.getElementById('grayMode'),rgbWeights=document.getElementById('rgbWeights'),thresholdMode=document.getElementById('thresholdMode'),thresholdValue=document.getElementById('thresholdValue');let objectUrl=null;
+const form=document.getElementById('f'),mode=document.getElementById('mode'),style=document.getElementById('style'),styleHint=document.getElementById('styleHint'),fileInput=document.getElementById('file'),sourcePreview=document.getElementById('sourcePreview'),preview=document.getElementById('preview'),corrected=document.getElementById('corrected'),mask=document.getElementById('mask'),edges=document.getElementById('edges'),meta=document.getElementById('meta'),status=document.getElementById('status'),button=document.getElementById('generate'),selectedStyle=document.getElementById('selectedStyle'),advanced=document.getElementById('advanced'),advancedToggle=document.getElementById('advancedToggle'),shadingAdvanced=document.getElementById('shadingAdvanced'),geometryLimits=document.getElementById('geometryLimits'),outlineStyle=document.getElementById('outlineStyle'),grayMode=document.getElementById('grayMode'),rgbWeights=document.getElementById('rgbWeights'),thresholdMode=document.getElementById('thresholdMode'),thresholdValue=document.getElementById('thresholdValue'),bypassLimit=document.getElementById('bypassLimit'),strokeLimit=document.getElementById('strokeLimit'),pointLimit=document.getElementById('pointLimit');let objectUrl=null;
 function options(select,values,current){select.innerHTML='';for(const value of values){const o=document.createElement('option');o.value=value;o.textContent=value.replaceAll('_',' ');if(value===current)o.selected=true;select.appendChild(o);}}
 options(outlineStyle,lineStyles,'refined_pen_sketch');
-function updatePipeline(){const m=mode.value;if(m==='auto'){options(style,['Auto chooses after analysis'],'Auto chooses after analysis');style.disabled=true;style.name='';styleHint.textContent='Auto ranks compatible Line Art / Pen Shading recipes and renders the winner. Manual style selection is locked.';shadingAdvanced.classList.add('hidden');}else if(m==='line_art'){style.disabled=false;style.name='style';options(style,lineStyles,'refined_pen_sketch');styleHint.textContent='Only valid line-art styles are shown.';shadingAdvanced.classList.add('hidden');}else{style.disabled=false;style.name='style';options(style,shadingStyles,'crosshatch');styleHint.textContent='Only valid pen-shading styles are shown.';shadingAdvanced.classList.remove('hidden');}}
+function updatePipeline(){const m=mode.value;if(m==='auto'){options(style,['Auto chooses after analysis'],'Auto chooses after analysis');style.disabled=true;style.name='';styleHint.textContent='Auto ranks compatible recipes and renders the winner. Manual style selection is locked.';shadingAdvanced.classList.add('hidden');geometryLimits.classList.add('hidden');}else if(m==='line_art'){style.disabled=false;style.name='style';options(style,lineStyles,'refined_pen_sketch');styleHint.textContent='Only valid line-art styles are shown.';shadingAdvanced.classList.add('hidden');geometryLimits.classList.remove('hidden');}else{style.disabled=false;style.name='style';options(style,shadingStyles,'crosshatch');styleHint.textContent='Only valid pen-shading styles are shown.';shadingAdvanced.classList.remove('hidden');geometryLimits.classList.remove('hidden');}}
 mode.addEventListener('change',updatePipeline);updatePipeline();
 advancedToggle.onclick=()=>{advanced.classList.toggle('open');advancedToggle.textContent=advanced.classList.contains('open')?'Advanced image & style controls ▴':'Advanced image & style controls ▾';};
 function updateGray(){rgbWeights.style.display=grayMode.value==='custom'?'grid':'none';}grayMode.addEventListener('change',updateGray);updateGray();
 function updateThreshold(){thresholdValue.disabled=thresholdMode.value!=='manual';}thresholdMode.addEventListener('change',updateThreshold);updateThreshold();
+function updateLimit(){strokeLimit.disabled=bypassLimit.checked;pointLimit.disabled=bypassLimit.checked;}bypassLimit.addEventListener('change',updateLimit);updateLimit();
 fileInput.addEventListener('change',()=>{const file=fileInput.files&&fileInput.files[0];if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}if(!file){sourcePreview.className='placeholder';sourcePreview.textContent='No image selected.';return;}objectUrl=URL.createObjectURL(file);sourcePreview.className='';sourcePreview.innerHTML='';const img=document.createElement('img');img.src=objectUrl;img.alt='Selected source image';sourcePreview.appendChild(img);status.className='status';status.textContent='Image loaded. Click Generate drawing.';});
 function stageImage(target,uri){target.className='';target.innerHTML='';const img=document.createElement('img');img.src=uri;target.appendChild(img);}
-form.onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline'])fd.set(n,form.elements[n].checked?'true':'false');button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);button.disabled=false;}};
+form.onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline','bypass_artistic_limit'])fd.set(n,form.elements[n]&&form.elements[n].checked?'true':'false');if(bypassLimit.checked){fd.set('artistic_stroke_limit','20000');fd.set('artistic_point_limit','2000000');}button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);button.disabled=false;}};
 </script></body></html>'''
