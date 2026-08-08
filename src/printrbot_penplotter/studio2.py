@@ -27,7 +27,10 @@ from .raster import _remove_small_components
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-_WORKING_DIMENSION = {"quick": 480, "balanced": 720, "best": 960}
+# Quick is the interactive preview path. Keeping it below 360 px materially
+# reduces skeletonization/edge-tracing cost for camera-sized uploads while
+# balanced and best retain their existing quality ceilings.
+_WORKING_DIMENSION = {"quick": 320, "balanced": 720, "best": 960}
 _DEFAULT_ART_STROKES = 20_000
 _DEFAULT_ART_POINTS = 2_000_000
 _HARD_ART_STROKES = 200_000
