@@ -7,6 +7,9 @@ import random
 from pathlib import Path
 
 from .geometry import rotate_scale_translate
+from .image_preprocess import ImagePreprocessConfig
+from .image_understanding import ImageUnderstandingConfig
+from .line_art import LineArtConfig, render_line_art
 from .models import Polylines, StyleConfig
 from .raster import RasterTraceConfig, trace_raster
 from .vector_cleanup import VectorCleanupConfig, cleanup_polylines
@@ -206,4 +209,35 @@ def raster_to_polylines(
     """Compatibility wrapper returning raster trace geometry only."""
 
     polylines, _ = raster_to_polylines_with_metadata(path, config, cleanup=cleanup)
+    return polylines
+
+
+def styled_raster_to_polylines_with_metadata(
+    path: str | Path,
+    style: LineArtConfig | None = None,
+    *,
+    preprocess: ImagePreprocessConfig | None = None,
+    understanding: ImageUnderstandingConfig | None = None,
+) -> tuple[Polylines, dict[str, object]]:
+    """Render raster input through the Step 5 line-art style library."""
+
+    result = render_line_art(path, style, preprocess=preprocess, understanding=understanding)
+    return result.polylines, result.metadata
+
+
+def styled_raster_to_polylines(
+    path: str | Path,
+    style: LineArtConfig | None = None,
+    *,
+    preprocess: ImagePreprocessConfig | None = None,
+    understanding: ImageUnderstandingConfig | None = None,
+) -> Polylines:
+    """Compatibility wrapper returning styled raster geometry only."""
+
+    polylines, _ = styled_raster_to_polylines_with_metadata(
+        path,
+        style,
+        preprocess=preprocess,
+        understanding=understanding,
+    )
     return polylines
