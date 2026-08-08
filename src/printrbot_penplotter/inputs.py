@@ -9,6 +9,7 @@ from pathlib import Path
 from .geometry import rotate_scale_translate
 from .models import Polylines, StyleConfig
 from .raster import RasterTraceConfig, trace_raster
+from .vector_cleanup import VectorCleanupConfig, cleanup_polylines
 from .writing import stroke_text_to_polylines
 
 POINTS_PER_INCH = 72.0
@@ -176,18 +177,33 @@ def svg_to_polylines(path: str | Path, curve_step: float = 0.01) -> Polylines:
 def raster_to_polylines_with_metadata(
     path: str | Path,
     config: RasterTraceConfig | None = None,
+    *,
+    cleanup: VectorCleanupConfig | None = None,
 ) -> tuple[Polylines, dict[str, object]]:
-    """Trace a raster image and return the shared geometry plus trace metadata."""
+    """Trace raster input and optionally apply Step 4 vector cleanup.
+
+    Cleanup remains opt-in because smoothing, joining, pruning, and duplicate
+    suppression can change physical ink geometry.  When enabled, the cleaned
+    polylines become the single geometry source returned to the shared pipeline.
+    """
 
     result = trace_raster(path, config)
-    return result.polylines, result.metadata
+    metadata = dict(result.metadata)
+    if cleanup is None:
+        metadata["vector_cleanup_schema"] = None
+        return result.polylines, metadata
+    cleaned = cleanup_polylines(result.polylines, cleanup)
+    metadata.update(cleaned.metadata)
+    return cleaned.polylines, metadata
 
 
 def raster_to_polylines(
     path: str | Path,
     config: RasterTraceConfig | None = None,
+    *,
+    cleanup: VectorCleanupConfig | None = None,
 ) -> Polylines:
     """Compatibility wrapper returning raster trace geometry only."""
 
-    polylines, _ = raster_to_polylines_with_metadata(path, config)
+    polylines, _ = raster_to_polylines_with_metadata(path, config, cleanup=cleanup)
     return polylines
