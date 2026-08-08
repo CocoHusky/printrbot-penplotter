@@ -40,14 +40,12 @@ def test_generated_hardware_job_has_canonical_start_and_end_envelope() -> None:
     commands = _commands(_generated(home=True))
     assert commands[:6] == ["G21", "G90", "M400", "G28", "M400", "G0 Z5.000 F120.0"]
     assert commands[-5:] == [
+        "M400",
         "G0 Z5.000 F120.0",
         "M400",
         "G28 X Y",
         "M400",
-        "",
-    ][: len(commands[-5:])]
-    # The actual executable tail has no comment-only line.
-    assert commands[-4:] == ["G0 Z5.000 F120.0", "M400", "G28 X Y", "M400"]
+    ]
     validate_hardware_job(_generated(home=True))
 
 
