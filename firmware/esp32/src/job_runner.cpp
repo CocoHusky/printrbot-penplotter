@@ -58,10 +58,12 @@ bool JobRunner::loadStoredJob(fs::FS& filesystem, const char* path, String& erro
 
   std::size_t commandCount = 0;
   std::size_t lineNumber = 0;
+  protocol::JobValidationState validationState;
   while (file.available()) {
     String line = file.readStringUntil('\n');
     ++lineNumber;
-    const auto validation = protocol::validateJobLine(std::string(line.c_str()));
+    const auto validation = protocol::validateJobSequenceLine(
+        std::string(line.c_str()), validationState);
     if (!validation.accepted) {
       file.close();
       error = "Line " + String(lineNumber) + " rejected: " + validation.reason.c_str();
@@ -75,6 +77,13 @@ bool JobRunner::loadStoredJob(fs::FS& filesystem, const char* path, String& erro
         return false;
       }
     }
+  }
+
+  const auto completion = protocol::validateJobCompletion(validationState);
+  if (!completion.accepted) {
+    file.close();
+    error = "Job rejected: " + String(completion.reason.c_str());
+    return false;
   }
   file.close();
 
