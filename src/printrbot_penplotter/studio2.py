@@ -188,6 +188,16 @@ def _render_pipeline(
     artistic_stroke_limit: int,
     artistic_point_limit: int,
     bypass_artistic_limit: bool,
+    max_skeleton_iterations: int,
+    style_edge_threshold: float,
+    style_strong_edge_threshold: float,
+    style_tone_threshold: int,
+    style_dilation_passes: int,
+    style_simplify_tolerance_px: float | None,
+    style_smooth_passes: int | None,
+    shading_seed: int,
+    shading_angle_offset_deg: float,
+    shading_density_scale: float,
 ) -> tuple[str, str, list[list[tuple[float, float]]], dict[str, object], int, int, dict[str, str]]:
     if mode == "line_art" and style not in STYLE_NAMES:
         raise ValueError(f"Style '{style}' is not valid for the Line art pipeline.")
@@ -239,7 +249,14 @@ def _render_pipeline(
     )
 
     if mode == "auto":
-        artistic = optimize_analysis(analysis, AutoOptimizeConfig(quality=quality))  # type: ignore[arg-type]
+        artistic = optimize_analysis(
+            analysis,
+            AutoOptimizeConfig(
+                quality=quality,
+                max_output_strokes=max_strokes,
+                max_output_points=max_points,
+            ),
+        )  # type: ignore[arg-type]
         raw = artistic.polylines
         artistic_meta = artistic.metadata
         effective_style = str(artistic.metadata.get("auto_selected_style", "auto"))
@@ -247,7 +264,18 @@ def _render_pipeline(
     elif mode == "line_art":
         artistic = render_line_art_from_analysis(
             analysis,
-            LineArtConfig(style=style, max_output_strokes=max_strokes, max_output_points=max_points),  # type: ignore[arg-type]
+            LineArtConfig(
+                style=style,
+                max_output_strokes=max_strokes,
+                max_output_points=max_points,
+                max_skeleton_iterations=max_skeleton_iterations,
+                edge_threshold=style_edge_threshold,
+                strong_edge_threshold=style_strong_edge_threshold,
+                tone_threshold=style_tone_threshold,
+                dilation_passes=style_dilation_passes,
+                simplify_tolerance_px=style_simplify_tolerance_px,
+                smooth_passes=style_smooth_passes,
+            ),  # type: ignore[arg-type]
         )
         raw = artistic.polylines
         artistic_meta = artistic.metadata
@@ -267,6 +295,9 @@ def _render_pipeline(
                 min_stroke_length_px=shading_min_stroke_px,
                 max_output_strokes=max_strokes,
                 max_output_points=max_points,
+                seed=shading_seed,
+                angle_offset_deg=shading_angle_offset_deg,
+                density_scale=shading_density_scale,
             ),
         )
         raw = artistic.polylines
@@ -363,6 +394,16 @@ async def render_studio2(
     artistic_stroke_limit: int = Form(_DEFAULT_ART_STROKES),
     artistic_point_limit: int = Form(_DEFAULT_ART_POINTS),
     bypass_artistic_limit: bool = Form(False),
+    max_skeleton_iterations: int = Form(256),
+    style_edge_threshold: float = Form(0.58),
+    style_strong_edge_threshold: float = Form(0.72),
+    style_tone_threshold: int = Form(170),
+    style_dilation_passes: int = Form(1),
+    style_simplify_tolerance_px: float = Form(-1.0),
+    style_smooth_passes: int = Form(-1),
+    shading_seed: int = Form(0),
+    shading_angle_offset_deg: float = Form(0.0),
+    shading_density_scale: float = Form(1.0),
 ) -> dict[str, object]:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
@@ -424,6 +465,16 @@ async def render_studio2(
                 artistic_stroke_limit=artistic_stroke_limit,
                 artistic_point_limit=artistic_point_limit,
                 bypass_artistic_limit=bypass_artistic_limit,
+                max_skeleton_iterations=max_skeleton_iterations,
+                style_edge_threshold=style_edge_threshold,
+                style_strong_edge_threshold=style_strong_edge_threshold,
+                style_tone_threshold=style_tone_threshold,
+                style_dilation_passes=style_dilation_passes,
+                style_simplify_tolerance_px=(None if style_simplify_tolerance_px < 0 else style_simplify_tolerance_px),
+                style_smooth_passes=(None if style_smooth_passes < 0 else style_smooth_passes),
+                shading_seed=shading_seed,
+                shading_angle_offset_deg=shading_angle_offset_deg,
+                shading_density_scale=shading_density_scale,
             )
     except (ValueError, RuntimeError, FileNotFoundError) as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -497,11 +548,19 @@ STUDIO2_HTML = r'''<!doctype html>
 <div class="row"><div><label>Edge low</label><input name="edge_low" type="number" min="0" max="1" step="0.01" value="0.10"></div><div><label>Edge high</label><input name="edge_high" type="number" min="0" max="1" step="0.01" value="0.24"></div></div>
 <label>Tonal bands (dark → light cut points)</label><input name="tonal_bands" value="42,84,126,168,210"><div class="hint">Move these thresholds to control which grayscale ranges become distinct drawing tones.</div>
 </div>
+<div id="lineArtAdvanced" class="group hidden"><h3>Line-art style controls</h3>
+<div class="row"><div><label>Skeleton iterations</label><input name="max_skeleton_iterations" type="number" min="1" max="1024" value="256"></div><div><label>Dilation passes</label><input name="style_dilation_passes" type="number" min="0" max="4" value="1"></div></div>
+<div class="row"><div><label>Edge threshold</label><input name="style_edge_threshold" type="number" min="0" max="1" step="0.01" value="0.58"></div><div><label>Strong edge threshold</label><input name="style_strong_edge_threshold" type="number" min="0" max="1" step="0.01" value="0.72"></div></div>
+<div class="row"><div><label>Style tone cutoff</label><input name="style_tone_threshold" type="number" min="0" max="255" value="170"></div><div><label>Simplify tolerance (px)</label><input name="style_simplify_tolerance_px" type="number" min="0" max="20" step="0.05" placeholder="Style default"></div></div>
+<label>Smoothing passes (blank = style default)</label><input name="style_smooth_passes" type="number" min="0" max="8" placeholder="Style default">
+<div class="hint">These controls apply to every line-art style; the selected style determines which masks use them.</div>
+</div>
 <div id="shadingAdvanced" class="group hidden"><h3>Pen shading style controls</h3>
 <label class="check"><input name="include_outline" type="checkbox" checked> Include outline</label>
 <label>Outline style</label><select id="outlineStyle" name="outline_style"></select>
 <div class="row"><div><label>Hatch / texture spacing (px)</label><input name="hatch_spacing_px" type="number" min="1" max="100" step="0.5" value="5"></div><div><label>Darkness cutoff</label><input name="darkness_threshold" type="number" min="0" max="1" step="0.01" value="0.22"></div></div>
-<label>Minimum shading stroke (px)</label><input name="shading_min_stroke_px" type="number" min="0" step="0.25" value="1.25">
+<div class="row"><div><label>Minimum shading stroke (px)</label><input name="shading_min_stroke_px" type="number" min="0" step="0.25" value="1.25"></div><div><label>Variation seed</label><input name="shading_seed" type="number" step="1" value="0"></div></div>
+<div class="row"><div><label>Angle offset (degrees)</label><input name="shading_angle_offset_deg" type="number" min="-180" max="180" step="1" value="0"></div><div><label>Density scale</label><input name="shading_density_scale" type="number" min="0.25" max="4" step="0.05" value="1"></div></div>
 </div>
 <div id="geometryLimits" class="group"><h3>Artistic geometry limit</h3>
 <div class="row"><div><label>Max artistic strokes</label><input id="strokeLimit" name="artistic_stroke_limit" type="number" min="1" max="200000" value="20000"></div><div><label>Max artistic points</label><input id="pointLimit" name="artistic_point_limit" type="number" min="2" max="20000000" value="2000000"></div></div>
@@ -520,10 +579,10 @@ STUDIO2_HTML = r'''<!doctype html>
 <script>
 const lineStyles=['minimal_outline','clean_outline','detailed_outline','continuous_contour','one_line_art','loose_sketch','refined_pen_sketch','pet_portrait','portrait','comic_ink','architectural_pen','technical_drawing','silhouette','topographic'];
 const shadingStyles=['parallel_hatch','crosshatch','dense_crosshatch','curved_hatch','contour_hatch','directional_hatch','scribble','stipple','pointillism','halftone','engraving','etching','woodcut','scratchboard','fur_texture','hair_texture'];
-const form=document.getElementById('f'),mode=document.getElementById('mode'),style=document.getElementById('style'),styleHint=document.getElementById('styleHint'),fileInput=document.getElementById('file'),sourcePreview=document.getElementById('sourcePreview'),preview=document.getElementById('preview'),corrected=document.getElementById('corrected'),mask=document.getElementById('mask'),edges=document.getElementById('edges'),meta=document.getElementById('meta'),status=document.getElementById('status'),button=document.getElementById('generate'),selectedStyle=document.getElementById('selectedStyle'),advanced=document.getElementById('advanced'),advancedToggle=document.getElementById('advancedToggle'),shadingAdvanced=document.getElementById('shadingAdvanced'),geometryLimits=document.getElementById('geometryLimits'),outlineStyle=document.getElementById('outlineStyle'),grayMode=document.getElementById('grayMode'),rgbWeights=document.getElementById('rgbWeights'),thresholdMode=document.getElementById('thresholdMode'),thresholdValue=document.getElementById('thresholdValue'),bypassLimit=document.getElementById('bypassLimit'),strokeLimit=document.getElementById('strokeLimit'),pointLimit=document.getElementById('pointLimit');let objectUrl=null;
+const form=document.getElementById('f'),mode=document.getElementById('mode'),style=document.getElementById('style'),styleHint=document.getElementById('styleHint'),fileInput=document.getElementById('file'),sourcePreview=document.getElementById('sourcePreview'),preview=document.getElementById('preview'),corrected=document.getElementById('corrected'),mask=document.getElementById('mask'),edges=document.getElementById('edges'),meta=document.getElementById('meta'),status=document.getElementById('status'),button=document.getElementById('generate'),selectedStyle=document.getElementById('selectedStyle'),advanced=document.getElementById('advanced'),advancedToggle=document.getElementById('advancedToggle'),lineArtAdvanced=document.getElementById('lineArtAdvanced'),shadingAdvanced=document.getElementById('shadingAdvanced'),geometryLimits=document.getElementById('geometryLimits'),outlineStyle=document.getElementById('outlineStyle'),grayMode=document.getElementById('grayMode'),rgbWeights=document.getElementById('rgbWeights'),thresholdMode=document.getElementById('thresholdMode'),thresholdValue=document.getElementById('thresholdValue'),bypassLimit=document.getElementById('bypassLimit'),strokeLimit=document.getElementById('strokeLimit'),pointLimit=document.getElementById('pointLimit');let objectUrl=null;
 function options(select,values,current){select.innerHTML='';for(const value of values){const o=document.createElement('option');o.value=value;o.textContent=value.replaceAll('_',' ');if(value===current)o.selected=true;select.appendChild(o);}}
 options(outlineStyle,lineStyles,'refined_pen_sketch');
-function updatePipeline(){const m=mode.value;if(m==='auto'){options(style,['Auto chooses after analysis'],'Auto chooses after analysis');style.disabled=true;style.name='';styleHint.textContent='Auto ranks compatible recipes and renders the winner. Manual style selection is locked.';shadingAdvanced.classList.add('hidden');geometryLimits.classList.add('hidden');}else if(m==='line_art'){style.disabled=false;style.name='style';options(style,lineStyles,'refined_pen_sketch');styleHint.textContent='Only valid line-art styles are shown.';shadingAdvanced.classList.add('hidden');geometryLimits.classList.remove('hidden');}else{style.disabled=false;style.name='style';options(style,shadingStyles,'crosshatch');styleHint.textContent='Only valid pen-shading styles are shown.';shadingAdvanced.classList.remove('hidden');geometryLimits.classList.remove('hidden');}}
+function updatePipeline(){const m=mode.value;if(m==='auto'){options(style,['Auto chooses after analysis'],'Auto chooses after analysis');style.disabled=true;style.name='';styleHint.textContent='Auto ranks compatible recipes and renders the winner. Limits still apply to the selected recipe.';lineArtAdvanced.classList.add('hidden');shadingAdvanced.classList.add('hidden');geometryLimits.classList.remove('hidden');}else if(m==='line_art'){style.disabled=false;style.name='style';options(style,lineStyles,'refined_pen_sketch');styleHint.textContent='Only valid line-art styles are shown.';lineArtAdvanced.classList.remove('hidden');shadingAdvanced.classList.add('hidden');geometryLimits.classList.remove('hidden');}else{style.disabled=false;style.name='style';options(style,shadingStyles,'crosshatch');styleHint.textContent='Only valid pen-shading styles are shown.';lineArtAdvanced.classList.add('hidden');shadingAdvanced.classList.remove('hidden');geometryLimits.classList.remove('hidden');}}
 mode.addEventListener('change',updatePipeline);updatePipeline();
 advancedToggle.onclick=()=>{advanced.classList.toggle('open');advancedToggle.textContent=advanced.classList.contains('open')?'Advanced image & style controls ▴':'Advanced image & style controls ▾';};
 function updateGray(){rgbWeights.style.display=grayMode.value==='custom'?'grid':'none';}grayMode.addEventListener('change',updateGray);updateGray();
@@ -531,5 +590,6 @@ function updateThreshold(){thresholdValue.disabled=thresholdMode.value!=='manual
 function updateLimit(){strokeLimit.disabled=bypassLimit.checked;pointLimit.disabled=bypassLimit.checked;}bypassLimit.addEventListener('change',updateLimit);updateLimit();
 fileInput.addEventListener('change',()=>{const file=fileInput.files&&fileInput.files[0];if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}if(!file){sourcePreview.className='placeholder';sourcePreview.textContent='No image selected.';return;}objectUrl=URL.createObjectURL(file);sourcePreview.className='';sourcePreview.innerHTML='';const img=document.createElement('img');img.src=objectUrl;img.alt='Selected source image';sourcePreview.appendChild(img);status.className='status';status.textContent='Image loaded. Click Generate drawing.';});
 function stageImage(target,uri){target.className='';target.innerHTML='';const img=document.createElement('img');img.src=uri;target.appendChild(img);}
+form.addEventListener('submit',()=>{for(const n of ['style_simplify_tolerance_px','style_smooth_passes']){const field=form.elements[n];if(field&&field.value.trim()==='')field.value='-1';}});
 form.onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline','bypass_artistic_limit'])fd.set(n,form.elements[n]&&form.elements[n].checked?'true':'false');if(bypassLimit.checked){fd.set('artistic_stroke_limit','20000');fd.set('artistic_point_limit','2000000');}button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);button.disabled=false;}};
 </script></body></html>'''

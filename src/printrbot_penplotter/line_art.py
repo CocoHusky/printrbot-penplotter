@@ -36,6 +36,12 @@ class LineArtConfig:
     max_skeleton_iterations: int = 256
     max_output_strokes: int = 20_000
     max_output_points: int = 2_000_000
+    edge_threshold: float = 0.58
+    strong_edge_threshold: float = 0.72
+    tone_threshold: int = 170
+    dilation_passes: int = 1
+    simplify_tolerance_px: float | None = None
+    smooth_passes: int | None = None
 
     def validate(self) -> None:
         if self.style not in STYLE_NAMES:
@@ -44,6 +50,19 @@ class LineArtConfig:
             raise ValueError("max_skeleton_iterations must be positive.")
         if self.max_output_strokes < 1 or self.max_output_points < 2:
             raise ValueError("Line-art geometry limits must be positive.")
+        for name, value in (("edge_threshold", self.edge_threshold), ("strong_edge_threshold", self.strong_edge_threshold)):
+            if not np.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError(f"{name} must be between 0 and 1.")
+        if self.edge_threshold > self.strong_edge_threshold:
+            raise ValueError("edge_threshold must not exceed strong_edge_threshold.")
+        if not isinstance(self.tone_threshold, int) or not 0 <= self.tone_threshold <= 255:
+            raise ValueError("tone_threshold must be between 0 and 255.")
+        if not isinstance(self.dilation_passes, int) or not 0 <= self.dilation_passes <= 4:
+            raise ValueError("dilation_passes must be between 0 and 4.")
+        if self.simplify_tolerance_px is not None and (not np.isfinite(self.simplify_tolerance_px) or self.simplify_tolerance_px < 0):
+            raise ValueError("simplify_tolerance_px must be non-negative.")
+        if self.smooth_passes is not None and (not isinstance(self.smooth_passes, int) or not 0 <= self.smooth_passes <= 8):
+            raise ValueError("smooth_passes must be between 0 and 8.")
 
 
 @dataclass(frozen=True)
@@ -129,14 +148,16 @@ def _ordered_one_line(lines: Polylines) -> tuple[Polylines, int, float]:
     return [chain] + closed_lines, bridges, bridge_length
 
 
-def _recipe(analysis: ImageUnderstandingResult, style: str, iterations: int) -> tuple[Polylines, VectorCleanupConfig, dict[str, object]]:
+def _recipe(analysis: ImageUnderstandingResult, config: LineArtConfig) -> tuple[Polylines, VectorCleanupConfig, dict[str, object]]:
+    style = config.style
+    iterations = config.max_skeleton_iterations
     fg = analysis.foreground_mask
     outer = _boundary(fg)
     edges = analysis.selected_edges
-    strong = analysis.edge_mask & (analysis.edge_strength >= 0.58)
-    very_strong = analysis.edge_mask & (analysis.edge_strength >= 0.72)
+    strong = analysis.edge_mask & (analysis.edge_strength >= config.edge_threshold)
+    very_strong = analysis.edge_mask & (analysis.edge_strength >= config.strong_edge_threshold)
     tones = _tone_boundaries(analysis.tone_labels)
-    dark_boundary = _boundary(analysis.gray <= 96)
+    dark_boundary = _boundary(analysis.gray <= config.tone_threshold)
     meta: dict[str, object] = {}
 
     if style == "silhouette":
@@ -145,7 +166,7 @@ def _recipe(analysis: ImageUnderstandingResult, style: str, iterations: int) -> 
         raw = _combine(_strokes(outer, iterations), _strokes(very_strong & fg, iterations))
         return raw, VectorCleanupConfig.for_quality("smooth"), meta
     if style == "clean_outline":
-        raw = _combine(_strokes(outer, iterations), _strokes(strong & _dilate(fg), iterations))
+        raw = _combine(_strokes(outer, iterations), _strokes(strong & _dilate(fg, config.dilation_passes), iterations))
         return raw, VectorCleanupConfig.for_quality("smooth"), meta
     if style == "detailed_outline":
         raw = _combine(_strokes(outer, iterations), _strokes(edges, iterations), _strokes(tones & fg, iterations))
@@ -165,7 +186,7 @@ def _recipe(analysis: ImageUnderstandingResult, style: str, iterations: int) -> 
         raw = _combine(_strokes(outer | edges, iterations), _strokes(dark_boundary & fg, iterations))
         return raw, VectorCleanupConfig.for_quality("flowing"), meta
     if style in ("refined_pen_sketch", "pet_portrait", "portrait"):
-        threshold = 150 if style == "pet_portrait" else 170
+        threshold = config.tone_threshold if style != "pet_portrait" else min(config.tone_threshold, 150)
         raw = _combine(
             _strokes(outer, iterations),
             _strokes(edges & fg, iterations),
@@ -174,7 +195,7 @@ def _recipe(analysis: ImageUnderstandingResult, style: str, iterations: int) -> 
         meta["semantic_recognition"] = False
         return raw, VectorCleanupConfig.for_quality("smooth"), meta
     if style == "comic_ink":
-        raw = _combine(_strokes(_dilate(outer | very_strong), iterations), _strokes(dark_boundary, iterations))
+        raw = _combine(_strokes(_dilate(outer | very_strong, config.dilation_passes), iterations), _strokes(dark_boundary, iterations))
         return raw, VectorCleanupConfig.for_quality("clean"), meta
     if style == "architectural_pen":
         raw = _strokes(strong | tones, iterations)
@@ -199,7 +220,11 @@ def _recipe(analysis: ImageUnderstandingResult, style: str, iterations: int) -> 
 def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: LineArtConfig | None = None) -> LineArtResult:
     config = config or LineArtConfig()
     config.validate()
-    raw, cleanup_config, extra = _recipe(analysis, config.style, config.max_skeleton_iterations)
+    raw, cleanup_config, extra = _recipe(analysis, config)
+    if config.simplify_tolerance_px is not None:
+        cleanup_config = replace(cleanup_config, simplify_tolerance_px=config.simplify_tolerance_px)
+    if config.smooth_passes is not None:
+        cleanup_config = replace(cleanup_config, smooth_passes=config.smooth_passes)
     if not raw:
         raise ValueError("Line-art style produced no drawable geometry.")
 
@@ -222,6 +247,12 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
         "raw_style_strokes": len(raw),
         "output_style_strokes": len(polylines),
         "output_style_points": points,
+        "style_edge_threshold": config.edge_threshold,
+        "style_strong_edge_threshold": config.strong_edge_threshold,
+        "style_tone_threshold": config.tone_threshold,
+        "style_dilation_passes": config.dilation_passes,
+        "style_simplify_tolerance_px": config.simplify_tolerance_px,
+        "style_smooth_passes": config.smooth_passes,
         "cleanup": cleaned.metadata,
     })
     metadata.update(extra)

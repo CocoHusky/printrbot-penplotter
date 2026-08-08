@@ -1,5 +1,6 @@
 from pathlib import Path
 from PIL import Image, ImageDraw
+import pytest
 from printrbot_penplotter.auto_optimize import AutoOptimizeConfig, optimize_image
 
 
@@ -46,3 +47,12 @@ def test_only_selected_candidate_has_rendered_geometry_metadata(tmp_path: Path) 
     rendered = [c for c in result.candidates if not c.metadata.get("geometry_estimated", False)]
     assert rendered == [result.selected]
     assert result.metadata["auto_full_renders"] == 1
+
+
+def test_auto_optimizer_honors_output_limits(tmp_path: Path) -> None:
+    path = tmp_path / "fixture.png"; _fixture(path)
+    with pytest.raises(ValueError, match="no valid drawing candidates"):
+        optimize_image(
+            path,
+            AutoOptimizeConfig(quality="quick", max_output_strokes=1, max_output_points=2),
+        )

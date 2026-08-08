@@ -38,6 +38,11 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Force exact width" in text
     assert "Final scale (%)" in text
     assert "Save SVG" in text and "Save G-code" in text
+    assert "Skeleton iterations" in text
+    assert "Variation seed" in text
+    assert "Angle offset (degrees)" in text
+    assert "Density scale" in text
+    assert "Limits still apply to the selected recipe." in text
 
 
 def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> None:
@@ -68,6 +73,13 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
             "keep_aspect": "true",
             "final_scale_percent": "100",
             "clamp_to_bed": "true",
+            "max_skeleton_iterations": "64",
+            "style_edge_threshold": "0.35",
+            "style_strong_edge_threshold": "0.65",
+            "style_tone_threshold": "120",
+            "style_dilation_passes": "2",
+            "style_simplify_tolerance_px": "0.8",
+            "style_smooth_passes": "1",
         },
     )
     assert response.status_code == 200, response.text
@@ -77,6 +89,11 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert body["metadata"]["studio_working_max_dimension_px"] == 320
     assert body["metadata"]["effective_pipeline"] == "line_art"
     assert body["metadata"]["effective_style"] == "clean_outline"
+    assert body["metadata"]["style_edge_threshold"] == 0.35
+    assert body["metadata"]["style_tone_threshold"] == 120
+    assert body["metadata"]["style_dilation_passes"] == 2
+    assert body["metadata"]["style_simplify_tolerance_px"] == 0.8
+    assert body["metadata"]["style_smooth_passes"] == 1
     assert body["metadata"]["threshold_mode"] == "manual"
     assert body["metadata"]["studio_component_min_px"] == 4
     assert body["metadata"]["artistic_stroke_limit_effective"] == 20_000
