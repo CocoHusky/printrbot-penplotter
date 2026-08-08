@@ -5,6 +5,7 @@ import base64
 import hashlib
 import io
 import tempfile
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -247,6 +248,8 @@ def _render_pipeline(
         tonal_bands=_parse_tonal_bands(tonal_bands),
         min_region_px=max(1, min_component_px),
     )
+    timings: dict[str, float] = {}
+    started = time.perf_counter()
     analysis = analyze_image(source, preprocess=preprocess, understanding=understanding)
     analysis = _apply_threshold_and_component_cleanup(
         analysis,
@@ -257,7 +260,9 @@ def _render_pipeline(
         threshold_offset=threshold_offset,
         min_component_px=min_component_px,
     )
+    timings["analysis_and_threshold"] = time.perf_counter() - started
 
+    started = time.perf_counter()
     if mode == "auto":
         artistic = optimize_analysis(
             analysis,
@@ -317,11 +322,13 @@ def _render_pipeline(
         artistic_meta = artistic.metadata
         effective_style = style
         effective_pipeline = "shading"
+    timings["style_vectorization"] = time.perf_counter() - started
 
     # Always preserve preprocessing/threshold metadata even for from-analysis style APIs.
     metadata = dict(analysis.metadata)
     metadata.update(artistic_meta)
 
+    started = time.perf_counter()
     machine = MachineConfig()
     page = PageConfig()
     layout = LayoutConfig(fit_mode="fit")
@@ -334,8 +341,11 @@ def _render_pipeline(
     )
     final = physical.polylines
     validate_polylines(final)
+    timings["placement_and_physical_filter"] = time.perf_counter() - started
+    started = time.perf_counter()
     preview = preview_svg(final, page, machine)
     gcode = polylines_to_gcode(final, page, pen, machine, title=f"Studio 2: {filename}")
+    timings["svg_and_gcode"] = time.perf_counter() - started
 
     metadata.update(physical.metadata)
     metadata.update(
@@ -354,6 +364,8 @@ def _render_pipeline(
             "estimated_print_time_minutes": round(physical.after.estimated_seconds / 60.0, 2),
             "artistic_hard_stroke_guard": _HARD_ART_STROKES,
             "artistic_hard_point_guard": _HARD_ART_POINTS,
+            "studio_stage_seconds": {name: round(seconds, 4) for name, seconds in timings.items()},
+            "studio_slowest_stage": max(timings, key=timings.get),
         }
     )
     stages = {
@@ -604,6 +616,7 @@ STUDIO2_HTML = r'''<!doctype html>
 <button id="generate">Generate drawing</button><div id="status" class="status">Choose an image. The original will appear immediately.</div><div id="selectedStyle" class="selected-style" style="display:none"></div></form>
 <section class="card"><h2>Preview stages</h2><div class="preview-grid">
 <div class="pane"><h3>Original</h3><div id="sourcePreview" class="placeholder">No image selected.</div></div>
+<div class="pane"><h3>Quick raster preview</h3><div id="rasterPreview" class="placeholder">Select an image. This preview does not vectorize.</div></div>
 <div class="pane"><h3>Corrected grayscale</h3><div id="corrected" class="placeholder">Generate to inspect preprocessing.</div></div>
 <div class="pane"><h3>Foreground / threshold mask</h3><div id="mask" class="placeholder">Generate to inspect thresholding.</div></div>
 <div class="pane"><h3>Selected edges</h3><div id="edges" class="placeholder">Generate to inspect edge detection.</div></div>
@@ -612,7 +625,7 @@ STUDIO2_HTML = r'''<!doctype html>
 <script>
 const lineStyles=['minimal_outline','clean_outline','detailed_outline','continuous_contour','one_line_art','loose_sketch','refined_pen_sketch','pet_portrait','portrait','comic_ink','architectural_pen','technical_drawing','silhouette','topographic'];
 const shadingStyles=['parallel_hatch','crosshatch','dense_crosshatch','curved_hatch','contour_hatch','directional_hatch','scribble','stipple','pointillism','halftone','engraving','etching','woodcut','scratchboard','fur_texture','hair_texture'];
-const form=document.getElementById('f'),mode=document.getElementById('mode'),style=document.getElementById('style'),styleHint=document.getElementById('styleHint'),fileInput=document.getElementById('file'),sourcePreview=document.getElementById('sourcePreview'),preview=document.getElementById('preview'),corrected=document.getElementById('corrected'),mask=document.getElementById('mask'),edges=document.getElementById('edges'),meta=document.getElementById('meta'),status=document.getElementById('status'),button=document.getElementById('generate'),selectedStyle=document.getElementById('selectedStyle'),advanced=document.getElementById('advanced'),advancedToggle=document.getElementById('advancedToggle'),lineArtAdvanced=document.getElementById('lineArtAdvanced'),shadingAdvanced=document.getElementById('shadingAdvanced'),geometryLimits=document.getElementById('geometryLimits'),outlineStyle=document.getElementById('outlineStyle'),grayMode=document.getElementById('grayMode'),rgbWeights=document.getElementById('rgbWeights'),thresholdMode=document.getElementById('thresholdMode'),thresholdValue=document.getElementById('thresholdValue'),bypassLimit=document.getElementById('bypassLimit'),strokeLimit=document.getElementById('strokeLimit'),pointLimit=document.getElementById('pointLimit');let objectUrl=null;
+const form=document.getElementById('f'),mode=document.getElementById('mode'),style=document.getElementById('style'),styleHint=document.getElementById('styleHint'),fileInput=document.getElementById('file'),sourcePreview=document.getElementById('sourcePreview'),rasterPreview=document.getElementById('rasterPreview'),preview=document.getElementById('preview'),corrected=document.getElementById('corrected'),mask=document.getElementById('mask'),edges=document.getElementById('edges'),meta=document.getElementById('meta'),status=document.getElementById('status'),button=document.getElementById('generate'),selectedStyle=document.getElementById('selectedStyle'),advanced=document.getElementById('advanced'),advancedToggle=document.getElementById('advancedToggle'),lineArtAdvanced=document.getElementById('lineArtAdvanced'),shadingAdvanced=document.getElementById('shadingAdvanced'),geometryLimits=document.getElementById('geometryLimits'),outlineStyle=document.getElementById('outlineStyle'),grayMode=document.getElementById('grayMode'),rgbWeights=document.getElementById('rgbWeights'),thresholdMode=document.getElementById('thresholdMode'),thresholdValue=document.getElementById('thresholdValue'),bypassLimit=document.getElementById('bypassLimit'),strokeLimit=document.getElementById('strokeLimit'),pointLimit=document.getElementById('pointLimit');let objectUrl=null;let rendering=false;
 function options(select,values,current){select.innerHTML='';for(const value of values){const o=document.createElement('option');o.value=value;o.textContent=value.replaceAll('_',' ');if(value===current)o.selected=true;select.appendChild(o);}}
 options(outlineStyle,lineStyles,'refined_pen_sketch');
 function updatePipeline(){const m=mode.value;if(m==='auto'){options(style,['Auto chooses after analysis'],'Auto chooses after analysis');style.disabled=true;style.name='';styleHint.textContent='Auto ranks compatible recipes and renders the winner. Limits still apply to the selected recipe.';lineArtAdvanced.classList.add('hidden');shadingAdvanced.classList.add('hidden');geometryLimits.classList.remove('hidden');}else if(m==='line_art'){style.disabled=false;style.name='style';options(style,lineStyles,'refined_pen_sketch');styleHint.textContent='Only valid line-art styles are shown.';lineArtAdvanced.classList.remove('hidden');shadingAdvanced.classList.add('hidden');geometryLimits.classList.remove('hidden');}else{style.disabled=false;style.name='style';options(style,shadingStyles,'crosshatch');styleHint.textContent='Only valid pen-shading styles are shown.';lineArtAdvanced.classList.add('hidden');shadingAdvanced.classList.remove('hidden');geometryLimits.classList.remove('hidden');}}
@@ -621,8 +634,8 @@ advancedToggle.onclick=()=>{advanced.classList.toggle('open');advancedToggle.tex
 function updateGray(){rgbWeights.style.display=grayMode.value==='custom'?'grid':'none';}grayMode.addEventListener('change',updateGray);updateGray();
 function updateThreshold(){thresholdValue.disabled=thresholdMode.value!=='manual';}thresholdMode.addEventListener('change',updateThreshold);updateThreshold();
 function updateLimit(){strokeLimit.disabled=bypassLimit.checked;pointLimit.disabled=bypassLimit.checked;}bypassLimit.addEventListener('change',updateLimit);updateLimit();
-fileInput.addEventListener('change',()=>{const file=fileInput.files&&fileInput.files[0];if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}if(!file){sourcePreview.className='placeholder';sourcePreview.textContent='No image selected.';return;}objectUrl=URL.createObjectURL(file);sourcePreview.className='';sourcePreview.innerHTML='';const img=document.createElement('img');img.src=objectUrl;img.alt='Selected source image';sourcePreview.appendChild(img);status.className='status';status.textContent='Image loaded. Click Generate drawing.';});
+fileInput.addEventListener('change',()=>{const file=fileInput.files&&fileInput.files[0];if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}if(!file){sourcePreview.className='placeholder';sourcePreview.textContent='No image selected.';rasterPreview.className='placeholder';rasterPreview.textContent='Select an image. This preview does not vectorize.';return;}objectUrl=URL.createObjectURL(file);sourcePreview.className='';sourcePreview.innerHTML='';const img=document.createElement('img');img.src=objectUrl;img.alt='Selected source image';sourcePreview.appendChild(img);const rasterImage=new Image();rasterImage.onload=()=>{const scale=Math.min(1,320/Math.max(rasterImage.naturalWidth,rasterImage.naturalHeight));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(rasterImage.naturalWidth*scale));canvas.height=Math.max(1,Math.round(rasterImage.naturalHeight*scale));canvas.setAttribute('aria-label','Quick raster preview');canvas.getContext('2d').drawImage(rasterImage,0,0,canvas.width,canvas.height);rasterPreview.className='';rasterPreview.innerHTML='';rasterPreview.appendChild(canvas);};rasterImage.src=objectUrl;status.className='status';status.textContent='Image loaded. Quick raster preview is ready; click Generate drawing to create plot paths.';});
 function stageImage(target,uri){target.className='';target.innerHTML='';const img=document.createElement('img');img.src=uri;target.appendChild(img);}
 form.addEventListener('submit',()=>{for(const n of ['style_simplify_tolerance_px','style_smooth_passes','style_join_distance_px']){const field=form.elements[n];if(field&&field.value.trim()==='')field.value='-1';}});
-form.onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline','bypass_artistic_limit'])fd.set(n,form.elements[n]&&form.elements[n].checked?'true':'false');if(bypassLimit.checked){fd.set('artistic_stroke_limit','20000');fd.set('artistic_point_limit','2000000');}button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes · estimated plot time '+(j.metadata.estimated_print_time||'unknown')+'.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);button.disabled=false;}};
+form.onsubmit=async(e)=>{e.preventDefault();if(rendering)return;rendering=true;const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline','bypass_artistic_limit'])fd.set(n,form.elements[n]&&form.elements[n].checked?'true':'false');if(bypassLimit.checked){fd.set('artistic_stroke_limit','20000');fd.set('artistic_point_limit','2000000');}button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering plot paths…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);const stageTimes=j.metadata.studio_stage_seconds||{};const timingText=Object.entries(stageTimes).map(([name,seconds])=>name.replaceAll('_',' ')+': '+Number(seconds).toFixed(2)+'s').join(' · ');meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes · estimated plot time '+(j.metadata.estimated_print_time||'unknown')+(timingText?' · '+timingText:'')+'.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);rendering=false;button.disabled=false;}};
 </script></body></html>'''

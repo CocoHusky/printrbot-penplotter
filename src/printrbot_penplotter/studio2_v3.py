@@ -7,6 +7,7 @@ single source for both preview SVG and G-code after the optional final-size tran
 from __future__ import annotations
 
 import math
+import time
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
@@ -289,6 +290,7 @@ async def render_studio2(request: Request) -> dict[str, object]:
             shading_outline_join_distance_px=_float(form, "shading_outline_join_distance_px", 0.0),
         )
 
+        finalization_started = time.perf_counter()
         page = PageConfig()
         machine = MachineConfig()
         final, size_meta = _final_size_transform(
@@ -325,6 +327,10 @@ async def render_studio2(request: Request) -> dict[str, object]:
         metadata["estimated_print_time_seconds"] = round(final_motion.estimated_seconds, 2)
         metadata["estimated_print_time_minutes"] = round(final_motion.estimated_seconds / 60.0, 2)
         metadata["estimated_print_time"] = f"{int(final_motion.estimated_seconds // 60)}m {int(final_motion.estimated_seconds % 60):02d}s"
+        stage_seconds = dict(metadata.get("studio_stage_seconds", {}))
+        stage_seconds["final_size_and_export"] = round(time.perf_counter() - finalization_started, 4)
+        metadata["studio_stage_seconds"] = stage_seconds
+        metadata["studio_slowest_stage"] = max(stage_seconds, key=stage_seconds.get)
         result["metadata"] = metadata
         return result
     except HTTPException:

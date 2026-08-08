@@ -98,6 +98,9 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert body["metadata"]["plot_stroke_limit"] == 2
     assert body["metadata"]["estimated_print_time_seconds"] > 0
     assert body["metadata"]["estimated_print_time"]
+    timings = body["metadata"]["studio_stage_seconds"]
+    assert {"analysis_and_threshold", "style_vectorization", "placement_and_physical_filter", "svg_and_gcode", "final_size_and_export"} <= set(timings)
+    assert body["metadata"]["studio_slowest_stage"] in timings
     assert body["metadata"]["studio_working_max_dimension_px"] == 320
     assert body["metadata"]["effective_pipeline"] == "line_art"
     assert body["metadata"]["effective_style"] == "clean_outline"
