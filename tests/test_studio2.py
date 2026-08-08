@@ -20,6 +20,9 @@ def test_studio2_page() -> None:
     assert response.status_code == 200
     assert "Printrbot Studio 2.0" in response.text
     assert "Home before plot" in response.text
+    assert "Original" in response.text
+    assert "Generating drawing" in response.text
+    assert "sourcePreview" in response.text
 
 
 def test_studio2_line_art_render_has_safe_home_envelope() -> None:
@@ -36,6 +39,8 @@ def test_studio2_line_art_render_has_safe_home_envelope() -> None:
     body = response.json()
     assert body["metadata"]["studio_schema"] == "printrbot-studio2/v1"
     assert body["metadata"]["home_before_plot"] is True
+    assert body["metadata"]["studio_working_max_dimension_px"] == 480
+    assert body["stages"]["source"].startswith("data:image/png;base64,")
     assert "G28" in body["gcode"]
     assert "G28 X Y" in body["gcode"]
     assert body["polylines"]
