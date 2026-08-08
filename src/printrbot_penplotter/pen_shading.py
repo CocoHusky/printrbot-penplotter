@@ -58,6 +58,8 @@ class PenShadingConfig:
     max_output_strokes: int = 30_000
     max_output_points: int = 2_000_000
     seed: int = 0
+    angle_offset_deg: float = 0.0
+    density_scale: float = 1.0
 
     def validate(self) -> None:
         if self.style not in SHADING_STYLE_NAMES:
@@ -74,6 +76,10 @@ class PenShadingConfig:
             raise ValueError("Pen-shading geometry limits must be positive.")
         if not isinstance(self.seed, int):
             raise ValueError("seed must be an integer.")
+        if not math.isfinite(self.angle_offset_deg) or not -180 <= self.angle_offset_deg <= 180:
+            raise ValueError("angle_offset_deg must be between -180 and 180 degrees.")
+        if not math.isfinite(self.density_scale) or not 0.25 <= self.density_scale <= 4:
+            raise ValueError("density_scale must be between 0.25 and 4.")
 
 
 @dataclass(frozen=True)
@@ -174,8 +180,8 @@ def _hatch_layers(
         lines.extend(
             _clip_parametric_lines(
                 mask,
-                angle_deg=angle,
-                spacing=max(1.0, config.hatch_spacing_px * spacing_scale),
+                angle_deg=angle + config.angle_offset_deg,
+                spacing=max(1.0, config.hatch_spacing_px * spacing_scale / config.density_scale),
                 min_length=config.min_stroke_length_px,
                 wave_amplitude=(0.75 if curved else 0.0),
                 wave_period=max(12.0, config.hatch_spacing_px * 5.0),
@@ -213,7 +219,7 @@ def _flow_strokes(
     gray = analysis.gray.astype(np.float64)
     gy, gx = np.gradient(gray)
     darkness = _darkness(gray)
-    spacing = max(2, int(round(config.hatch_spacing_px * spacing_scale)))
+    spacing = max(2, int(round(config.hatch_spacing_px * spacing_scale / config.density_scale)))
     threshold = max(config.darkness_threshold, threshold if threshold is not None else 0.25)
     h, w = gray.shape
     lines: Polylines = []
@@ -223,7 +229,7 @@ def _flow_strokes(
                 continue
             angle = math.atan2(float(gy[y, x]), float(gx[y, x]))
             if tangent:
-                angle += math.pi / 2.0
+                angle += math.pi / 2.0 + math.radians(config.angle_offset_deg)
             if abs(gx[y, x]) + abs(gy[y, x]) < 1e-9:
                 angle = math.radians(25.0 + ((_hash01(x, y, config.seed) - 0.5) * 20.0))
             length = max(config.min_stroke_length_px, config.hatch_spacing_px * length_scale * (0.55 + darkness[y, x]))
@@ -237,7 +243,7 @@ def _flow_strokes(
 
 def _scribble_strokes(analysis: ImageUnderstandingResult, config: PenShadingConfig) -> Polylines:
     mask = _layer_mask(analysis, max(config.darkness_threshold, 0.28))
-    spacing = max(2.0, config.hatch_spacing_px * 0.9)
+    spacing = max(2.0, config.hatch_spacing_px * 0.9 / config.density_scale)
     lines: Polylines = []
     y = spacing * 0.5
     while y < mask.shape[0]:
@@ -259,7 +265,7 @@ def _scribble_strokes(analysis: ImageUnderstandingResult, config: PenShadingConf
 
 def _stipple_strokes(analysis: ImageUnderstandingResult, config: PenShadingConfig, *, round_marks: bool) -> Polylines:
     darkness = _darkness(analysis.gray)
-    spacing = max(2, int(round(config.hatch_spacing_px)))
+    spacing = max(2, int(round(config.hatch_spacing_px / config.density_scale)))
     lines: Polylines = []
     for y in range(spacing // 2, analysis.gray.shape[0], spacing):
         for x in range(spacing // 2, analysis.gray.shape[1], spacing):
@@ -284,7 +290,7 @@ def _stipple_strokes(analysis: ImageUnderstandingResult, config: PenShadingConfi
 
 def _halftone_strokes(analysis: ImageUnderstandingResult, config: PenShadingConfig) -> Polylines:
     darkness = _darkness(analysis.gray)
-    spacing = max(3, int(round(config.hatch_spacing_px * 1.35)))
+    spacing = max(3, int(round(config.hatch_spacing_px * 1.35 / config.density_scale)))
     lines: Polylines = []
     for y in range(spacing // 2, analysis.gray.shape[0], spacing):
         for x in range(spacing // 2, analysis.gray.shape[1], spacing):
@@ -387,6 +393,8 @@ def render_pen_shading_from_analysis(
         "output_shading_strokes": len(polylines),
         "output_shading_points": points,
         "seed": config.seed,
+        "angle_offset_deg": config.angle_offset_deg,
+        "density_scale": config.density_scale,
     })
     metadata.update(extra)
     return PenShadingResult(polylines=polylines, metadata=metadata)
