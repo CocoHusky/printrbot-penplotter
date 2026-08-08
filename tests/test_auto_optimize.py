@@ -21,7 +21,9 @@ def test_auto_optimizer_is_deterministic(tmp_path: Path) -> None:
     assert first.polylines == second.polylines
     assert first.metadata == second.metadata
     assert first.selected == second.selected
-    assert first.metadata["auto_optimizer_schema"] == "printrbot-auto-optimizer/v1"
+    assert first.metadata["auto_optimizer_schema"] == "printrbot-auto-optimizer/v2"
+    assert first.metadata["auto_evaluation_mode"] == "two_stage_heuristic_then_render_winner"
+    assert first.metadata["auto_full_renders"] == 1
     assert 1 <= len(first.candidates) <= 6
 
 
@@ -36,3 +38,11 @@ def test_selected_candidate_is_min_score(tmp_path: Path) -> None:
     path = tmp_path / "fixture.png"; _fixture(path)
     result = optimize_image(path, AutoOptimizeConfig(quality="best", max_candidates=8))
     assert result.selected.score == min(candidate.score for candidate in result.candidates)
+
+
+def test_only_selected_candidate_has_rendered_geometry_metadata(tmp_path: Path) -> None:
+    path = tmp_path / "fixture.png"; _fixture(path)
+    result = optimize_image(path, AutoOptimizeConfig(quality="best", max_candidates=8))
+    rendered = [c for c in result.candidates if not c.metadata.get("geometry_estimated", False)]
+    assert rendered == [result.selected]
+    assert result.metadata["auto_full_renders"] == 1
