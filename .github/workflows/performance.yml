@@ -1,0 +1,32 @@
+name: Image Pipeline Performance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    name: Image performance (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Compile optimized image stack
+        run: python -m compileall -q src/printrbot_penplotter/fast_cleanup.py src/printrbot_penplotter/line_art.py src/printrbot_penplotter/pen_shading.py src/printrbot_penplotter/auto_optimize.py
+      - name: Performance regression tests
+        run: python -m pytest -q tests/test_performance.py
+      - name: Image style regressions
+        run: python -m pytest -q tests/test_vector_cleanup.py tests/test_line_art.py tests/test_pen_shading.py tests/test_auto_optimize.py
