@@ -112,6 +112,30 @@ def test_output_limits_enforced(tmp_path: Path) -> None:
         )
 
 
+def test_style_controls_are_applied_and_recorded(tmp_path: Path) -> None:
+    path = tmp_path / "fixture.png"
+    _fixture(path)
+    result = render_line_art_from_analysis(
+        _analysis(path),
+        LineArtConfig(
+            style="clean_outline",
+            max_skeleton_iterations=64,
+            edge_threshold=0.35,
+            strong_edge_threshold=0.65,
+            tone_threshold=120,
+            dilation_passes=2,
+            simplify_tolerance_px=0.8,
+            smooth_passes=1,
+        ),
+    )
+    assert result.metadata["style_edge_threshold"] == 0.35
+    assert result.metadata["style_strong_edge_threshold"] == 0.65
+    assert result.metadata["style_tone_threshold"] == 120
+    assert result.metadata["style_dilation_passes"] == 2
+    assert result.metadata["style_simplify_tolerance_px"] == 0.8
+    assert result.metadata["style_smooth_passes"] == 1
+
+
 def test_styles_preserve_finite_geometry(tmp_path: Path) -> None:
     path = tmp_path / "fixture.png"
     _fixture(path)
