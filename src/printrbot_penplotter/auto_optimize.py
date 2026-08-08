@@ -31,6 +31,7 @@ class AutoOptimizeConfig:
     seed: int = 0
     max_output_strokes: int = 20_000
     max_output_points: int = 2_000_000
+    max_skeleton_iterations: int = 256
 
     def validate(self) -> None:
         if self.quality not in ("quick", "balanced", "best"):
@@ -43,6 +44,8 @@ class AutoOptimizeConfig:
             raise ValueError("max_output_strokes must be positive")
         if not isinstance(self.max_output_points, int) or self.max_output_points < 2:
             raise ValueError("max_output_points must be at least two")
+        if not isinstance(self.max_skeleton_iterations, int) or not 1 <= self.max_skeleton_iterations <= 1024:
+            raise ValueError("max_skeleton_iterations must be between 1 and 1024")
 
 
 @dataclass(frozen=True)
@@ -201,6 +204,7 @@ def _render_candidate(
                 style=candidate.style,
                 max_output_strokes=cfg.max_output_strokes,
                 max_output_points=cfg.max_output_points,
+                max_skeleton_iterations=cfg.max_skeleton_iterations,
             ),
         )
     return render_pen_shading_from_analysis(
