@@ -1,10 +1,4 @@
-"""Deterministic line-art style rendering from Step 3 image understanding.
-
-Step 5 converts analyzed raster features into intentional pen-line geometry.
-It remains upstream of machine placement, motion planning, preview, and G-code.
-No semantic recognition is claimed: portrait/pet presets are deterministic
-feature-weighting presets, not object detectors.
-"""
+"""Deterministic Step 5 line-art styles upstream of machine placement."""
 
 from __future__ import annotations
 
@@ -22,22 +16,11 @@ from .raster import _skeletonize, _trace_contours, _trace_skeleton
 from .vector_cleanup import VectorCleanupConfig, cleanup_polylines
 
 LineArtStyle = Literal[
-    "minimal_outline",
-    "clean_outline",
-    "detailed_outline",
-    "continuous_contour",
-    "one_line_art",
-    "loose_sketch",
-    "refined_pen_sketch",
-    "pet_portrait",
-    "portrait",
-    "comic_ink",
-    "architectural_pen",
-    "technical_drawing",
-    "silhouette",
-    "topographic",
+    "minimal_outline", "clean_outline", "detailed_outline", "continuous_contour",
+    "one_line_art", "loose_sketch", "refined_pen_sketch", "pet_portrait",
+    "portrait", "comic_ink", "architectural_pen", "technical_drawing",
+    "silhouette", "topographic",
 ]
-
 STYLE_NAMES: tuple[str, ...] = (
     "minimal_outline", "clean_outline", "detailed_outline", "continuous_contour",
     "one_line_art", "loose_sketch", "refined_pen_sketch", "pet_portrait",
@@ -69,26 +52,25 @@ class LineArtResult:
 
 
 def _boundary(mask: np.ndarray) -> np.ndarray:
-    """Return a one-pixel inner boundary for a boolean region mask."""
     mask = mask.astype(bool)
     padded = np.pad(mask, 1, mode="constant", constant_values=False)
     eroded = np.ones_like(mask, dtype=bool)
-    for r in range(3):
-        for c in range(3):
-            eroded &= padded[r:r + mask.shape[0], c:c + mask.shape[1]]
+    for row in range(3):
+        for col in range(3):
+            eroded &= padded[row:row + mask.shape[0], col:col + mask.shape[1]]
     return mask & ~eroded
 
 
-def _tone_boundaries(labels: np.ndarray, minimum_band_delta: int = 1) -> np.ndarray:
+def _tone_boundaries(labels: np.ndarray, delta: int = 1) -> np.ndarray:
     labels = labels.astype(np.int16)
-    edges = np.zeros(labels.shape, dtype=bool)
-    horizontal = np.abs(labels[:, 1:] - labels[:, :-1]) >= minimum_band_delta
-    vertical = np.abs(labels[1:, :] - labels[:-1, :]) >= minimum_band_delta
-    edges[:, 1:] |= horizontal
-    edges[:, :-1] |= horizontal
-    edges[1:, :] |= vertical
-    edges[:-1, :] |= vertical
-    return edges
+    out = np.zeros(labels.shape, dtype=bool)
+    horizontal = np.abs(labels[:, 1:] - labels[:, :-1]) >= delta
+    vertical = np.abs(labels[1:, :] - labels[:-1, :]) >= delta
+    out[:, 1:] |= horizontal
+    out[:, :-1] |= horizontal
+    out[1:, :] |= vertical
+    out[:-1, :] |= vertical
+    return out
 
 
 def _dilate(mask: np.ndarray, passes: int = 1) -> np.ndarray:
@@ -96,57 +78,53 @@ def _dilate(mask: np.ndarray, passes: int = 1) -> np.ndarray:
     for _ in range(passes):
         padded = np.pad(result, 1, mode="constant")
         grown = np.zeros_like(result)
-        for r in range(3):
-            for c in range(3):
-                grown |= padded[r:r + result.shape[0], c:c + result.shape[1]]
+        for row in range(3):
+            for col in range(3):
+                grown |= padded[row:row + result.shape[0], col:col + result.shape[1]]
         result = grown
     return result
 
 
-def _vectorize_strokes(mask: np.ndarray, iterations: int) -> Polylines:
+def _strokes(mask: np.ndarray, iterations: int) -> Polylines:
     if not np.any(mask):
         return []
     skeleton, _, _ = _skeletonize(mask.astype(bool), iterations)
     return _trace_skeleton(skeleton)
 
 
-def _vectorize_outline(mask: np.ndarray) -> Polylines:
-    if not np.any(mask):
-        return []
-    return _trace_contours(mask.astype(bool))
+def _outlines(mask: np.ndarray) -> Polylines:
+    return [] if not np.any(mask) else _trace_contours(mask.astype(bool))
 
 
 def _combine(*groups: Polylines) -> Polylines:
-    output: Polylines = []
-    for group in groups:
-        output.extend([line[:] for line in group if len(line) >= 2])
-    return output
+    return [line[:] for group in groups for line in group if len(line) >= 2]
 
 
-def _nearest_chain(lines: Polylines) -> tuple[Polylines, int, float]:
-    """Join all open strokes with explicit artistic bridge lines.
+def _ordered_one_line(lines: Polylines) -> tuple[Polylines, int, float]:
+    """Build a deterministic linear-time-ish artistic chain.
 
-    This is used only by the intentionally stylized one_line_art preset. Closed
-    loops remain separate because opening them would alter their topology.
+    Open strokes are normalized to lexicographically smaller start endpoints,
+    sorted spatially, then connected in that order. This intentionally inserts
+    visible bridge ink and reports it. Closed loops remain separate.
     """
-    open_lines = [line[:] for line in lines if len(line) >= 2 and line[0] != line[-1]]
-    closed_lines = [line[:] for line in lines if len(line) >= 3 and line[0] == line[-1]]
+    open_lines: Polylines = []
+    closed_lines: Polylines = []
+    for source in lines:
+        line = source[:]
+        if len(line) >= 3 and line[0] == line[-1]:
+            closed_lines.append(line)
+            continue
+        if line[-1] < line[0]:
+            line.reverse()
+        open_lines.append(line)
+    open_lines.sort(key=lambda line: (line[0], line[-1], len(line)))
     if not open_lines:
         return closed_lines, 0, 0.0
-    chain = open_lines.pop(0)
+    chain = open_lines[0][:]
     bridges = 0
     bridge_length = 0.0
-    while open_lines:
-        candidates: list[tuple[float, int, bool]] = []
-        for index, line in enumerate(open_lines):
-            direct = float(np.hypot(chain[-1][0] - line[0][0], chain[-1][1] - line[0][1]))
-            reverse = float(np.hypot(chain[-1][0] - line[-1][0], chain[-1][1] - line[-1][1]))
-            candidates.append((direct, index, False))
-            candidates.append((reverse, index, True))
-        gap, index, reverse = min(candidates)
-        line = open_lines.pop(index)
-        if reverse:
-            line.reverse()
+    for line in open_lines[1:]:
+        gap = float(np.hypot(chain[-1][0] - line[0][0], chain[-1][1] - line[0][1]))
         if chain[-1] != line[0]:
             chain.append(line[0])
             bridges += 1
@@ -155,103 +133,91 @@ def _nearest_chain(lines: Polylines) -> tuple[Polylines, int, float]:
     return [chain] + closed_lines, bridges, bridge_length
 
 
-def _style_recipe(analysis: ImageUnderstandingResult, style: str) -> tuple[Polylines, VectorCleanupConfig, dict[str, object]]:
+def _recipe(analysis: ImageUnderstandingResult, style: str, iterations: int) -> tuple[Polylines, VectorCleanupConfig, dict[str, object]]:
     fg = analysis.foreground_mask
-    silhouette_boundary = _boundary(fg)
+    outer = _boundary(fg)
     edges = analysis.selected_edges
     strong = analysis.edge_mask & (analysis.edge_strength >= 0.58)
     very_strong = analysis.edge_mask & (analysis.edge_strength >= 0.72)
     tones = _tone_boundaries(analysis.tone_labels)
-    dark = analysis.gray <= 96
-    dark_boundary = _boundary(dark)
-
+    dark_boundary = _boundary(analysis.gray <= 96)
     meta: dict[str, object] = {}
 
     if style == "silhouette":
-        raw = _vectorize_outline(fg)
-        cleanup = VectorCleanupConfig.for_quality("smooth")
-    elif style == "minimal_outline":
-        raw = _combine(_vectorize_strokes(silhouette_boundary, 256), _vectorize_strokes(very_strong & fg, 256))
-        cleanup = VectorCleanupConfig.for_quality("smooth")
-    elif style == "clean_outline":
-        raw = _combine(_vectorize_strokes(silhouette_boundary, 256), _vectorize_strokes(strong & _dilate(fg, 1), 256))
-        cleanup = VectorCleanupConfig.for_quality("smooth")
-    elif style == "detailed_outline":
-        raw = _combine(_vectorize_strokes(silhouette_boundary, 256), _vectorize_strokes(edges, 256), _vectorize_strokes(tones & fg, 256))
-        cleanup = VectorCleanupConfig.for_quality("clean")
-    elif style == "continuous_contour":
-        raw = _combine(_vectorize_strokes(silhouette_boundary | strong, 256))
-        cleanup = VectorCleanupConfig.for_quality("flowing")
-    elif style == "one_line_art":
-        raw = _combine(_vectorize_strokes(silhouette_boundary | strong, 256))
-        raw, bridges, bridge_length = _nearest_chain(raw)
-        meta.update({"artistic_bridges": bridges, "artistic_bridge_length_px": round(bridge_length, 6)})
+        return _outlines(fg), VectorCleanupConfig.for_quality("smooth"), meta
+    if style == "minimal_outline":
+        raw = _combine(_strokes(outer, iterations), _strokes(very_strong & fg, iterations))
+        return raw, VectorCleanupConfig.for_quality("smooth"), meta
+    if style == "clean_outline":
+        raw = _combine(_strokes(outer, iterations), _strokes(strong & _dilate(fg), iterations))
+        return raw, VectorCleanupConfig.for_quality("smooth"), meta
+    if style == "detailed_outline":
+        raw = _combine(_strokes(outer, iterations), _strokes(edges, iterations), _strokes(tones & fg, iterations))
+        return raw, VectorCleanupConfig.for_quality("clean"), meta
+    if style == "continuous_contour":
+        return _strokes(outer | strong, iterations), VectorCleanupConfig.for_quality("flowing"), meta
+    if style == "one_line_art":
+        raw, bridges, length = _ordered_one_line(_strokes(outer | strong, iterations))
+        meta.update({"artistic_bridges": bridges, "artistic_bridge_length_px": round(length, 6)})
         cleanup = VectorCleanupConfig(
             min_segment_px=0.25, min_stroke_length_px=0.8, simplify_tolerance_px=0.35,
             preserve_corner_deg=42.0, smoothing="chaikin", smooth_passes=1,
             smooth_strength=0.22, duplicate_tolerance_px=0.3,
         )
-    elif style == "loose_sketch":
-        raw = _combine(_vectorize_strokes(silhouette_boundary | edges, 256), _vectorize_strokes(dark_boundary & fg, 256))
-        cleanup = VectorCleanupConfig.for_quality("flowing")
-    elif style in ("refined_pen_sketch", "pet_portrait", "portrait"):
-        detail = edges & fg
-        tonal = tones & fg & (analysis.gray < (150 if style == "pet_portrait" else 170))
+        return raw, cleanup, meta
+    if style == "loose_sketch":
+        raw = _combine(_strokes(outer | edges, iterations), _strokes(dark_boundary & fg, iterations))
+        return raw, VectorCleanupConfig.for_quality("flowing"), meta
+    if style in ("refined_pen_sketch", "pet_portrait", "portrait"):
+        threshold = 150 if style == "pet_portrait" else 170
         raw = _combine(
-            _vectorize_strokes(silhouette_boundary, 256),
-            _vectorize_strokes(detail, 256),
-            _vectorize_strokes(tonal, 256),
+            _strokes(outer, iterations),
+            _strokes(edges & fg, iterations),
+            _strokes(tones & fg & (analysis.gray < threshold), iterations),
         )
-        cleanup = VectorCleanupConfig.for_quality("smooth")
         meta["semantic_recognition"] = False
-    elif style == "comic_ink":
-        raw = _combine(_vectorize_strokes(_dilate(silhouette_boundary | very_strong, 1), 256), _vectorize_strokes(dark_boundary, 256))
-        cleanup = VectorCleanupConfig.for_quality("clean")
-    elif style == "architectural_pen":
-        raw = _combine(_vectorize_strokes(strong | tones, 256))
+        return raw, VectorCleanupConfig.for_quality("smooth"), meta
+    if style == "comic_ink":
+        raw = _combine(_strokes(_dilate(outer | very_strong), iterations), _strokes(dark_boundary, iterations))
+        return raw, VectorCleanupConfig.for_quality("clean"), meta
+    if style == "architectural_pen":
+        raw = _strokes(strong | tones, iterations)
         cleanup = VectorCleanupConfig(
             min_segment_px=0.2, min_stroke_length_px=2.0, simplify_tolerance_px=0.55,
             preserve_corner_deg=78.0, duplicate_tolerance_px=0.35,
         )
-    elif style == "technical_drawing":
-        raw = _combine(_vectorize_strokes(very_strong, 256), _vectorize_strokes(silhouette_boundary, 256))
+        return raw, cleanup, meta
+    if style == "technical_drawing":
+        raw = _combine(_strokes(very_strong, iterations), _strokes(outer, iterations))
         cleanup = VectorCleanupConfig(
             min_segment_px=0.15, min_stroke_length_px=1.5, simplify_tolerance_px=0.65,
             preserve_corner_deg=88.0, duplicate_tolerance_px=0.25,
         )
-    elif style == "topographic":
-        raw = _combine(_vectorize_strokes(tones, 256), _vectorize_strokes(silhouette_boundary, 256))
-        cleanup = VectorCleanupConfig.for_quality("smooth")
-    else:  # pragma: no cover - guarded by config validation
-        raise ValueError(style)
-
-    return raw, cleanup, meta
+        return raw, cleanup, meta
+    if style == "topographic":
+        raw = _combine(_strokes(tones, iterations), _strokes(outer, iterations))
+        return raw, VectorCleanupConfig.for_quality("smooth"), meta
+    raise ValueError(style)  # pragma: no cover
 
 
-def render_line_art_from_analysis(
-    analysis: ImageUnderstandingResult,
-    config: LineArtConfig | None = None,
-) -> LineArtResult:
-    """Render analyzed image features into deterministic line-art polylines."""
+def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: LineArtConfig | None = None) -> LineArtResult:
     config = config or LineArtConfig()
     config.validate()
-    raw, cleanup_config, extra = _style_recipe(analysis, config.style)
+    raw, cleanup_config, extra = _recipe(analysis, config.style, config.max_skeleton_iterations)
     if not raw:
         raise ValueError("Line-art style produced no drawable geometry.")
 
-    # Step 4's simplifier is intentionally bypassed for closed raster loops here.
-    # Smoothing, pruning, duplicate suppression, and joining remain active. This
-    # avoids recursively treating an explicitly closed contour as a new closed
-    # simplification problem. Step 4's own CI remains the authority for its API.
-    has_closed = any(len(line) >= 3 and line[0] == line[-1] for line in raw)
-    if has_closed and cleanup_config.simplify_tolerance_px > 0:
+    # Closed contours currently bypass Step 4 RDP simplification because the
+    # Step 4 closed-loop simplifier is intentionally not required by these style
+    # recipes. Other cleanup operations remain active and deterministic.
+    if any(len(line) >= 3 and line[0] == line[-1] for line in raw) and cleanup_config.simplify_tolerance_px > 0:
         cleanup_config = replace(cleanup_config, simplify_tolerance_px=0.0)
         extra["closed_loop_simplification_bypassed"] = True
 
     cleaned = cleanup_polylines(raw, cleanup_config)
     polylines = cleaned.polylines
-    point_count = sum(len(line) for line in polylines)
-    if len(polylines) > config.max_output_strokes or point_count > config.max_output_points:
+    points = sum(len(line) for line in polylines)
+    if len(polylines) > config.max_output_strokes or points > config.max_output_points:
         raise ValueError("Line-art style output exceeds configured geometry limits.")
     validate_polylines(polylines)
     metadata: dict[str, object] = {
@@ -261,7 +227,7 @@ def render_line_art_from_analysis(
         "input_foreground_pixels": int(np.count_nonzero(analysis.foreground_mask)),
         "raw_style_strokes": len(raw),
         "output_style_strokes": len(polylines),
-        "output_style_points": point_count,
+        "output_style_points": points,
         "cleanup": cleaned.metadata,
     }
     metadata.update(extra)
@@ -275,7 +241,6 @@ def render_line_art(
     preprocess: ImagePreprocessConfig | None = None,
     understanding: ImageUnderstandingConfig | None = None,
 ) -> LineArtResult:
-    """Preprocess, analyze, and render an image using a named line-art style."""
     config = config or LineArtConfig()
     config.validate()
     analysis = analyze_image(source, preprocess=preprocess, understanding=understanding)
