@@ -22,6 +22,12 @@ studio2_fixes._patch_image_orientation(studio2_module)
 # request.form() returns Starlette's UploadFile instance; Studio 2.1 accepts it
 # directly while still passing it to the established FastAPI render function.
 studio2_v3.UploadFile = StarletteUploadFile
+
+# Interactive Auto maps balanced to the legacy quick render path. Keep that
+# browser-preview raster genuinely small so normal photographs do not spend
+# minutes in tracing/cleanup. Manual balanced/best remain 720/960 px.
+studio2_v3.legacy._WORKING_DIMENSION["quick"] = 320
+
 studio2_router = studio2_v3.router
 apply_stop_button(studio2_router)
 
@@ -49,4 +55,5 @@ def main() -> None:
         "Studio 2 geometry guard: "
         f"{MAX_STROKES:,} strokes / {MAX_POINTS:,} points | source: {package_root}"
     )
+    print("Studio 2 interactive quick raster cap: 320 px")
     uvicorn.run("printrbot_penplotter.studio_server:app", host="127.0.0.1", port=8000)
