@@ -68,4 +68,5 @@ def test_best_auto_small_fixture_has_bounded_runtime(tmp_path: Path) -> None:
     result = optimize_image(path, AutoOptimizeConfig(quality="best", max_candidates=8, seed=7))
     elapsed = time.perf_counter() - started
     assert result.polylines
-    assert elapsed < 12.0, f"best auto optimization took {elapsed:.3f}s on the small fixture"
+    assert result.metadata["auto_full_renders"] == 1
+    assert elapsed < 5.0, f"best two-stage auto optimization took {elapsed:.3f}s on the small fixture"
