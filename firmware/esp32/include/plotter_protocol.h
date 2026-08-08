@@ -30,6 +30,8 @@ struct JobValidationState {
   float zPositionMm{0.0F};
   bool sawAxisMotion{false};
   bool sawXyMotion{false};
+  bool rehomedXAfterMotion{false};
+  bool rehomedYAfterMotion{false};
 };
 
 inline std::string trim(std::string value) {
@@ -205,8 +207,22 @@ inline ValidationResult validateJobSequenceLine(std::string line, JobValidationS
     const bool specifiesZ = hasWord(result.command, 'Z');
     const bool homesAll = !specifiesX && !specifiesY && !specifiesZ;
 
-    if (homesAll || specifiesX) state.homedX = true;
-    if (homesAll || specifiesY) state.homedY = true;
+    // Once drawing/travel XY motion has begun, never drive Z back toward its
+    // Z-min home switch. The standard end sequence raises Z and re-homes X/Y.
+    if (state.sawXyMotion && (homesAll || specifiesZ)) {
+      result.accepted = false;
+      result.reason = "after XY plotting motion, end homing may home X/Y only; Z must remain safely raised";
+      return result;
+    }
+
+    if (homesAll || specifiesX) {
+      state.homedX = true;
+      if (state.sawXyMotion) state.rehomedXAfterMotion = true;
+    }
+    if (homesAll || specifiesY) {
+      state.homedY = true;
+      if (state.sawXyMotion) state.rehomedYAfterMotion = true;
+    }
     if (homesAll || specifiesZ) {
       state.homedZ = true;
       state.zPositionKnown = true;
@@ -329,8 +345,14 @@ inline ValidationResult validateJobSequenceLine(std::string line, JobValidationS
     state.zPositionKnown = true;
     state.zPositionMm = z;
   }
+  if (hasX || hasY) {
+    // Any XY movement after an end-home means the job is no longer finished at
+    // home, so both end-home flags must be earned again.
+    state.rehomedXAfterMotion = false;
+    state.rehomedYAfterMotion = false;
+    state.sawXyMotion = true;
+  }
   state.sawAxisMotion = true;
-  if (hasX || hasY) state.sawXyMotion = true;
   return result;
 }
 
@@ -339,7 +361,7 @@ inline ValidationResult validateJobCompletion(const JobValidationState& state) {
   result.accepted = true;
 
   // Home-only diagnostic jobs are valid. Once a job performs XY plotting motion,
-  // it must leave the machine in the known safe pen-up state.
+  // it must end pen-up and re-home X/Y so the next job starts from a known state.
   if (state.sawXyMotion) {
     if (!state.homedX || !state.homedY || !state.homedZ) {
       result.accepted = false;
@@ -349,6 +371,11 @@ inline ValidationResult validateJobCompletion(const JobValidationState& state) {
     if (!state.zPositionKnown || state.zPositionMm < config::kSafeZUpMm - 0.01F) {
       result.accepted = false;
       result.reason = "plotting job must finish with the pen at or above the configured safe Z";
+      return result;
+    }
+    if (!state.rehomedXAfterMotion || !state.rehomedYAfterMotion) {
+      result.accepted = false;
+      result.reason = "plotting job must finish by re-homing X/Y after the final XY motion";
       return result;
     }
   }
