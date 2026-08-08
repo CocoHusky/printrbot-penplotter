@@ -45,6 +45,7 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Outline join distance (px)" in text
     assert "Pen-up Z height (mm)" in text
     assert "Pen-down Z height (mm)" in text
+    assert "Max plotted lines (longest kept)" in text
     assert "Limits still apply to the selected recipe." in text
 
 
@@ -61,6 +62,7 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
             "pen_tip_mm": "0.5",
             "z_up_mm": "2.5",
             "z_down_mm": "0.15",
+            "plot_stroke_limit": "2",
             "air_plot": "false",
             "home_before_plot": "true",
             "threshold_mode": "manual",
@@ -93,6 +95,9 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert body["metadata"]["home_before_plot"] is True
     assert body["metadata"]["z_up_mm"] == 2.5
     assert body["metadata"]["z_down_mm"] == 0.15
+    assert body["metadata"]["plot_stroke_limit"] == 2
+    assert body["metadata"]["estimated_print_time_seconds"] > 0
+    assert body["metadata"]["estimated_print_time"]
     assert body["metadata"]["studio_working_max_dimension_px"] == 320
     assert body["metadata"]["effective_pipeline"] == "line_art"
     assert body["metadata"]["effective_style"] == "clean_outline"
