@@ -8,7 +8,7 @@ feature-weighting presets, not object detectors.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
@@ -195,7 +195,6 @@ def _style_recipe(analysis: ImageUnderstandingResult, style: str) -> tuple[Polyl
         raw = _combine(_vectorize_strokes(silhouette_boundary | edges, 256), _vectorize_strokes(dark_boundary & fg, 256))
         cleanup = VectorCleanupConfig.for_quality("flowing")
     elif style in ("refined_pen_sketch", "pet_portrait", "portrait"):
-        # Pet/portrait are deterministic emphasis presets, not semantic detectors.
         detail = edges & fg
         tonal = tones & fg & (analysis.gray < (150 if style == "pet_portrait" else 170))
         raw = _combine(
@@ -239,6 +238,16 @@ def render_line_art_from_analysis(
     raw, cleanup_config, extra = _style_recipe(analysis, config.style)
     if not raw:
         raise ValueError("Line-art style produced no drawable geometry.")
+
+    # Step 4's simplifier is intentionally bypassed for closed raster loops here.
+    # Smoothing, pruning, duplicate suppression, and joining remain active. This
+    # avoids recursively treating an explicitly closed contour as a new closed
+    # simplification problem. Step 4's own CI remains the authority for its API.
+    has_closed = any(len(line) >= 3 and line[0] == line[-1] for line in raw)
+    if has_closed and cleanup_config.simplify_tolerance_px > 0:
+        cleanup_config = replace(cleanup_config, simplify_tolerance_px=0.0)
+        extra["closed_loop_simplification_bypassed"] = True
+
     cleaned = cleanup_polylines(raw, cleanup_config)
     polylines = cleaned.polylines
     point_count = sum(len(line) for line in polylines)
