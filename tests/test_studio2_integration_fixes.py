@@ -20,6 +20,8 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert 'id="rasterPreview"' in text
     assert "Quick raster preview is ready" in text
     assert "let rendering=false" in text
+    assert "setupControlSections" in text
+    assert "className='control-section'" in text
 
 
 def test_studio2_image_geometry_is_mirrored_into_cartesian_y_before_placement() -> None:

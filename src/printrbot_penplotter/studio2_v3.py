@@ -175,7 +175,7 @@ def studio2() -> str:
     html = html.replace('<button id="generate">Generate drawing</button>', '<button id="generate" style="display:none">Generate drawing</button>')
     html = html.replace(
         '</style></head>',
-        '.floating-actions{position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:8px;padding:10px;background:rgba(255,255,255,.96);border:1px solid #d5d5d5;border-radius:12px;box-shadow:0 5px 22px rgba(0,0,0,.14)}.floating-actions button{width:auto;min-width:112px;margin:0}.floating-actions button.primary{background:#111;color:#fff;border-color:#111}@media(max-width:700px){.floating-actions{left:10px;right:10px}.floating-actions button{flex:1;min-width:0}}\n</style></head>',
+        '.control-section{margin-top:10px;border:1px solid #e2e2e2;border-radius:9px;background:#fff;overflow:hidden}.control-section>summary{padding:10px;cursor:pointer;font-size:14px;font-weight:700;list-style-position:inside}.control-section>summary:hover{background:#f7f7f7}.control-section>.group{margin:0;border:0;border-top:1px solid #eee;border-radius:0}.control-section[hidden]{display:none}.floating-actions{position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:8px;padding:10px;background:rgba(255,255,255,.96);border:1px solid #d5d5d5;border-radius:12px;box-shadow:0 5px 22px rgba(0,0,0,.14)}.floating-actions button{width:auto;min-width:112px;margin:0}.floating-actions button.primary{background:#111;color:#fff;border-color:#111}@media(max-width:700px){.floating-actions{left:10px;right:10px}.floating-actions button{flex:1;min-width:0}}\n</style></head>',
     )
     pre_script = r'''<script>
 window.__studioLast=null;
