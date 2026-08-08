@@ -150,6 +150,8 @@ def _render_pipeline(
     detail: str,
     background_mode: str,
     pen_tip_mm: float,
+    z_up_mm: float,
+    z_down_mm: float,
     air_plot: bool,
     home_before_plot: bool,
     grayscale_mode: str,
@@ -195,9 +197,11 @@ def _render_pipeline(
     style_dilation_passes: int,
     style_simplify_tolerance_px: float | None,
     style_smooth_passes: int | None,
+    style_join_distance_px: float | None,
     shading_seed: int,
     shading_angle_offset_deg: float,
     shading_density_scale: float,
+    shading_outline_join_distance_px: float,
 ) -> tuple[str, str, list[list[tuple[float, float]]], dict[str, object], int, int, dict[str, str]]:
     if mode == "line_art" and style not in STYLE_NAMES:
         raise ValueError(f"Style '{style}' is not valid for the Line art pipeline.")
@@ -275,6 +279,7 @@ def _render_pipeline(
                 dilation_passes=style_dilation_passes,
                 simplify_tolerance_px=style_simplify_tolerance_px,
                 smooth_passes=style_smooth_passes,
+                join_distance_px=style_join_distance_px,
             ),  # type: ignore[arg-type]
         )
         raw = artistic.polylines
@@ -298,6 +303,7 @@ def _render_pipeline(
                 seed=shading_seed,
                 angle_offset_deg=shading_angle_offset_deg,
                 density_scale=shading_density_scale,
+                outline_join_distance_px=shading_outline_join_distance_px,
             ),
         )
         raw = artistic.polylines
@@ -313,7 +319,7 @@ def _render_pipeline(
     page = PageConfig()
     layout = LayoutConfig(fit_mode="fit")
     placed = place_on_page(raw, page, layout, machine)
-    pen = PenConfig(air_plot=air_plot, home_before_plot=home_before_plot)
+    pen = PenConfig(z_up_mm=z_up_mm, z_down_mm=z_down_mm, air_plot=air_plot, home_before_plot=home_before_plot)
     physical = prepare_physical_plot(
         placed,
         PhysicalPlotConfig(pen_tip_mm=pen_tip_mm, quality=quality),  # type: ignore[arg-type]
@@ -356,6 +362,8 @@ async def render_studio2(
     detail: Literal["low", "medium", "high", "extreme"] = Form("high"),
     background_mode: Literal["none", "suppress", "remove"] = Form("suppress"),
     pen_tip_mm: float = Form(0.5),
+    z_up_mm: float = Form(5.0),
+    z_down_mm: float = Form(0.0),
     air_plot: bool = Form(True),
     home_before_plot: bool = Form(True),
     grayscale_mode: str = Form("luminance"),
@@ -401,9 +409,11 @@ async def render_studio2(
     style_dilation_passes: int = Form(1),
     style_simplify_tolerance_px: float = Form(-1.0),
     style_smooth_passes: int = Form(-1),
+    style_join_distance_px: float = Form(-1.0),
     shading_seed: int = Form(0),
     shading_angle_offset_deg: float = Form(0.0),
     shading_density_scale: float = Form(1.0),
+    shading_outline_join_distance_px: float = Form(0.0),
 ) -> dict[str, object]:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
@@ -427,6 +437,8 @@ async def render_studio2(
                 detail=detail,
                 background_mode=background_mode,
                 pen_tip_mm=pen_tip_mm,
+                z_up_mm=z_up_mm,
+                z_down_mm=z_down_mm,
                 air_plot=air_plot,
                 home_before_plot=home_before_plot,
                 grayscale_mode=grayscale_mode,
@@ -472,9 +484,11 @@ async def render_studio2(
                 style_dilation_passes=style_dilation_passes,
                 style_simplify_tolerance_px=(None if style_simplify_tolerance_px < 0 else style_simplify_tolerance_px),
                 style_smooth_passes=(None if style_smooth_passes < 0 else style_smooth_passes),
+                style_join_distance_px=(None if style_join_distance_px < 0 else style_join_distance_px),
                 shading_seed=shading_seed,
                 shading_angle_offset_deg=shading_angle_offset_deg,
                 shading_density_scale=shading_density_scale,
+                shading_outline_join_distance_px=shading_outline_join_distance_px,
             )
     except (ValueError, RuntimeError, FileNotFoundError) as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -492,6 +506,8 @@ async def render_studio2(
             "background_mode": background_mode,
             "home_before_plot": home_before_plot,
             "air_plot": air_plot,
+            "z_up_mm": z_up_mm,
+            "z_down_mm": z_down_mm,
         }
     )
     return {
@@ -522,6 +538,8 @@ STUDIO2_HTML = r'''<!doctype html>
 <label>Detail</label><select name="detail"><option>low</option><option>medium</option><option selected>high</option><option>extreme</option></select>
 <label>Background</label><select name="background_mode"><option>none</option><option selected>suppress</option><option>remove</option></select>
 <label>Pen tip (mm)</label><input name="pen_tip_mm" type="number" value="0.5" min="0.05" max="5" step="0.05">
+<label>Pen-up Z height (mm)</label><input name="z_up_mm" type="number" value="5.0" min="0" max="20" step="0.1">
+<label>Pen-down Z height (mm)</label><input name="z_down_mm" type="number" value="0.0" min="-5" max="20" step="0.1">
 <label class="check"><input name="air_plot" type="checkbox" checked> Air plot</label>
 <label class="check"><input name="home_before_plot" type="checkbox" checked> Home before plot</label>
 <button id="advancedToggle" class="advanced-toggle" type="button">Advanced image & style controls ▾</button>
@@ -552,7 +570,7 @@ STUDIO2_HTML = r'''<!doctype html>
 <div class="row"><div><label>Skeleton iterations</label><input name="max_skeleton_iterations" type="number" min="1" max="1024" value="256"></div><div><label>Dilation passes</label><input name="style_dilation_passes" type="number" min="0" max="4" value="1"></div></div>
 <div class="row"><div><label>Edge threshold</label><input name="style_edge_threshold" type="number" min="0" max="1" step="0.01" value="0.58"></div><div><label>Strong edge threshold</label><input name="style_strong_edge_threshold" type="number" min="0" max="1" step="0.01" value="0.72"></div></div>
 <div class="row"><div><label>Style tone cutoff</label><input name="style_tone_threshold" type="number" min="0" max="255" value="170"></div><div><label>Simplify tolerance (px)</label><input name="style_simplify_tolerance_px" type="number" min="0" max="20" step="0.05" placeholder="Style default"></div></div>
-<label>Smoothing passes (blank = style default)</label><input name="style_smooth_passes" type="number" min="0" max="8" placeholder="Style default">
+<div class="row"><div><label>Smoothing passes (blank = default)</label><input name="style_smooth_passes" type="number" min="0" max="8" placeholder="Style default"></div><div><label>Join distance (px)</label><input name="style_join_distance_px" type="number" min="0" max="20" step="0.1" placeholder="Style default"></div></div>
 <div class="hint">These controls apply to every line-art style; the selected style determines which masks use them.</div>
 </div>
 <div id="shadingAdvanced" class="group hidden"><h3>Pen shading style controls</h3>
@@ -561,6 +579,7 @@ STUDIO2_HTML = r'''<!doctype html>
 <div class="row"><div><label>Hatch / texture spacing (px)</label><input name="hatch_spacing_px" type="number" min="1" max="100" step="0.5" value="5"></div><div><label>Darkness cutoff</label><input name="darkness_threshold" type="number" min="0" max="1" step="0.01" value="0.22"></div></div>
 <div class="row"><div><label>Minimum shading stroke (px)</label><input name="shading_min_stroke_px" type="number" min="0" step="0.25" value="1.25"></div><div><label>Variation seed</label><input name="shading_seed" type="number" step="1" value="0"></div></div>
 <div class="row"><div><label>Angle offset (degrees)</label><input name="shading_angle_offset_deg" type="number" min="-180" max="180" step="1" value="0"></div><div><label>Density scale</label><input name="shading_density_scale" type="number" min="0.25" max="4" step="0.05" value="1"></div></div>
+<label>Outline join distance (px)</label><input name="shading_outline_join_distance_px" type="number" min="0" max="20" step="0.1" value="0"><div class="hint">Zero is the fast default for dense texture outlines.</div>
 </div>
 <div id="geometryLimits" class="group"><h3>Artistic geometry limit</h3>
 <div class="row"><div><label>Max artistic strokes</label><input id="strokeLimit" name="artistic_stroke_limit" type="number" min="1" max="200000" value="20000"></div><div><label>Max artistic points</label><input id="pointLimit" name="artistic_point_limit" type="number" min="2" max="20000000" value="2000000"></div></div>
@@ -590,6 +609,6 @@ function updateThreshold(){thresholdValue.disabled=thresholdMode.value!=='manual
 function updateLimit(){strokeLimit.disabled=bypassLimit.checked;pointLimit.disabled=bypassLimit.checked;}bypassLimit.addEventListener('change',updateLimit);updateLimit();
 fileInput.addEventListener('change',()=>{const file=fileInput.files&&fileInput.files[0];if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}if(!file){sourcePreview.className='placeholder';sourcePreview.textContent='No image selected.';return;}objectUrl=URL.createObjectURL(file);sourcePreview.className='';sourcePreview.innerHTML='';const img=document.createElement('img');img.src=objectUrl;img.alt='Selected source image';sourcePreview.appendChild(img);status.className='status';status.textContent='Image loaded. Click Generate drawing.';});
 function stageImage(target,uri){target.className='';target.innerHTML='';const img=document.createElement('img');img.src=uri;target.appendChild(img);}
-form.addEventListener('submit',()=>{for(const n of ['style_simplify_tolerance_px','style_smooth_passes']){const field=form.elements[n];if(field&&field.value.trim()==='')field.value='-1';}});
+form.addEventListener('submit',()=>{for(const n of ['style_simplify_tolerance_px','style_smooth_passes','style_join_distance_px']){const field=form.elements[n];if(field&&field.value.trim()==='')field.value='-1';}});
 form.onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline','bypass_artistic_limit'])fd.set(n,form.elements[n]&&form.elements[n].checked?'true':'false');if(bypassLimit.checked){fd.set('artistic_stroke_limit','20000');fd.set('artistic_point_limit','2000000');}button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);button.disabled=false;}};
 </script></body></html>'''

@@ -42,6 +42,9 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Variation seed" in text
     assert "Angle offset (degrees)" in text
     assert "Density scale" in text
+    assert "Outline join distance (px)" in text
+    assert "Pen-up Z height (mm)" in text
+    assert "Pen-down Z height (mm)" in text
     assert "Limits still apply to the selected recipe." in text
 
 
@@ -56,7 +59,9 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
             "detail": "medium",
             "background_mode": "suppress",
             "pen_tip_mm": "0.5",
-            "air_plot": "true",
+            "z_up_mm": "2.5",
+            "z_down_mm": "0.15",
+            "air_plot": "false",
             "home_before_plot": "true",
             "threshold_mode": "manual",
             "threshold_value": "190",
@@ -86,6 +91,8 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     body = response.json()
     assert body["metadata"]["studio_schema"] == "printrbot-studio2/v3"
     assert body["metadata"]["home_before_plot"] is True
+    assert body["metadata"]["z_up_mm"] == 2.5
+    assert body["metadata"]["z_down_mm"] == 0.15
     assert body["metadata"]["studio_working_max_dimension_px"] == 320
     assert body["metadata"]["effective_pipeline"] == "line_art"
     assert body["metadata"]["effective_style"] == "clean_outline"
@@ -107,6 +114,8 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert body["stages"]["edges"].startswith("data:image/png;base64,")
     assert "G28" in body["gcode"]
     assert "G28 X Y" in body["gcode"]
+    assert "G0 Z2.500" in body["gcode"]
+    assert "G0 Z0.150" in body["gcode"]
     assert body["polylines"]
 
 

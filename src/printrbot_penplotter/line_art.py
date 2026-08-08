@@ -42,6 +42,7 @@ class LineArtConfig:
     dilation_passes: int = 1
     simplify_tolerance_px: float | None = None
     smooth_passes: int | None = None
+    join_distance_px: float | None = None
 
     def validate(self) -> None:
         if self.style not in STYLE_NAMES:
@@ -63,6 +64,8 @@ class LineArtConfig:
             raise ValueError("simplify_tolerance_px must be non-negative.")
         if self.smooth_passes is not None and (not isinstance(self.smooth_passes, int) or not 0 <= self.smooth_passes <= 8):
             raise ValueError("smooth_passes must be between 0 and 8.")
+        if self.join_distance_px is not None and (not np.isfinite(self.join_distance_px) or not 0 <= self.join_distance_px <= 20):
+            raise ValueError("join_distance_px must be between 0 and 20.")
 
 
 @dataclass(frozen=True)
@@ -225,6 +228,8 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
         cleanup_config = replace(cleanup_config, simplify_tolerance_px=config.simplify_tolerance_px)
     if config.smooth_passes is not None:
         cleanup_config = replace(cleanup_config, smooth_passes=config.smooth_passes)
+    if config.join_distance_px is not None:
+        cleanup_config = replace(cleanup_config, join_distance_px=config.join_distance_px)
     if not raw:
         raise ValueError("Line-art style produced no drawable geometry.")
 
@@ -253,6 +258,7 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
         "style_dilation_passes": config.dilation_passes,
         "style_simplify_tolerance_px": config.simplify_tolerance_px,
         "style_smooth_passes": config.smooth_passes,
+        "style_join_distance_px": config.join_distance_px,
         "cleanup": cleaned.metadata,
     })
     metadata.update(extra)
