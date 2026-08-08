@@ -34,6 +34,7 @@ _WORKING_DIMENSION = {"quick": 320, "balanced": 720, "best": 960}
 _AUTO_WORKING_DIMENSION = {"quick": 192, "balanced": 320, "best": 960}
 _DEFAULT_ART_STROKES = 20_000
 _DEFAULT_ART_POINTS = 2_000_000
+_DEFAULT_PLOT_STROKES = 5_000
 _HARD_ART_STROKES = 200_000
 _HARD_ART_POINTS = 20_000_000
 
@@ -190,6 +191,7 @@ def _render_pipeline(
     shading_min_stroke_px: float,
     artistic_stroke_limit: int,
     artistic_point_limit: int,
+    plot_stroke_limit: int,
     bypass_artistic_limit: bool,
     max_skeleton_iterations: int,
     style_edge_threshold: float,
@@ -214,6 +216,8 @@ def _render_pipeline(
     max_strokes, max_points = _effective_art_limits(
         artistic_stroke_limit, artistic_point_limit, bypass_artistic_limit
     )
+    if not 1 <= plot_stroke_limit <= _HARD_ART_STROKES:
+        raise ValueError(f"Plot line cap must be between 1 and {_HARD_ART_STROKES:,}.")
     working_dimension = (_AUTO_WORKING_DIMENSION if mode == "auto" else _WORKING_DIMENSION)[quality]
     preprocess = ImagePreprocessConfig(
         grayscale_mode=grayscale_mode,  # type: ignore[arg-type]
@@ -325,7 +329,7 @@ def _render_pipeline(
     pen = PenConfig(z_up_mm=z_up_mm, z_down_mm=z_down_mm, air_plot=air_plot, home_before_plot=home_before_plot)
     physical = prepare_physical_plot(
         placed,
-        PhysicalPlotConfig(pen_tip_mm=pen_tip_mm, quality=quality),  # type: ignore[arg-type]
+        PhysicalPlotConfig(pen_tip_mm=pen_tip_mm, quality=quality, stroke_cap=plot_stroke_limit),  # type: ignore[arg-type]
         pen=pen,
     )
     final = physical.polylines
@@ -344,6 +348,10 @@ def _render_pipeline(
             "artistic_limit_bypassed": bypass_artistic_limit,
             "artistic_stroke_limit_effective": max_strokes,
             "artistic_point_limit_effective": max_points,
+            "plot_stroke_limit": plot_stroke_limit,
+            "plot_strokes_dropped_for_cap": physical.metadata["stroke_cap_dropped"],
+            "estimated_print_time_seconds": round(physical.after.estimated_seconds, 2),
+            "estimated_print_time_minutes": round(physical.after.estimated_seconds / 60.0, 2),
             "artistic_hard_stroke_guard": _HARD_ART_STROKES,
             "artistic_hard_point_guard": _HARD_ART_POINTS,
         }
@@ -404,6 +412,7 @@ async def render_studio2(
     shading_min_stroke_px: float = Form(1.25),
     artistic_stroke_limit: int = Form(_DEFAULT_ART_STROKES),
     artistic_point_limit: int = Form(_DEFAULT_ART_POINTS),
+    plot_stroke_limit: int = Form(_DEFAULT_PLOT_STROKES),
     bypass_artistic_limit: bool = Form(False),
     max_skeleton_iterations: int = Form(256),
     style_edge_threshold: float = Form(0.58),
@@ -479,6 +488,7 @@ async def render_studio2(
                 shading_min_stroke_px=shading_min_stroke_px,
                 artistic_stroke_limit=artistic_stroke_limit,
                 artistic_point_limit=artistic_point_limit,
+                plot_stroke_limit=plot_stroke_limit,
                 bypass_artistic_limit=bypass_artistic_limit,
                 max_skeleton_iterations=max_skeleton_iterations,
                 style_edge_threshold=style_edge_threshold,
@@ -586,6 +596,7 @@ STUDIO2_HTML = r'''<!doctype html>
 </div>
 <div id="geometryLimits" class="group"><h3>Artistic geometry limit</h3>
 <div class="row"><div><label>Max artistic strokes</label><input id="strokeLimit" name="artistic_stroke_limit" type="number" min="1" max="200000" value="20000"></div><div><label>Max artistic points</label><input id="pointLimit" name="artistic_point_limit" type="number" min="2" max="20000000" value="2000000"></div></div>
+<label>Max plotted lines (longest kept)</label><input name="plot_stroke_limit" type="number" min="1" max="200000" value="5000"><div class="hint">Shorter lines are dropped first to reduce pen travel and Z lifts.</div>
 <label class="check"><input id="bypassLimit" name="bypass_artistic_limit" type="checkbox"> Bypass soft artistic limit (expert)</label>
 <div class="warning">Bypass raises the soft limit to a hard memory guard of 200,000 strokes / 20,000,000 points. This can be slow and can create very large plot jobs.</div>
 </div>
@@ -613,5 +624,5 @@ function updateLimit(){strokeLimit.disabled=bypassLimit.checked;pointLimit.disab
 fileInput.addEventListener('change',()=>{const file=fileInput.files&&fileInput.files[0];if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null;}if(!file){sourcePreview.className='placeholder';sourcePreview.textContent='No image selected.';return;}objectUrl=URL.createObjectURL(file);sourcePreview.className='';sourcePreview.innerHTML='';const img=document.createElement('img');img.src=objectUrl;img.alt='Selected source image';sourcePreview.appendChild(img);status.className='status';status.textContent='Image loaded. Click Generate drawing.';});
 function stageImage(target,uri){target.className='';target.innerHTML='';const img=document.createElement('img');img.src=uri;target.appendChild(img);}
 form.addEventListener('submit',()=>{for(const n of ['style_simplify_tolerance_px','style_smooth_passes','style_join_distance_px']){const field=form.elements[n];if(field&&field.value.trim()==='')field.value='-1';}});
-form.onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline','bypass_artistic_limit'])fd.set(n,form.elements[n]&&form.elements[n].checked?'true':'false');if(bypassLimit.checked){fd.set('artistic_stroke_limit','20000');fd.set('artistic_point_limit','2000000');}button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);button.disabled=false;}};
+form.onsubmit=async(e)=>{e.preventDefault();const fd=new FormData(form);if(mode.value==='auto')fd.set('style','');for(const n of ['air_plot','home_before_plot','auto_levels','histogram_equalize','threshold_invert','include_outline','bypass_artistic_limit'])fd.set(n,form.elements[n]&&form.elements[n].checked?'true':'false');if(bypassLimit.checked){fd.set('artistic_stroke_limit','20000');fd.set('artistic_point_limit','2000000');}button.disabled=true;const start=performance.now();status.className='status busy';status.innerHTML='<span class="spinner"></span>Generating drawing…';preview.className='placeholder';preview.textContent='Rendering…';meta.textContent='';selectedStyle.style.display='none';const timer=setInterval(()=>{status.innerHTML='<span class="spinner"></span>Generating drawing… '+((performance.now()-start)/1000).toFixed(1)+' s';},250);try{const r=await fetch('/api/studio2/render',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Render failed');preview.className='';preview.innerHTML=j.preview_svg;stageImage(corrected,j.stages.corrected);stageImage(mask,j.stages.mask);stageImage(edges,j.stages.edges);meta.textContent=JSON.stringify(j.metadata,null,2);const effective=(j.metadata.effective_pipeline||j.metadata.mode)+' · '+(j.metadata.effective_style||'');selectedStyle.style.display='block';selectedStyle.textContent=(mode.value==='auto'?'Auto selected: ':'Selected: ')+effective;status.className='status';status.textContent='Done in '+((performance.now()-start)/1000).toFixed(1)+' s · '+j.stages.artistic_strokes+' artistic strokes → '+j.stages.physical_strokes+' plot strokes · estimated plot time '+(j.metadata.estimated_print_time||'unknown')+'.';}catch(err){preview.className='placeholder';preview.textContent='No drawing generated.';status.className='status error';status.textContent=err instanceof Error?err.message:String(err);}finally{clearInterval(timer);button.disabled=false;}};
 </script></body></html>'''

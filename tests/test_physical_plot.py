@@ -2,6 +2,7 @@ import time
 
 import pytest
 from printrbot_penplotter.models import PenConfig
+from printrbot_penplotter.optimize import polyline_length
 from printrbot_penplotter.physical_plot import PhysicalPlotConfig, prepare_physical_plot
 
 
@@ -52,6 +53,14 @@ def test_best_small_job_can_still_use_two_opt() -> None:
     result = prepare_physical_plot(lines, PhysicalPlotConfig(quality="best", route_mode="two_opt"))
     assert result.metadata["effective_route_mode"] == "two_opt"
     assert result.metadata["route_fallback_reason"] is None
+
+
+def test_stroke_cap_keeps_longest_lines_and_reports_drops() -> None:
+    lines = [[(0.0, 0.0), (1.0, 0.0)], [(0.0, 0.0), (4.0, 0.0)], [(0.0, 0.0), (2.0, 0.0)]]
+    result = prepare_physical_plot(lines, PhysicalPlotConfig(stroke_cap=2), pen=PenConfig())
+    lengths = sorted(round(polyline_length(line), 3) for line in result.polylines)
+    assert lengths == [2.0, 4.0]
+    assert result.metadata["stroke_cap_dropped"] == 1
 
 
 def test_balanced_large_stroke_job_stays_interactive() -> None:
