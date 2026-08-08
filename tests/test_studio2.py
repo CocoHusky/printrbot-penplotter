@@ -74,7 +74,7 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     body = response.json()
     assert body["metadata"]["studio_schema"] == "printrbot-studio2/v3"
     assert body["metadata"]["home_before_plot"] is True
-    assert body["metadata"]["studio_working_max_dimension_px"] == 480
+    assert body["metadata"]["studio_working_max_dimension_px"] == 320
     assert body["metadata"]["effective_pipeline"] == "line_art"
     assert body["metadata"]["effective_style"] == "clean_outline"
     assert body["metadata"]["threshold_mode"] == "manual"
