@@ -4,16 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import studio2 as studio2_module
 from .geometry import MAX_POINTS, MAX_STROKES
 from .product_api import router as product_router
 from .raster_studio import router as raster_router
-from .studio2_fixes import apply_studio2_fixes
+from . import studio2_fixes
+from .studio2_v3 import router as studio2_router
 from .web import app
 
-# Apply Studio-only integration fixes before the router serves HTML or renders jobs.
-apply_studio2_fixes(studio2_module)
-studio2_router = studio2_module.router
+# Preserve the Studio-only large-job cleanup propagation. Studio 2.1 owns the
+# final orientation transform and persistent action bar itself, so do not apply
+# the older HTML/orientation monkey patches here.
+studio2_fixes._patch_large_job_limits()
 
 app.include_router(raster_router)
 app.include_router(studio2_router)
@@ -21,14 +22,7 @@ app.include_router(product_router)
 
 
 def _validate_studio_runtime() -> None:
-    """Refuse to start Studio with the legacy 20k shared geometry guard.
-
-    Studio 2 owns the normal adjustable artistic soft limit. The shared geometry
-    layer must retain the higher bounded hard guard so the explicit expert bypass
-    can reach placement, preview, physical planning, and G-code generation.
-    This catches stale/mixed editable installs that otherwise make the UI claim a
-    bypass is active while an older geometry.py still rejects at 20,000 strokes.
-    """
+    """Refuse to start Studio with the legacy 20k shared geometry guard."""
     if MAX_STROKES < 200_000 or MAX_POINTS < 20_000_000:
         raise RuntimeError(
             "Studio 2 runtime is using legacy geometry limits "
