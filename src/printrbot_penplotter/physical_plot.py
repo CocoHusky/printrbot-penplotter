@@ -30,6 +30,7 @@ class PhysicalPlotConfig:
     max_strokes: int = MAX_STROKES
     max_points: int = MAX_POINTS
     max_two_opt_strokes: int = 180
+    stroke_cap: int | None = None
 
     def validate(self) -> None:
         if not math.isfinite(self.pen_tip_mm) or not 0.05 <= self.pen_tip_mm <= 5.0:
@@ -46,6 +47,8 @@ class PhysicalPlotConfig:
             raise ValueError("geometry limits must be positive")
         if not isinstance(self.max_two_opt_strokes, int) or self.max_two_opt_strokes < 3:
             raise ValueError("max_two_opt_strokes must be at least 3")
+        if self.stroke_cap is not None and not 1 <= self.stroke_cap <= self.max_strokes:
+            raise ValueError("stroke_cap must be between 1 and max_strokes")
 
 
 @dataclass(frozen=True)
@@ -72,7 +75,7 @@ def _dedupe_close_points(line: Polyline, minimum_spacing: float) -> Polyline:
     return result
 
 
-def _filter_physical(lines: Polylines, cfg: PhysicalPlotConfig) -> tuple[Polylines, int, int]:
+def _filter_physical(lines: Polylines, cfg: PhysicalPlotConfig) -> tuple[Polylines, int, int, int]:
     min_feature = cfg.pen_tip_mm * cfg.min_feature_factor
     point_spacing = max(
         0.02,
@@ -93,7 +96,15 @@ def _filter_physical(lines: Polylines, cfg: PhysicalPlotConfig) -> tuple[Polylin
         else:
             removed_strokes += 1
             removed_points += len(cleaned)
-    return out, removed_strokes, removed_points
+    cap_dropped = 0
+    if cfg.stroke_cap is not None and len(out) > cfg.stroke_cap:
+        ranked = sorted(out, key=lambda line: (-polyline_length(line), tuple(line[0]), len(line)))
+        kept = ranked[:cfg.stroke_cap]
+        cap_dropped = len(out) - len(kept)
+        removed_strokes += cap_dropped
+        removed_points += sum(len(line) for line in ranked[cfg.stroke_cap:])
+        out = kept
+    return out, removed_strokes, removed_points, cap_dropped
 
 
 def _effective_route_mode(cfg: PhysicalPlotConfig, stroke_count: int) -> tuple[str, str | None]:
@@ -124,7 +135,7 @@ def prepare_physical_plot(
     cfg.validate()
     pen = pen or PenConfig()
     validate_polylines(polylines)
-    filtered, removed_strokes, removed_points = _filter_physical(polylines, cfg)
+    filtered, removed_strokes, removed_points, cap_dropped = _filter_physical(polylines, cfg)
     if not filtered:
         raise ValueError("Physical filtering removed all drawable geometry.")
     points = sum(len(line) for line in filtered)
@@ -152,6 +163,8 @@ def prepare_physical_plot(
         "minimum_gap_mm": round(cfg.pen_tip_mm * cfg.min_gap_factor, 4),
         "removed_strokes": removed_strokes,
         "removed_points": removed_points,
+        "stroke_cap": cfg.stroke_cap,
+        "stroke_cap_dropped": cap_dropped,
         "input_strokes": len(polylines),
         "output_strokes": len(plan.polylines),
         "output_points": sum(len(line) for line in plan.polylines),
