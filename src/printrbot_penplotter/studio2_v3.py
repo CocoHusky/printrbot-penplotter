@@ -233,6 +233,8 @@ async def render_studio2(request: Request) -> dict[str, object]:
             detail=_str(form, "detail", "high"),  # type: ignore[arg-type]
             background_mode=_str(form, "background_mode", "suppress"),  # type: ignore[arg-type]
             pen_tip_mm=_float(form, "pen_tip_mm", 0.5),
+            z_up_mm=_float(form, "z_up_mm", 5.0),
+            z_down_mm=_float(form, "z_down_mm", 0.0),
             air_plot=_bool(form, "air_plot", True),
             home_before_plot=_bool(form, "home_before_plot", True),
             grayscale_mode=_str(form, "grayscale_mode", "luminance"),
@@ -278,9 +280,11 @@ async def render_studio2(request: Request) -> dict[str, object]:
             style_dilation_passes=_int(form, "style_dilation_passes", 1),
             style_simplify_tolerance_px=_float(form, "style_simplify_tolerance_px", -1.0),
             style_smooth_passes=_int(form, "style_smooth_passes", -1),
+            style_join_distance_px=_float(form, "style_join_distance_px", -1.0),
             shading_seed=_int(form, "shading_seed", 0),
             shading_angle_offset_deg=_float(form, "shading_angle_offset_deg", 0.0),
             shading_density_scale=_float(form, "shading_density_scale", 1.0),
+            shading_outline_join_distance_px=_float(form, "shading_outline_join_distance_px", 0.0),
         )
 
         page = PageConfig()
@@ -297,6 +301,8 @@ async def render_studio2(request: Request) -> dict[str, object]:
             page=page,
         )
         pen = PenConfig(
+            z_up_mm=_float(form, "z_up_mm", 5.0),
+            z_down_mm=_float(form, "z_down_mm", 0.0),
             air_plot=_bool(form, "air_plot", True),
             home_before_plot=_bool(form, "home_before_plot", True),
         )
