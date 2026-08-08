@@ -40,20 +40,20 @@ def _analysis(path: Path):
     )
 
 
-def test_all_named_shading_styles_produce_finite_geometry(tmp_path: Path) -> None:
+@pytest.mark.parametrize("name", SHADING_STYLE_NAMES)
+def test_named_shading_style_produces_finite_geometry(tmp_path: Path, name: str) -> None:
     path = tmp_path / "fixture.png"
     _fixture(path)
     analysis = _analysis(path)
-    for name in SHADING_STYLE_NAMES:
-        result = render_pen_shading_from_analysis(
-            analysis,
-            PenShadingConfig(style=name, hatch_spacing_px=7.0),
-        )
-        assert result.polylines
-        values = np.asarray([point for line in result.polylines for point in line], dtype=float)
-        assert np.isfinite(values).all()
-        assert result.metadata["pen_shading_schema"] == "printrbot-pen-shading/v1"
-        assert result.metadata["pen_shading_style"] == name
+    result = render_pen_shading_from_analysis(
+        analysis,
+        PenShadingConfig(style=name, hatch_spacing_px=7.0),
+    )
+    assert result.polylines
+    values = np.asarray([point for line in result.polylines for point in line], dtype=float)
+    assert np.isfinite(values).all()
+    assert result.metadata["pen_shading_schema"] == "printrbot-pen-shading/v1"
+    assert result.metadata["pen_shading_style"] == name
 
 
 def test_shading_render_is_deterministic(tmp_path: Path) -> None:
