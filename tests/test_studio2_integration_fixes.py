@@ -31,6 +31,14 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert 'class="stage-tabs"' in text
     assert 'data-stage="gray"' in text
     assert "Not required for this style." in text
+    assert "studio-step-shell" in text
+    assert "process-tab" in text
+    assert "before-after" in text
+    assert "Source & grayscale" in text
+    assert "Black & white" in text
+    assert "Edge extraction" in text
+    assert "Style & vectorization" in text
+    assert "Machine & export" in text
 
 
 def test_studio2_image_geometry_is_mirrored_into_cartesian_y_before_placement() -> None:
