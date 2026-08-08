@@ -80,6 +80,7 @@ def _render_geometry(
             "strokes": len(placed),
             "points": sum(len(line) for line in placed),
             "air_plot": pen.air_plot,
+            "home_before_plot": pen.home_before_plot,
         },
     )
 
@@ -92,6 +93,7 @@ class FinalizeRequest(BaseModel):
     horizontal_align: Literal["left", "center", "right"] = "center"
     vertical_align: Literal["bottom", "center", "top"] = "center"
     air_plot: bool = True
+    home_before_plot: bool = False
     z_up_mm: float = 5.0
     z_down_mm: float = 0.0
 
@@ -111,6 +113,7 @@ async def raster_trace(
     min_component_px: int = Form(8),
     simplify_px: float = Form(0.8),
     air_plot: bool = Form(True),
+    home_before_plot: bool = Form(False),
 ) -> dict[str, object]:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
@@ -146,7 +149,10 @@ async def raster_trace(
             mask_uri, effective_threshold = _mask_data_uri(source, config)
             job = _render_geometry(
                 result.polylines,
-                pen=PenConfig(air_plot=air_plot),
+                pen=PenConfig(
+                    air_plot=air_plot,
+                    home_before_plot=home_before_plot,
+                ),
                 title=f"Raster studio: {file.filename or 'upload'}",
             )
     except (ValueError, RuntimeError, FileNotFoundError) as exc:
@@ -217,6 +223,7 @@ def finalize_raster(request: FinalizeRequest) -> dict[str, object]:
         )
         pen = PenConfig(
             air_plot=request.air_plot,
+            home_before_plot=request.home_before_plot,
             z_up_mm=request.z_up_mm,
             z_down_mm=request.z_down_mm,
         )
@@ -236,7 +243,7 @@ STUDIO_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Printrbot Image & Handwriting Studio</title>
 <style>
-:root{font-family:system-ui,-apple-system,sans-serif;color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#091019;color:#eef5fb}main{width:min(1450px,calc(100% - 24px));margin:20px auto 50px}h1{margin:0 0 4px}p{color:#9db0c2}.layout{display:grid;grid-template-columns:340px 1fr;gap:14px}.card{background:#111b27;border:1px solid #26394c;border-radius:14px;padding:14px}.drop{border:2px dashed #527394;border-radius:14px;padding:26px;text-align:center;cursor:pointer}.drop.drag{border-color:#79d4ff;background:#132b3b}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}label{display:block;font-size:13px;color:#b9c8d5;margin:10px 0 4px}input,select,button{width:100%;padding:9px;border-radius:9px;border:1px solid #344b60;background:#0b141e;color:#eef5fb}button{background:#296fa5;font-weight:700;cursor:pointer;margin-top:8px}.secondary{background:#34475a}.danger{background:#853f46}.views{display:grid;grid-template-columns:1fr 1fr;gap:10px}.view{background:#dce5ed;color:#111;min-height:280px;border-radius:12px;padding:8px;overflow:auto}.view h3{margin:0 0 6px;font-size:13px;color:#415365}.view img,.view svg{display:block;max-width:100%;max-height:430px;margin:auto;background:white}.editor-toolbar{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0}.editor-toolbar button{font-size:12px;padding:8px}.selected{stroke:#e23b42!important;stroke-width:2.3!important}.endpoint{fill:#2d8cff;stroke:white;stroke-width:.8;cursor:grab}.status{min-height:22px;color:#77e4ad;margin-top:8px}pre{font-size:11px;max-height:220px;overflow:auto;white-space:pre-wrap}.full{grid-column:1/-1}@media(max-width:900px){.layout{grid-template-columns:1fr}.views{grid-template-columns:1fr}.editor-toolbar{grid-template-columns:1fr 1fr}}
+:root{font-family:system-ui,-apple-system,sans-serif;color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#091019;color:#eef5fb}main{width:min(1450px,calc(100% - 24px));margin:20px auto 50px}h1{margin:0 0 4px}p{color:#9db0c2}.layout{display:grid;grid-template-columns:340px 1fr;gap:14px}.card{background:#111b27;border:1px solid #26394c;border-radius:14px;padding:14px}.drop{border:2px dashed #527394;border-radius:14px;padding:26px;text-align:center;cursor:pointer}.drop.drag{border-color:#79d4ff;background:#132b3b}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}label{display:block;font-size:13px;color:#b9c8d5;margin:10px 0 4px}input,select,button{width:100%;padding:9px;border-radius:9px;border:1px solid #344b60;background:#0b141e;color:#eef5fb}button{background:#296fa5;font-weight:700;cursor:pointer;margin-top:8px}.secondary{background:#34475a}.danger{background:#853f46}.views{display:grid;grid-template-columns:1fr 1fr;gap:10px}.view{background:#dce5ed;color:#111;min-height:280px;border-radius:12px;padding:8px;overflow:auto}.view h3{margin:0 0 6px;font-size:13px;color:#415365}.view img,.view svg{display:block;max-width:100%;max-height:430px;margin:auto;background:white}.editor-toolbar{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0}.editor-toolbar button{font-size:12px;padding:8px}.selected{stroke:#e23b42!important;stroke-width:2.3!important}.endpoint{fill:#2d8cff;stroke:white;stroke-width:.8;cursor:grab}.status{min-height:22px;color:#77e4ad;margin-top:8px}.warning{color:#ffca6a;font-size:12px;margin-top:5px}pre{font-size:11px;max-height:220px;overflow:auto;white-space:pre-wrap}.full{grid-column:1/-1}@media(max-width:900px){.layout{grid-template-columns:1fr}.views{grid-template-columns:1fr}.editor-toolbar{grid-template-columns:1fr 1fr}}
 </style></head><body><main>
 <h1>Image & Handwriting Studio</h1><p>Drop a scan or photo, clean it, inspect the trace, edit the actual paths, then generate the exact machine preview and G-code.</p>
 <div class="layout"><section class="card">
@@ -244,6 +251,7 @@ STUDIO_HTML = r"""<!doctype html>
 <div class="row"><div><label>Mode</label><select id="mode"><option value="centerline">Handwriting / centerline</option><option value="contour">Image / contour</option></select></div><div><label>Threshold</label><input id="threshold" placeholder="Auto (Otsu)" type="number" min="0" max="255"></div></div>
 <div class="row"><div><label>Blur (px)</label><input id="blur" type="number" min="0" max="20" step="0.2" value="0"></div><div><label>Remove components smaller than</label><input id="component" type="number" min="1" value="8"></div></div>
 <div class="row"><div><label>Simplify (px)</label><input id="simplify" type="number" min="0" max="20" step="0.1" value="0.8"></div><div><label>Output</label><select id="air"><option value="true">Air plot</option><option value="false">Pen plot</option></select></div></div>
+<label><input id="home" type="checkbox" style="width:auto" checked> Home all axes before plot</label><div class="warning">Required for Wi-Fi hardware jobs so machine coordinates are known before movement.</div>
 <label><input id="invert" type="checkbox" style="width:auto"> Light marks on dark background</label>
 <button id="trace">Trace / refresh</button>
 <div class="editor-toolbar"><button id="undo" class="secondary">Undo</button><button id="delete" class="danger">Delete</button><button id="reverse" class="secondary">Reverse</button><button id="split" class="secondary">Split</button><button id="join" class="secondary">Join 2</button></div>
@@ -268,13 +276,13 @@ for(const [line,i] of good){const pts=line.map(p=>`${p[0]},${-p[1]}`).join(' ');
 if(selected.size===1){const i=[...selected][0],line=polys[i];if(line&&line.length){for(const [kind,p] of [['start',line[0]],['end',line[line.length-1]]])s+=`<circle class="endpoint" data-i="${i}" data-kind="${kind}" cx="${p[0]}" cy="${-p[1]}" r="2.2"/>`}}
 s+='</svg>';$('editor').innerHTML=s;document.querySelectorAll('#editSvg polyline').forEach(el=>el.onclick=e=>{const i=Number(el.dataset.i);if(!e.shiftKey)selected.clear();selected.has(i)?selected.delete(i):selected.add(i);renderEditor()});setupDrag()}
 function setupDrag(){document.querySelectorAll('.endpoint').forEach(c=>{c.onpointerdown=e=>{e.preventDefault();snapshot();const svg=$('editSvg'),i=Number(c.dataset.i),kind=c.dataset.kind;c.setPointerCapture(e.pointerId);c.onpointermove=ev=>{const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;const local=pt.matrixTransform(svg.getScreenCTM().inverse());const line=polys[i];const idx=kind==='start'?0:line.length-1;line[idx]=[local.x,-local.y];renderEditor()}}})}
-async function trace(){if(!chosen)return;$('status').textContent='Tracing…';const f=new FormData();f.append('file',chosen);f.append('mode',$('mode').value);f.append('threshold',$('threshold').value);f.append('invert',$('invert').checked);f.append('blur_radius_px',$('blur').value);f.append('min_component_px',$('component').value);f.append('simplify_px',$('simplify').value);f.append('air_plot',$('air').value);try{const r=await fetch('/api/raster/trace',{method:'POST',body:f}),d=await r.json();if(!r.ok)throw Error(d.detail||'Trace failed');polys=d.raw_polylines;history=[];selected.clear();latestG=d.gcode;sidecar=d.job_sidecar;$('original').innerHTML=`<img src="${d.original_data_uri}">`;$('mask').innerHTML=`<img src="${d.mask_data_uri}">`;$('final').innerHTML=d.final_preview_svg;$('meta').textContent=JSON.stringify(d.metadata,null,2);renderEditor();$('status').textContent=`Ready — ${polys.length} raw strokes. Click paths to edit; Shift-click selects two.`}catch(e){$('status').textContent=e.message}}
+async function trace(){if(!chosen)return;$('status').textContent='Tracing…';const f=new FormData();f.append('file',chosen);f.append('mode',$('mode').value);f.append('threshold',$('threshold').value);f.append('invert',$('invert').checked);f.append('blur_radius_px',$('blur').value);f.append('min_component_px',$('component').value);f.append('simplify_px',$('simplify').value);f.append('air_plot',$('air').value);f.append('home_before_plot',$('home').checked);try{const r=await fetch('/api/raster/trace',{method:'POST',body:f}),d=await r.json();if(!r.ok)throw Error(d.detail||'Trace failed');polys=d.raw_polylines;history=[];selected.clear();latestG=d.gcode;sidecar=d.job_sidecar;$('original').innerHTML=`<img src="${d.original_data_uri}">`;$('mask').innerHTML=`<img src="${d.mask_data_uri}">`;$('final').innerHTML=d.final_preview_svg;$('meta').textContent=JSON.stringify(d.metadata,null,2);renderEditor();$('status').textContent=`Ready — ${polys.length} raw strokes. Click paths to edit; Shift-click selects two.`}catch(e){$('status').textContent=e.message}}
 $('trace').onclick=trace;$('undo').onclick=()=>{if(history.length){polys=JSON.parse(history.pop());selected.clear();renderEditor()}};
 $('delete').onclick=()=>{if(!selected.size)return;snapshot();for(const i of selected)polys[i]=null;selected.clear();renderEditor()};
 $('reverse').onclick=()=>{if(!selected.size)return;snapshot();for(const i of selected)if(polys[i])polys[i].reverse();renderEditor()};
 $('split').onclick=()=>{if(selected.size!==1)return;$('status').textContent='Select exactly one stroke to split.';const i=[...selected][0],p=polys[i];if(!p||p.length<4)return;snapshot();const m=Math.floor(p.length/2);polys[i]=p.slice(0,m+1);polys.push(p.slice(m));selected.clear();renderEditor()};
 $('join').onclick=()=>{if(selected.size!==2){$('status').textContent='Shift-click exactly two strokes to join.';return}snapshot();const [a,b]=[...selected],A=polys[a],B=polys[b];if(!A||!B)return;const d=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]);const choices=[[A,B],[A,[...B].reverse()],[[...A].reverse(),B],[[...A].reverse(),[...B].reverse()]];choices.sort((x,y)=>d(x[0][x[0].length-1],x[1][0])-d(y[0][y[0].length-1],y[1][0]));polys[a]=choices[0][0].concat(choices[0][1]);polys[b]=null;selected.clear();renderEditor()};
-$('finalize').onclick=async()=>{const clean=polys.filter(p=>p&&p.length>1);try{const r=await fetch('/api/raster/finalize',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({polylines:clean,air_plot:$('air').value==='true'})}),d=await r.json();if(!r.ok)throw Error(d.detail||'Finalize failed');latestG=d.gcode;$('final').innerHTML=d.final_preview_svg;if(sidecar){sidecar.edited_raw_polylines=clean;sidecar.final_machine_polylines=d.machine_polylines;sidecar.final_metadata=d.metadata}$('status').textContent='Final preview regenerated from the edited paths.'}catch(e){$('status').textContent=e.message}};
+$('finalize').onclick=async()=>{const clean=polys.filter(p=>p&&p.length>1);try{const r=await fetch('/api/raster/finalize',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({polylines:clean,air_plot:$('air').value==='true',home_before_plot:$('home').checked})}),d=await r.json();if(!r.ok)throw Error(d.detail||'Finalize failed');latestG=d.gcode;$('final').innerHTML=d.final_preview_svg;if(sidecar){sidecar.edited_raw_polylines=clean;sidecar.final_machine_polylines=d.machine_polylines;sidecar.final_metadata=d.metadata}$('status').textContent='Final preview regenerated from the edited paths.'}catch(e){$('status').textContent=e.message}};
 function download(name,data,type){const b=new Blob([data],{type}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
 $('downloadG').onclick=()=>latestG&&download('plot.gcode',latestG,'text/plain');$('downloadJob').onclick=()=>sidecar&&download('plotter-raster-job.json',JSON.stringify(sidecar,null,2),'application/json');
 $('downloadSvg').onclick=()=>{const clean=polys.filter(p=>p&&p.length>1),[x0,y0,x1,y1]=bounds();let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0-2} ${-y1-2} ${Math.max(1,x1-x0)+4} ${Math.max(1,y1-y0)+4}">`;for(const line of clean)s+=`<polyline points="${line.map(p=>p[0]+','+(-p[1])).join(' ')}" fill="none" stroke="black"/>`;s+='</svg>';download('edited-trace.svg',s,'image/svg+xml')};
