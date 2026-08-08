@@ -183,15 +183,15 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
 '''
     html = html.replace('<script>\nconst lineStyles=', pre_script + '<script>\nconst lineStyles=', 1)
     floating = r'''
-<div class="floating-actions">
+<div class="floating-actions" id="studio2FloatingActions">
 <button id="floatingGenerate" class="primary" type="button">Generate drawing</button>
-<button id="saveSvg" type="button" disabled>Save SVG</button>
-<button id="saveGcode" type="button" disabled>Save G-code</button>
+<button id="floatingSaveSvg" type="button" disabled>Save SVG</button>
+<button id="floatingSaveGcode" type="button" disabled>Save G-code</button>
 </div>
 <script>
 const floatingGenerate=document.getElementById('floatingGenerate');
-const saveSvg=document.getElementById('saveSvg');
-const saveGcode=document.getElementById('saveGcode');
+const saveSvg=document.getElementById('floatingSaveSvg');
+const saveGcode=document.getElementById('floatingSaveGcode');
 const sizeMode=document.getElementById('sizeMode');
 const targetWidth=document.getElementById('targetWidth');
 const targetHeight=document.getElementById('targetHeight');
