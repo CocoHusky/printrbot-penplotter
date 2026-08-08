@@ -59,8 +59,8 @@ def test_render_is_deterministic(tmp_path: Path) -> None:
     second = render_line_art(path, **kwargs)
     assert first.polylines == second.polylines
     assert first.metadata == second.metadata
-    assert first.metadata["preprocessing_schema"] == "printrbot-image-preprocess/v2"
     assert first.metadata["understanding_schema"] == "printrbot-image-understanding/v1"
+    assert first.metadata["line_art_schema"] == "printrbot-line-art/v1"
 
 
 def test_minimal_has_no_more_strokes_than_detailed(tmp_path: Path) -> None:
