@@ -271,6 +271,8 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const sourceAction=panels.source.querySelector('.step-actions');
   const sourceFile=panels.source.querySelector('#file')?.closest('.control-block');
   if(sourceAction&&sourceFile)panels.source.insertBefore(sourceFile,sourceAction);
+  const rgbWeights=document.getElementById('rgbWeights');
+  if(rgbWeights)rgbWeights.insertAdjacentHTML('afterend','<div class="hint">Weights control brightness: a red weight of 1 makes bright red pixels bright/white. Threshold and invert decide what becomes black foreground later.</div>');
   ['#thresholdMode'].forEach(selector=>moveField(selector,'threshold'));
   moveGroup('thresholdMode','threshold');
   moveField('[name="edge_method"]','edges');
@@ -281,6 +283,26 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   ['[name="pen_tip_mm"]','[name="z_up_mm"]','[name="z_down_mm"]','[name="air_plot"]','[name="home_before_plot"]'].forEach(selector=>moveField(selector,'machine'));
   moveGroup('finalSize','machine');
   ['#generate','#status','#selectedStyle'].forEach(selector=>moveField(selector,'machine'));
+  const sliderDefaults={
+    rgb_red:[-2,2],rgb_green:[-2,2],rgb_blue:[-2,2],clahe_clip_limit:[0,10],
+    background_radius_px:[1,320],min_component_px:[1,1000],shading_min_stroke_px:[0,50],
+    shading_seed:[0,999999]
+  };
+  form.querySelectorAll('input[type="number"]').forEach(number=>{
+    if(number.dataset.sliderReady==='true')return;
+    const name=number.name;if(!name)return;
+    const fallback=sliderDefaults[name]||[-100,100];
+    const min=number.min!==''?Number(number.min):fallback[0];
+    const max=number.max!==''?Number(number.max):fallback[1];
+    if(!Number.isFinite(min)||!Number.isFinite(max)||min>=max)return;
+    const step=number.step&&number.step!=='any'?Number(number.step):0.01;
+    const slider=document.createElement('input');slider.type='range';slider.className='studio-value-slider';slider.min=String(min);slider.max=String(max);slider.step=String(Number.isFinite(step)&&step>0?step:0.01);slider.setAttribute('aria-label',(number.previousElementSibling?.textContent||name)+' slider');slider.style.cssText='width:100%;margin:4px 0 10px;accent-color:#111';
+    const current=Number(number.value);slider.value=Number.isFinite(current)?String(Math.min(max,Math.max(min,current))):String(Math.min(max,Math.max(min,0)));
+    slider.addEventListener('input',()=>{number.value=slider.value;number.dispatchEvent(new Event('input',{bubbles:true}));});
+    number.addEventListener('input',()=>{const value=Number(number.value);if(Number.isFinite(value))slider.value=String(Math.min(max,Math.max(min,value)));});
+    number.addEventListener('change',()=>{const value=Number(number.value);if(Number.isFinite(value))slider.value=String(Math.min(max,Math.max(min,value)));});
+    number.dataset.sliderReady='true';number.insertAdjacentElement('afterend',slider);
+  });
   Object.values(panels).forEach(panel=>panel.querySelectorAll('.control-section').forEach(section=>section.open=true));
   const advancedToggle=document.getElementById('advancedToggle');
   if(advancedToggle)advancedToggle.hidden=true;
