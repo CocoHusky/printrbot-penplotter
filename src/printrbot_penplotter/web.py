@@ -201,6 +201,7 @@ function applyPreset(){
   byId('connectLetters').checked=false; byId('slant').value=3; byId('letterSpacing').value=0.55;
   if(!neural.disabled){byId('writingBackend').value='neural';byId('neuralStyle').value=9;}
  }
+ window.__syncNeuralControls?.();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:byId('engine').value,
@@ -255,6 +256,7 @@ function syncNeuralState(available){
  const neuralActive=()=>select.value==='neural';
  const authoredOnly=['engine','strokeFont','variantMode','connectLetters','slant','letterSpacing'];
  const syncControls=()=>{const active=neuralActive();for(const id of authoredOnly){const field=byId(id);if(field)field.disabled=active;}controls.open=active;hint.textContent=active?'Neural handwriting is active. Font and authored-glyph controls are disabled; size, spacing, wrap, and placement still apply.':available?'Optional neural worker is ready. Choose it for variable model-based handwriting.':'Optional neural handwriting is not configured on this server; authored plotter lettering is ready now.';};
+ window.__syncNeuralControls=syncControls;
  select.onchange=syncControls;
  if(available && (byId('preset').value==='human' || byId('preset').value==='cursive')){select.value='neural';controls.open=true;}
  syncControls();
