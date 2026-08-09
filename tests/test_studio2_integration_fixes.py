@@ -47,6 +47,8 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Machine & export" in text
     assert "stageData" in text
     assert "stageStale" in text
+    assert "clearStageOutput" in text
+    assert "Generate black & white to see the result." in text
     assert "Current style path" in text
     assert "Art style goal" in text
     assert "This choice stays visible while you process the image." in text
