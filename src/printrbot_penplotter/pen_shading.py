@@ -206,7 +206,7 @@ def _tone_boundary_strokes(analysis: ImageUnderstandingResult) -> Polylines:
     from .raster import _skeletonize, _trace_skeleton
 
     skeleton, _, _ = _skeletonize(mask, 256)
-    return _trace_skeleton(skeleton)
+    return _trace_skeleton(skeleton, image_coordinates=True)
 
 
 def _flow_strokes(

@@ -112,11 +112,11 @@ def _strokes(mask: np.ndarray, iterations: int) -> Polylines:
     if not np.any(mask):
         return []
     skeleton, _, _ = _skeletonize(mask.astype(bool), iterations)
-    return _trace_skeleton(skeleton)
+    return _trace_skeleton(skeleton, image_coordinates=True)
 
 
 def _outlines(mask: np.ndarray) -> Polylines:
-    return [] if not np.any(mask) else _trace_contours(mask.astype(bool))
+    return [] if not np.any(mask) else _trace_contours(mask.astype(bool), image_coordinates=True)
 
 
 def _combine(*groups: Polylines) -> Polylines:

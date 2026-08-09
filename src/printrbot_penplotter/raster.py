@@ -250,7 +250,14 @@ def _edge_key(
     return (first, second) if first <= second else (second, first)
 
 
-def _trace_skeleton(mask: np.ndarray) -> Polylines:
+def _trace_skeleton(mask: np.ndarray, *, image_coordinates: bool = False) -> Polylines:
+    """Trace a skeleton, optionally keeping raster Y-down coordinates.
+
+    The original raster studio consumed Cartesian Y-up geometry directly.
+    Studio 2 combines traced outlines with raster-generated shading before a
+    single final image-to-machine conversion, so it requests image coordinates
+    explicitly to keep every artistic layer in the same coordinate space.
+    """
     points = {(int(row), int(column)) for row, column in zip(*np.nonzero(mask))}
     if not points:
         return []
@@ -319,12 +326,18 @@ def _trace_skeleton(mask: np.ndarray) -> Polylines:
 
     height = mask.shape[0]
     return [
-        [(float(column) + 0.5, float(height - 1 - row) + 0.5) for row, column in line]
+        [
+            (
+                float(column) + 0.5,
+                float(row) + 0.5 if image_coordinates else float(height - 1 - row) + 0.5,
+            )
+            for row, column in line
+        ]
         for line in pixel_lines
     ]
 
 
-def _trace_contours(mask: np.ndarray) -> Polylines:
+def _trace_contours(mask: np.ndarray, *, image_coordinates: bool = False) -> Polylines:
     height, width = mask.shape
     outgoing: dict[tuple[int, int], list[tuple[int, int]]] = {}
     all_edges: set[tuple[tuple[int, int], tuple[int, int]]] = set()
@@ -372,7 +385,12 @@ def _trace_contours(mask: np.ndarray) -> Polylines:
             current = next_point
 
         if len(line) >= 3:
-            contours.append([(float(x), float(height - y)) for x, y in line])
+            contours.append(
+                [
+                    (float(x), float(y) if image_coordinates else float(height - y))
+                    for x, y in line
+                ]
+            )
 
     return contours
 

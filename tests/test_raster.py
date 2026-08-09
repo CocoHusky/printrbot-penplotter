@@ -1,12 +1,13 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
 from printrbot_penplotter.cli import main as cli_main
 from printrbot_penplotter.models import PenConfig
 from printrbot_penplotter.pipeline import render_handwriting_job, render_image_job
-from printrbot_penplotter.raster import RasterTraceConfig, editable_trace_svg, trace_raster
+from printrbot_penplotter.raster import RasterTraceConfig, _trace_contours, editable_trace_svg, trace_raster
 
 
 def _save_line(path: Path, *, dark_on_light: bool = True) -> None:
@@ -56,6 +57,16 @@ def test_contour_trace_produces_closed_outline(tmp_path: Path) -> None:
     outline = result.polylines[0]
     assert outline[0] == outline[-1]
     assert len(outline) == 5
+
+
+def test_image_coordinate_contours_keep_raster_y_down_orientation() -> None:
+    mask = np.zeros((20, 20), dtype=bool)
+    mask[2:6, 3:8] = True
+    image_space = _trace_contours(mask, image_coordinates=True)
+    machine_space = _trace_contours(mask)
+    assert image_space and machine_space
+    assert min(y for line in image_space for _, y in line) < 10
+    assert min(y for line in machine_space for _, y in line) > 10
 
 
 def test_small_components_are_removed_and_reported(tmp_path: Path) -> None:
