@@ -186,6 +186,29 @@ def test_studio2_interactive_style_honors_fast_cleanup_and_plot_line_cap() -> No
     assert body["preview_svg"].startswith("<svg")
 
 
+def test_studio2_topographic_stage_uses_grayscale_directly() -> None:
+    response = client.post(
+        "/api/studio2/stage",
+        files={"file": ("fixture.png", _png(), "image/png")},
+        data={
+            "stage": "style",
+            "mode": "line_art",
+            "style": "topographic",
+            "quality": "quick",
+            "detail": "high",
+            "tonal_bands": "40,80,120,160,200",
+            "max_skeleton_iterations": "32",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["metadata"]["topographic_input"] == "grayscale"
+    assert body["metadata"]["threshold_analysis_skipped"] is True
+    assert body["metadata"]["edge_analysis_skipped"] is True
+    assert body["stages"]["edges"] == ""
+    assert body["preview_svg"].startswith("<svg")
+
+
 def test_studio2_force_exact_size_and_final_scale() -> None:
     response = client.post(
         "/api/studio2/render",

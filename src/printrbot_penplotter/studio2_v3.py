@@ -227,9 +227,9 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
 
   const definitions=[
     ['source','1. Source & grayscale','Choose the image and control color-to-gray conversion.'],
-    ['threshold','2. Black & white','Control foreground selection, thresholding, and cleanup.'],
-    ['edges','3. Edge extraction','Control how contours are detected from the thresholded image.'],
-    ['style','4. Style & vectorization','Choose the drawing recipe and control its geometry limits.'],
+    ['style','2. Style & vectorization','Choose the recipe first; only the stages it needs will be enabled.'],
+    ['threshold','3. Black & white','Control foreground selection, thresholding, and cleanup when required.'],
+    ['edges','4. Edge extraction','Optional contour branch for edge-based recipes.'],
     ['machine','5. Machine & export','Set Z motion, bed sizing, and export behavior.']
   ];
   grid.className='studio-step-shell';
@@ -344,8 +344,13 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const setStage=(id,uri,message)=>{const target=document.getElementById(id);if(!target)return;target.innerHTML='';if(!uri){target.className='placeholder';target.textContent=message||'This stage has not been generated.';return;}target.className='';const image=document.createElement('img');image.src=uri;target.appendChild(image);};
   const setSvg=(id,markup,message)=>{const target=document.getElementById(id);if(!target)return;target.innerHTML=markup||'';if(!markup){target.className='placeholder';target.textContent=message||'This stage has not been generated.';return;}target.className='';};
   const clearOutputsFrom=(step)=>{const index=order.indexOf(step);if(index<=0){setStage('sourceCorrected','', 'Generate grayscale to see the result.');setStage('thresholdCorrected','', 'Generate grayscale to see the result.');}if(index<=1){setStage('thresholdMask','', 'Generate black & white to see the result.');setStage('edgesMask','', 'Generate black & white to see the result.');}if(index<=2){setStage('edgesEdges','', 'Generate edges to see the result.');setStage('styleEdges','', 'Generate edges to see the result.');}if(index<=3){setStage('preview','', 'Generate style paths to see the result.');setStage('machineInput','', 'Generate style paths to see the result.');setStage('machinePreview','', 'Generate the final machine output.');}};
-  const canOpen=(id)=>{if(id==='style')return completed.threshold;if(id==='machine')return completed.style;const index=order.indexOf(id);return index===0||completed[order[index-1]];};
-  const syncSteps=()=>{rail.querySelectorAll('.process-tab').forEach(tab=>{const allowed=canOpen(tab.dataset.step);tab.disabled=!allowed;tab.setAttribute('aria-disabled',allowed?'false':'true');});window.__studioStepReady=completed.style;window.dispatchEvent(new Event('studio-step-ready'));const floating=document.getElementById('floatingGenerate');if(floating&&!document.getElementById('generate').disabled)floating.disabled=!completed.style;};
+  const selectedMode=()=>document.getElementById('mode')?.value||'auto';
+  const selectedStyle=()=>document.getElementById('style')?.value||'';
+  const needsThreshold=()=>selectedMode()==='auto'||selectedStyle()!=='topographic';
+  const needsEdges=()=>selectedMode()==='auto'||(selectedMode()==='line_art'&&!['silhouette','topographic'].includes(selectedStyle()))||(selectedMode()==='shading'&&!!document.querySelector('[name="include_outline"]')?.checked);
+  const requiredBefore=(id)=>{if(id==='source')return true;if(id==='style')return completed.source;if(id==='threshold')return completed.source;if(id==='edges')return completed.source&&(!needsThreshold()||completed.threshold);if(id==='machine')return completed.style;return false;};
+  const canOpen=(id)=>requiredBefore(id)&&!(id==='threshold'&&!needsThreshold())&&!(id==='edges'&&!needsEdges());
+  const syncSteps=()=>{rail.querySelectorAll('.process-tab').forEach(tab=>{const id=tab.dataset.step;const skipped=(id==='threshold'&&!needsThreshold())||(id==='edges'&&!needsEdges());const allowed=canOpen(id);tab.disabled=!allowed;tab.hidden=skipped;tab.setAttribute('aria-disabled',allowed?'false':'true');tab.querySelector('span').textContent=skipped?'Skipped for selected style.':definitions.find(item=>item[0]===id)?.[2]||'';});window.__studioStepReady=completed.style;window.dispatchEvent(new Event('studio-step-ready'));const floating=document.getElementById('floatingGenerate');if(floating&&!document.getElementById('generate').disabled)floating.disabled=!completed.style;};
   const invalidate=(step)=>{const index=order.indexOf(step);for(let i=index;i<order.length;i++)completed[order[i]]=false;clearOutputsFrom(step);syncSteps();if(!canOpen(document.querySelector('.process-tab.active')?.dataset.step||'source'))select(step);};
   form.addEventListener('change',event=>{const panel=event.target.closest&&event.target.closest('.step-panel');if(panel)invalidate(panel.dataset.stepPanel);});
   const showLoading=(title,detail)=>{const overlay=document.getElementById('studio2Loading');if(!overlay)return;overlay.classList.add('active');overlay.setAttribute('aria-hidden','false');document.getElementById('studio2LoadingTitle').textContent=title;document.getElementById('studio2LoadingDetail').textContent=detail||'Please wait…';const stop=document.getElementById('studio2LoadingStop');if(stop)stop.disabled=false;};
@@ -353,6 +358,9 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const runStage=async(stage,button)=>{
     const actionBar=button.parentElement;const stageStatus=actionBar.querySelector('.step-stage-status');const stop=actionBar.querySelector('.step-stop');
     if(!document.getElementById('file')?.files?.length){stageStatus.textContent='Choose an image first.';return;}
+    if(stage==='threshold'&&!needsThreshold()){stageStatus.textContent='This style uses grayscale directly; black & white is skipped.';return;}
+    if(stage==='edges'&&!needsEdges()){stageStatus.textContent='This style does not use edge detection; edges are skipped.';return;}
+    if(stage==='style'&&(!requiredBefore('style')|| (needsThreshold()&&!completed.threshold) || (needsEdges()&&!completed.edges))){stageStatus.textContent='Complete the enabled steps above before generating style paths.';return;}
     button.disabled=true;stop.disabled=false;const controller=new AbortController();window.__studioStageAbort=controller;stop.onclick=()=>controller.abort();const started=performance.now();const updateStageStatus=()=>{stageStatus.className='step-stage-status busy';stageStatus.innerHTML='<span class="spinner"></span>Processing '+stage+'… '+((performance.now()-started)/1000).toFixed(1)+' s';document.getElementById('studio2LoadingDetail').textContent=stageStatus.textContent;};updateStageStatus();showLoading('Processing '+stage,'Starting…');const timer=setInterval(updateStageStatus,250);
     const fd=new FormData(form);fd.set('stage',stage);if(document.getElementById('mode')?.value==='auto')fd.set('style','');
     form.querySelectorAll('input[type="checkbox"]').forEach(input=>fd.set(input.name,input.checked?'true':'false'));
@@ -366,6 +374,18 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   panels.threshold.querySelector('[data-stage-action="threshold"]').onclick=event=>runStage('threshold',event.currentTarget);
   panels.edges.querySelector('[data-stage-action="edges"]').onclick=event=>runStage('edges',event.currentTarget);
   panels.style.querySelector('[data-stage-action="style"]').onclick=event=>runStage('style',event.currentTarget);
+  let liveTimer=null;
+  panels.source.parentElement.addEventListener('input',event=>{
+    const panel=event.target.closest&&event.target.closest('.step-panel');
+    if(!panel||!['source','threshold','edges'].includes(panel.dataset.stepPanel))return;
+    if(!event.target.matches('input[type="range"],input[type="number"],select'))return;
+    const stage=panel.dataset.stepPanel;
+    clearTimeout(liveTimer);
+    liveTimer=setTimeout(()=>{
+      const action=panel.querySelector('[data-stage-action="'+stage+'"]');
+      if(action&&!action.disabled)runStage(stage,action);
+    },350);
+  });
   document.getElementById('file')?.addEventListener('change',()=>invalidate('source'));
   const select=(id)=>{document.querySelectorAll('.process-tab').forEach(tab=>{const active=tab.dataset.step===id;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',active?'true':'false');});Object.values(panels).forEach(panel=>panel.classList.toggle('active',panel.dataset.stepPanel===id));document.querySelectorAll('.step-visual').forEach(visual=>visual.classList.toggle('active',visual.dataset.stepVisual===id));window.dispatchEvent(new Event('studio-step-selected'));};
   rail.querySelectorAll('.process-tab').forEach(tab=>tab.addEventListener('click',()=>select(tab.dataset.step)));

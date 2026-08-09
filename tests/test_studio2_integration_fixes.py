@@ -42,6 +42,9 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Edge extraction" in text
     assert "Style & vectorization" in text
     assert "Machine & export" in text
+    assert "Choose the recipe first" in text
+    assert "needsThreshold" in text
+    assert "setTimeout(()=>" in text
     assert "studio-value-slider" in text
     assert "normalized 0–1 weights" in text
     assert 'id="studioVersion"' in text

@@ -19,7 +19,7 @@ from .auto_optimize import AutoOptimizeConfig, optimize_analysis
 from .gcode import polylines_to_gcode
 from .geometry import place_on_page, preview_svg, validate_polylines
 from .image_preprocess import ImagePreprocessConfig, ThresholdConfig, preprocess_image, threshold_image
-from .image_understanding import ImageUnderstandingConfig, ImageUnderstandingResult, analyze_image
+from .image_understanding import ImageUnderstandingConfig, ImageUnderstandingResult, analyze_gray, analyze_image
 from .line_art import LineArtConfig, STYLE_NAMES, render_line_art_from_analysis
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig
 from .pen_shading import PenShadingConfig, SHADING_STYLE_NAMES, render_pen_shading_from_analysis
@@ -68,6 +68,35 @@ def _parse_tonal_bands(value: str) -> tuple[int, ...]:
     if len(bands) > 15:
         raise ValueError("At most 15 tonal bands are allowed.")
     return bands
+
+
+def _topographic_analysis(gray: np.ndarray, tonal_bands: tuple[int, ...]) -> ImageUnderstandingResult:
+    """Build the grayscale-only input used by topographic contours.
+
+    Topographic art is a set of tone boundaries, not an edge detector or a
+    thresholded foreground fill. Keeping this path independent makes the UI
+    honest and avoids paying for threshold cleanup, connected regions, and
+    edge detection that the recipe never consumes.
+    """
+    normalized = np.asarray(gray, dtype=np.uint8)
+    tones = np.digitize(normalized, np.asarray(tonal_bands, dtype=np.uint8), right=False).astype(np.uint8)
+    zeros = np.zeros(normalized.shape, dtype=bool)
+    return ImageUnderstandingResult(
+        gray=normalized,
+        edge_strength=np.zeros(normalized.shape, dtype=np.float32),
+        edge_mask=zeros,
+        selected_edges=zeros,
+        foreground_mask=zeros,
+        tone_labels=tones,
+        regions=(),
+        metadata={
+            "understanding_schema": "printrbot-image-understanding/v1",
+            "edge_analysis_skipped": True,
+            "threshold_analysis_skipped": True,
+            "topographic_input": "grayscale",
+            "tonal_bands": list(tonal_bands),
+        },
+    )
 
 
 def _effective_art_limits(strokes: int, points: int, bypass: bool) -> tuple[int, int]:
@@ -219,6 +248,8 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
             "metadata": {**normalized.metadata, "studio_stage_seconds": timings},
         }
 
+    style = str(_stage_form_value(form, "style", "refined_pen_sketch"))
+    topographic_direct = stage == "style" and mode == "line_art" and style == "topographic"
     understanding = ImageUnderstandingConfig(
         edge_method=str(_stage_form_value(form, "edge_method", "multiscale_canny")),  # type: ignore[arg-type]
         detail_level=str(_stage_form_value(form, "detail", "high")),  # type: ignore[arg-type]
@@ -227,21 +258,25 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
         tonal_bands=_parse_tonal_bands(str(_stage_form_value(form, "tonal_bands", "42,84,126,168,210"))),
         min_region_px=max(1, _stage_form_int(form, "min_component_px", 8)),
         compute_edges=stage == "edges" or (stage == "style" and _style_needs_edges(
-            mode, str(_stage_form_value(form, "style", "refined_pen_sketch")), include_outline=_stage_form_bool(form, "include_outline", True)
+            mode, style, include_outline=_stage_form_bool(form, "include_outline", True)
         )),
     )
     started = time.perf_counter()
-    analysis = analyze_image(source, preprocess=preprocess, understanding=understanding)
-    analysis = _apply_threshold_and_component_cleanup(
-        analysis,
-        threshold_mode=str(_stage_form_value(form, "threshold_mode", "otsu")),
-        threshold_value=str(_stage_form_value(form, "threshold_value", "")),
-        threshold_invert=_stage_form_bool(form, "threshold_invert"),
-        threshold_window_px=_stage_form_int(form, "threshold_window_px", 31),
-        threshold_offset=_stage_form_float(form, "threshold_offset", 5.0),
-        min_component_px=_stage_form_int(form, "min_component_px", 8),
-    )
-    timings["threshold" if stage == "threshold" else "edges"] = round(time.perf_counter() - started, 4)
+    if topographic_direct:
+        analysis = _topographic_analysis(normalized.gray, understanding.tonal_bands)
+        timings["grayscale_tones"] = round(time.perf_counter() - started, 4)
+    else:
+        analysis = analyze_gray(normalized.gray, understanding)
+        analysis = _apply_threshold_and_component_cleanup(
+            analysis,
+            threshold_mode=str(_stage_form_value(form, "threshold_mode", "otsu")),
+            threshold_value=str(_stage_form_value(form, "threshold_value", "")),
+            threshold_invert=_stage_form_bool(form, "threshold_invert"),
+            threshold_window_px=_stage_form_int(form, "threshold_window_px", 31),
+            threshold_offset=_stage_form_float(form, "threshold_offset", 5.0),
+            min_component_px=_stage_form_int(form, "min_component_px", 8),
+        )
+        timings["threshold" if stage == "threshold" else "edges"] = round(time.perf_counter() - started, 4)
     stages = {
         "corrected": _png_data_uri(analysis.gray),
         "mask": _mask_data_uri(analysis.foreground_mask),
@@ -458,17 +493,21 @@ def _render_pipeline(
     )
     timings: dict[str, float] = {}
     started = time.perf_counter()
-    analysis = analyze_image(source, preprocess=preprocess, understanding=understanding)
-    analysis = _apply_threshold_and_component_cleanup(
-        analysis,
-        threshold_mode=threshold_mode,
-        threshold_value=threshold_value,
-        threshold_invert=threshold_invert,
-        threshold_window_px=threshold_window_px,
-        threshold_offset=threshold_offset,
-        min_component_px=min_component_px,
-    )
-    timings["analysis_and_threshold"] = time.perf_counter() - started
+    if mode == "line_art" and style == "topographic":
+        analysis = _topographic_analysis(preprocess_image(source, preprocess).gray, understanding.tonal_bands)
+        timings["analysis_and_threshold"] = time.perf_counter() - started
+    else:
+        analysis = analyze_image(source, preprocess=preprocess, understanding=understanding)
+        analysis = _apply_threshold_and_component_cleanup(
+            analysis,
+            threshold_mode=threshold_mode,
+            threshold_value=threshold_value,
+            threshold_invert=threshold_invert,
+            threshold_window_px=threshold_window_px,
+            threshold_offset=threshold_offset,
+            min_component_px=min_component_px,
+        )
+        timings["analysis_and_threshold"] = time.perf_counter() - started
 
     started = time.perf_counter()
     if mode == "auto":

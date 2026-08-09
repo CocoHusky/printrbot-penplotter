@@ -215,7 +215,10 @@ def _recipe(analysis: ImageUnderstandingResult, config: LineArtConfig) -> tuple[
         )
         return raw, cleanup, meta
     if style == "topographic":
-        raw = _combine(_strokes(tones, iterations), _strokes(outer, iterations))
+        # Topographic contours come directly from grayscale tone bands. Do not
+        # add a binary foreground outline: that would make this style depend
+        # on the black/white stage and produce an unrelated border.
+        raw = _strokes(_tone_boundaries(tones), iterations)
         return raw, VectorCleanupConfig.for_quality("smooth"), meta
     raise ValueError(style)
 
