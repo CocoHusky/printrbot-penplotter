@@ -269,7 +269,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   };
   makeVisual('source','Source & grayscale','See the original image beside the current grayscale result.','Before · original','sourcePreview','After · grayscale','corrected');
   const sourceVisual=visuals.lastElementChild;
-  const grayNote=document.createElement('div');grayNote.className='hint';grayNote.textContent='Quick raster preview is shown above the corrected grayscale when an image is selected.';sourceVisual.querySelector('.before-after .pane:last-child').appendChild(content('rasterPreview'));sourceVisual.querySelector('.before-after .pane:last-child').appendChild(grayNote);
+  const grayNote=document.createElement('div');grayNote.className='hint';grayNote.textContent='This grayscale preview is enlarged to fit the panel. Interactive processing uses a bounded raster for speed; final machine size is set later in Machine & export.';sourceVisual.querySelector('.before-after .pane:last-child').appendChild(grayNote);
   makeVisual('threshold','Black & white','See grayscale input beside the thresholded foreground mask.','Before · grayscale','corrected','After · black & white','mask');
   makeVisual('edges','Edge extraction','See the threshold mask beside the selected contour map.','Before · black & white','mask','After · edges','edges');
   makeVisual('style','Style & vectorization','See the detected input beside the generated artistic paths.','Before · detected input','edges','After · artistic paths','preview');
