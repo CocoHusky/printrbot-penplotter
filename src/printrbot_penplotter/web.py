@@ -249,10 +249,12 @@ function syncNeuralState(available){
  const select=byId('writingBackend'), option=select.querySelector('option[value="neural"]'), controls=byId('neuralControls'), hint=byId('neuralStatus');
  option.disabled=!available;
  if(!available && select.value==='neural') select.value='stroke';
- controls.open=select.value==='neural';
- hint.textContent=available?'Optional neural worker is ready. It is slower but generates variable model-based trajectories.':'Optional neural handwriting is not configured on this server; authored plotter lettering is ready now.';
- select.onchange=()=>{controls.open=select.value==='neural';};
+ const neuralActive=()=>select.value==='neural';
+ const authoredOnly=['engine','strokeFont','variantMode','connectLetters','slant','letterSpacing'];
+ const syncControls=()=>{const active=neuralActive();for(const id of authoredOnly){const field=byId(id);if(field)field.disabled=active;}controls.open=active;hint.textContent=active?'Neural handwriting is active. Font and authored-glyph controls are disabled; size, spacing, wrap, and placement still apply.':available?'Optional neural worker is ready. Choose it for variable model-based handwriting.':'Optional neural handwriting is not configured on this server; authored plotter lettering is ready now.';};
+ select.onchange=syncControls;
  if(available && (byId('preset').value==='human' || byId('preset').value==='cursive')){select.value='neural';controls.open=true;}
+ syncControls();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
 applyPreset();
