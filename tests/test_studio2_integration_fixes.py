@@ -56,9 +56,6 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "{advance=true}" in text
     assert "{advance:false}" in text
     assert "select('source')" in text
-    assert "Standard reference image" in text
-    assert "loadStandardExample" in text
-    assert "studio-reference.png" in text
     assert "needsThreshold" in text
     assert "setTimeout(()=>" in text
     assert "studio-value-slider" in text

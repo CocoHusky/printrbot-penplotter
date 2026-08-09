@@ -275,11 +275,6 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const sourceAction=panels.source.querySelector('.step-actions');
   const sourceFile=panels.source.querySelector('#file')?.closest('.control-block');
   if(sourceAction&&sourceFile)panels.source.insertBefore(sourceFile,sourceAction);
-  const standardExampleSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420"><rect width="640" height="420" fill="#d9dde2"/><circle cx="505" cy="100" r="52" fill="#fff" stroke="#111" stroke-width="8"/><path d="M0 330 L155 170 L270 300 L390 135 L640 330 V420 H0Z" fill="#fff" stroke="#111" stroke-width="9" stroke-linejoin="round"/><path d="M0 365 H640 M0 390 H640" stroke="#111" stroke-width="6"/><path d="M155 170 L175 205 M390 135 L420 185 M78 330 L105 286 M470 330 L500 278" stroke="#111" stroke-width="7" stroke-linecap="round"/></svg>';
-  const reference=document.createElement('div');
-  reference.className='studio-reference';
-  reference.innerHTML=standardExampleSvg+'<div><strong>Standard reference image</strong><p>Use this same image to compare every processing stage and art style.</p><button type="button" id="loadStandardExample">Load reference & generate grayscale</button></div>';
-  panels.source.insertBefore(reference,sourceAction);
   const rgbWeights=document.getElementById('rgbWeights');
   if(rgbWeights)rgbWeights.insertAdjacentHTML('afterend','<div class="hint">Use normalized 0–1 weights. The pipeline normalizes their sum internally; a red weight of 1 makes bright red pixels bright/white. Threshold and invert decide what becomes black foreground later.</div>');
   ['#thresholdMode'].forEach(selector=>moveField(selector,'threshold'));
@@ -401,25 +396,6 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   panels.threshold.querySelector('[data-stage-action="threshold"]').onclick=event=>runStage('threshold',event.currentTarget);
   panels.edges.querySelector('[data-stage-action="edges"]').onclick=event=>runStage('edges',event.currentTarget);
   panels.style.querySelector('[data-stage-action="style"]').onclick=event=>runStage('style',event.currentTarget);
-  document.getElementById('loadStandardExample')?.addEventListener('click',()=>{
-    const svgUrl=URL.createObjectURL(new Blob([standardExampleSvg],{type:'image/svg+xml'}));
-    const image=new Image();
-    image.onload=()=>{
-      const canvas=document.createElement('canvas');canvas.width=640;canvas.height=420;
-      canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
-      URL.revokeObjectURL(svgUrl);
-      canvas.toBlob(blob=>{
-        if(!blob)return;
-        const transfer=new DataTransfer();
-        transfer.items.add(new File([blob],'studio-reference.png',{type:'image/png'}));
-        fileInput.files=transfer.files;
-        fileInput.dispatchEvent(new Event('change',{bubbles:true}));
-        setTimeout(()=>runStage('source',sourceAction.querySelector('[data-stage-action="source"]')),0);
-      },'image/png');
-    };
-    image.onerror=()=>{URL.revokeObjectURL(svgUrl);};
-    image.src=svgUrl;
-  });
   let liveTimer=null;
   panels.source.parentElement.addEventListener('input',event=>{
     const panel=event.target.closest&&event.target.closest('.step-panel');
@@ -444,7 +420,6 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
 <style>
 .style-path-summary{margin:10px 0;padding:10px 12px;border:1px solid #d8d8d8;border-radius:8px;background:#f7f7f7;color:#444;font-size:12px}.style-path-summary strong{display:block;color:#111;font-size:12px;margin-bottom:3px}.style-path-summary.stale{border-color:#e5c26b;background:#fff8df}
 .style-choice{grid-column:2;margin-bottom:10px;padding:12px 16px;border:1px solid #ddd;border-radius:12px;background:#fff}.style-choice>strong{display:block;font-size:15px}.style-choice>span{display:block;margin:3px 0 9px;color:#666;font-size:11px}.style-choice>.control-block{display:inline-block;vertical-align:top;width:calc(50% - 6px);margin:0 8px 0 0}.style-choice>.control-block:last-of-type{margin-right:0}
-.studio-reference{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;margin:10px 0;padding:10px;border:1px solid #d8d8d8;border-radius:8px;background:#fafafa}.studio-reference svg{width:110px;height:76px;border:1px solid #ddd;border-radius:5px;background:#fff}.studio-reference strong{display:block;font-size:12px}.studio-reference p{margin:3px 0 7px;color:#666;font-size:11px}.studio-reference button{width:auto;margin:0;padding:7px 10px;font-size:11px}
 .step-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .step-actions button{margin-top:0}
 .step-stop{background:#fff;color:#b22;border-color:#e5aaaa}
