@@ -195,7 +195,7 @@ def studio2() -> str:
 '''
     version_badge = (
         f'<div id="studioVersion" title="Match this commit with GitHub main" '
-        f'style="margin:-10px 0 14px;color:#666;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace">'
+        f'style="position:fixed;top:8px;right:12px;z-index:10001;margin:0;padding:3px 7px;color:#666;background:rgba(255,255,255,.86);border:1px solid #ddd;border-radius:999px;font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;pointer-events:none">'
         f'Printrbot Pen Plotter v{STUDIO_BUILD["version"]} · commit {STUDIO_BUILD["commit"]}</div>'
     )
     html = html.replace('<h1>Printrbot Studio 2.0</h1>', '<h1>Printrbot Studio 2.0</h1>' + version_badge)
