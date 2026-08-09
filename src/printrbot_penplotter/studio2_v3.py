@@ -373,7 +373,16 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
     if(!document.getElementById('file')?.files?.length){stageStatus.textContent='Choose an image first.';return;}
     if(stage==='threshold'&&!needsThreshold()){stageStatus.textContent='This style uses grayscale directly; black & white is skipped.';return;}
     if(stage==='edges'&&!needsEdges()){stageStatus.textContent='This style does not use edge detection; edges are skipped.';return;}
-    if(stage==='style'&&(!requiredBefore('style')|| (needsThreshold()&&!stageReady('threshold')) || (needsEdges()&&!stageReady('edges')))){stageStatus.textContent='Complete the enabled steps above before generating style paths.';return;}
+    if(stage==='style'){
+      button.disabled=true;stop.disabled=false;stop.onclick=()=>window.__studioStageAbort?.abort();
+      const required=['source',...(needsThreshold()?['threshold']:[]),...(needsEdges()?['edges']:[])];
+      for(const prerequisite of required){
+        if(stageReady(prerequisite))continue;
+        stageStatus.className='step-stage-status busy';stageStatus.innerHTML='<span class="spinner"></span>Preparing '+prerequisite+'…';
+        await runStage(prerequisite,panels[prerequisite].querySelector('[data-stage-action="'+prerequisite+'"]'));
+        if(!stageReady(prerequisite)){stageStatus.className='step-stage-status error';stageStatus.textContent='Preparation stopped or failed at '+prerequisite+'.';stop.disabled=true;button.disabled=false;return;}
+      }
+    }
     button.disabled=true;stop.disabled=false;const controller=new AbortController();window.__studioStageAbort=controller;stop.onclick=()=>controller.abort();const started=performance.now();const updateStageStatus=()=>{stageStatus.className='step-stage-status busy';stageStatus.innerHTML='<span class="spinner"></span>Processing '+stage+'… '+((performance.now()-started)/1000).toFixed(1)+' s';document.getElementById('studio2LoadingDetail').textContent=stageStatus.textContent;};updateStageStatus();showLoading('Processing '+stage,'Starting…');const timer=setInterval(updateStageStatus,250);
     const fd=new FormData(form);fd.set('stage',stage);if(document.getElementById('mode')?.value==='auto')fd.set('style','');
     form.querySelectorAll('input[type="checkbox"]').forEach(input=>fd.set(input.name,input.checked?'true':'false'));
