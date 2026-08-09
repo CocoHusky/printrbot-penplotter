@@ -227,13 +227,17 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
 
   const definitions=[
     ['source','1. Source & grayscale','Choose the image and control color-to-gray conversion.'],
-    ['style','2. Style & vectorization','Choose the recipe first; only the stages it needs will be enabled.'],
-    ['threshold','3. Black & white','Control foreground selection, thresholding, and cleanup when required.'],
-    ['edges','4. Edge extraction','Optional contour branch for edge-based recipes.'],
+    ['threshold','2. Black & white','Control foreground selection, thresholding, and cleanup when required.'],
+    ['edges','3. Edge extraction','Optional contour branch for edge-based recipes.'],
+    ['style','4. Vectorization','Adjust the selected art style and generate artistic paths.'],
     ['machine','5. Machine & export','Set Z motion, bed sizing, and export behavior.']
   ];
   grid.className='studio-step-shell';
   form.classList.add('step-controls');
+  const styleChoice=document.createElement('section');
+  styleChoice.className='style-choice';
+  styleChoice.innerHTML='<strong>Art style goal</strong><span>Choose the kind of drawing first. This choice stays visible while you process the image.</span>';
+  form.appendChild(styleChoice);
   const rail=document.createElement('nav');
   rail.className='step-rail';
   rail.setAttribute('aria-label','Processing steps');
@@ -283,12 +287,13 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   moveField('[name="edge_method"]','edges');
   const moveGroupSelector=(selector,step)=>{const node=document.querySelector(selector);const wrapper=node&&node.closest('.control-section');const target=wrapper||node;if(target&&!panels[step].contains(target))panels[step].appendChild(target);};
   moveGroupSelector('[name="edge_method"]','edges');
-  ['#mode','#style','[name="quality"]','[name="detail"]'].forEach(selector=>moveField(selector,'style'));
+  ['#mode','#style'].forEach(selector=>{const node=directBlock(selector);if(node)styleChoice.appendChild(node);});
+  ['[name="quality"]','[name="detail"]'].forEach(selector=>moveField(selector,'style'));
   ['lineArtAdvanced','shadingAdvanced','geometryLimits'].forEach(id=>moveGroup(id,'style'));
   const stylePathSummary=document.createElement('div');
   stylePathSummary.id='stylePathSummary';
   stylePathSummary.className='style-path-summary';
-  panels.style.insertBefore(stylePathSummary,panels.style.querySelector('.step-actions'));
+  styleChoice.appendChild(stylePathSummary);
   ['[name="pen_tip_mm"]','[name="z_up_mm"]','[name="z_down_mm"]','[name="air_plot"]','[name="home_before_plot"]'].forEach(selector=>moveField(selector,'machine'));
   moveGroup('finalSize','machine');
   ['#generate','#status','#selectedStyle'].forEach(selector=>moveField(selector,'machine'));
@@ -336,7 +341,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const grayNote=document.createElement('div');grayNote.className='hint';grayNote.textContent='This grayscale preview is enlarged to fit the panel. Interactive processing uses a bounded raster for speed; final machine size is set later in Machine & export.';sourceVisual.querySelector('.before-after .pane:last-child').appendChild(grayNote);
   makeVisual('threshold','Black & white','See grayscale input beside the thresholded foreground mask.','Before · grayscale','thresholdCorrected','After · black & white','thresholdMask');
   makeVisual('edges','Edge extraction','Optional contour branch. Some styles use grayscale and threshold data directly.','Before · black & white','edgesMask','After · edges','edgesEdges');
-  makeVisual('style','Style & vectorization','Choose whether the recipe uses edges or works directly from the thresholded image.','Before · detected input','styleEdges','After · artistic paths','preview');
+  makeVisual('style','Vectorization','Render the selected art style after the required image stages are ready.','Before · detected input','styleEdges','After · artistic paths','preview');
   const machineVisual=document.createElement('section');machineVisual.className='step-visual';machineVisual.dataset.stepVisual='machine';machineVisual.innerHTML='<h2>Machine & export</h2><div class="visual-subtitle">Review the generated paths beside the final machine-output view.</div>';
   const machineCompare=document.createElement('div');machineCompare.className='before-after';
   const machineBefore=document.createElement('div');machineBefore.className='pane';machineBefore.innerHTML='<h3>Before · artistic paths</h3>';machineBefore.insertAdjacentHTML('beforeend','<div id="machineInput" class="placeholder">Generate a drawing to see artistic paths.</div>');
@@ -365,7 +370,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const resetForNewFile=()=>{for(const id of Object.keys(stageData)){stageData[id]=null;stageStale[id]=false;}for(const [id,message] of [['sourceCorrected','Generate grayscale to see the result.'],['thresholdCorrected','Generate grayscale to see the result.'],['thresholdMask','Generate black & white to see the result.'],['edgesMask','Generate black & white to see the result.'],['edgesEdges','Generate edges to see the result.'],['styleEdges','Generate edges to see the result.'],['preview','Generate style paths to see the result.'],['machineInput','Generate style paths to see the result.'],['machinePreview','Generate the final machine output.']])setStage(id,'',message);};
   const syncSteps=()=>{const labels={source:'Source & grayscale',style:'Style & vectorization',threshold:'Black & white',edges:'Edge extraction',machine:'Machine & export'};rail.querySelectorAll('.process-tab').forEach(tab=>{const id=tab.dataset.step;const skipped=(id==='threshold'&&!needsThreshold())||(id==='edges'&&!needsEdges());const allowed=canOpen(id);const state=id==='machine'?(stageReady('machine')?'Ready':'Waiting for style'):(!stageData[id]?'Not processed':stageStale[id]?'Needs update':'Ready');tab.disabled=!allowed;tab.hidden=skipped;tab.setAttribute('aria-disabled',allowed?'false':'true');tab.querySelector('strong').textContent=labels[id];tab.querySelector('span').textContent=skipped?'Not required for selected style.':state;});const path=needsThreshold()?['Grayscale','Black & white',...(needsEdges()?['Edges']:[]),'Vectorize']:['Grayscale','Vectorize'];stylePathSummary.innerHTML='<strong>Current style path</strong>'+path.join(' → ')+(stageStale.style?' <span>(style output needs update)</span>':'');stylePathSummary.classList.toggle('stale',!!stageStale.style);window.__studioStepReady=stageReady('style');window.dispatchEvent(new Event('studio-step-ready'));const floating=document.getElementById('floatingGenerate');if(floating&&!document.getElementById('generate').disabled)floating.disabled=!stageReady('style');};
   const invalidate=(step)=>{if(step==='machine'){syncSteps();return;}markStale(step);syncSteps();const active=document.querySelector('.process-tab.active')?.dataset.step||'source';if(!canOpen(active))select(step==='source'?'source':active);};
-  form.addEventListener('change',event=>{const panel=event.target.closest&&event.target.closest('.step-panel');if(!panel)return;const field=event.target.name||'';if(panel.dataset.stepPanel==='style'&&['mode','quality'].includes(field))markStale('source');else if(panel.dataset.stepPanel==='style'&&field==='detail')markStale('edges');else invalidate(panel.dataset.stepPanel);syncSteps();});
+  form.addEventListener('change',event=>{const panel=event.target.closest&&event.target.closest('.step-panel');const choice=event.target.closest&&event.target.closest('.style-choice');if(!panel&&!choice)return;const field=event.target.name||'';if(choice){if(field==='mode')markStale('source');else markStale('style');syncSteps();return;}if(panel.dataset.stepPanel==='style'&&['mode','quality'].includes(field))markStale('source');else if(panel.dataset.stepPanel==='style'&&field==='detail')markStale('edges');else invalidate(panel.dataset.stepPanel);syncSteps();});
   const showLoading=(title,detail)=>{const overlay=document.getElementById('studio2Loading');if(!overlay)return;overlay.classList.add('active');overlay.setAttribute('aria-hidden','false');document.getElementById('studio2LoadingTitle').textContent=title;document.getElementById('studio2LoadingDetail').textContent=detail||'Please wait…';const stop=document.getElementById('studio2LoadingStop');if(stop)stop.disabled=false;};
   const hideLoading=()=>{const overlay=document.getElementById('studio2Loading');if(overlay){overlay.classList.remove('active');overlay.setAttribute('aria-hidden','true');}const stop=document.getElementById('studio2LoadingStop');if(stop)stop.disabled=true;};
   const runStage=async(stage,button)=>{
@@ -437,6 +442,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
     floating = r'''
 <style>
 .style-path-summary{margin:10px 0;padding:10px 12px;border:1px solid #d8d8d8;border-radius:8px;background:#f7f7f7;color:#444;font-size:12px}.style-path-summary strong{display:block;color:#111;font-size:12px;margin-bottom:3px}.style-path-summary.stale{border-color:#e5c26b;background:#fff8df}
+.style-choice{grid-column:2;margin-bottom:10px;padding:12px 16px;border:1px solid #ddd;border-radius:12px;background:#fff}.style-choice>strong{display:block;font-size:15px}.style-choice>span{display:block;margin:3px 0 9px;color:#666;font-size:11px}.style-choice>.control-block{display:inline-block;vertical-align:top;width:calc(50% - 6px);margin:0 8px 0 0}.style-choice>.control-block:last-of-type{margin-right:0}
 .studio-reference{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;margin:10px 0;padding:10px;border:1px solid #d8d8d8;border-radius:8px;background:#fafafa}.studio-reference svg{width:110px;height:76px;border:1px solid #ddd;border-radius:5px;background:#fff}.studio-reference strong{display:block;font-size:12px}.studio-reference p{margin:3px 0 7px;color:#666;font-size:11px}.studio-reference button{width:auto;margin:0;padding:7px 10px;font-size:11px}
 .step-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .step-actions button{margin-top:0}

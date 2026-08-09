@@ -40,16 +40,18 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Source & grayscale" in text
     assert "Black & white" in text
     assert "Edge extraction" in text
-    assert "Style & vectorization" in text
+    assert "Vectorization" in text
     assert "Machine & export" in text
     assert "stageData" in text
     assert "stageStale" in text
     assert "Current style path" in text
+    assert "Art style goal" in text
+    assert "This choice stays visible while you process the image." in text
+    assert "4. Vectorization" in text
     assert "Dependent stages remain cached" in text
     assert "Standard reference image" in text
     assert "loadStandardExample" in text
     assert "studio-reference.png" in text
-    assert "Choose the recipe first" in text
     assert "needsThreshold" in text
     assert "setTimeout(()=>" in text
     assert "studio-value-slider" in text
