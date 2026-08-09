@@ -43,7 +43,7 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Style & vectorization" in text
     assert "Machine & export" in text
     assert "studio-value-slider" in text
-    assert "bright red pixels bright/white" in text
+    assert "normalized 0–1 weights" in text
     assert 'id="studioVersion"' in text
     assert f"v{__version__}" in text
 

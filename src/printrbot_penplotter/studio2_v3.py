@@ -272,7 +272,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const sourceFile=panels.source.querySelector('#file')?.closest('.control-block');
   if(sourceAction&&sourceFile)panels.source.insertBefore(sourceFile,sourceAction);
   const rgbWeights=document.getElementById('rgbWeights');
-  if(rgbWeights)rgbWeights.insertAdjacentHTML('afterend','<div class="hint">Weights control brightness: a red weight of 1 makes bright red pixels bright/white. Threshold and invert decide what becomes black foreground later.</div>');
+  if(rgbWeights)rgbWeights.insertAdjacentHTML('afterend','<div class="hint">Use normalized 0–1 weights. The pipeline normalizes their sum internally; a red weight of 1 makes bright red pixels bright/white. Threshold and invert decide what becomes black foreground later.</div>');
   ['#thresholdMode'].forEach(selector=>moveField(selector,'threshold'));
   moveGroup('thresholdMode','threshold');
   moveField('[name="edge_method"]','edges');
@@ -284,7 +284,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   moveGroup('finalSize','machine');
   ['#generate','#status','#selectedStyle'].forEach(selector=>moveField(selector,'machine'));
   const sliderDefaults={
-    rgb_red:[-2,2],rgb_green:[-2,2],rgb_blue:[-2,2],clahe_clip_limit:[0,10],
+    rgb_red:[0,1],rgb_green:[0,1],rgb_blue:[0,1],clahe_clip_limit:[0,10],
     background_radius_px:[1,320],min_component_px:[1,1000],shading_min_stroke_px:[0,50],
     shading_seed:[0,999999]
   };

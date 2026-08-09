@@ -110,6 +110,8 @@ class ImagePreprocessConfig:
             raise ValueError("Unsupported grayscale mode.")
         if len(self.rgb_weights) != 3 or not all(math.isfinite(v) for v in self.rgb_weights):
             raise ValueError("rgb_weights must contain three finite values.")
+        if not all(0 <= weight <= 1 for weight in self.rgb_weights):
+            raise ValueError("rgb_weights must use normalized 0..1 values.")
         if self.grayscale_mode == "custom" and abs(sum(self.rgb_weights)) < 1e-12:
             raise ValueError("Custom RGB weights must not sum to zero.")
         if not math.isfinite(self.exposure_ev) or not -8 <= self.exposure_ev <= 8:
