@@ -82,12 +82,15 @@ textarea,input,select,button { width:100%; box-sizing:border-box; border-radius:
 textarea,input,select { background:#fff; color:#20211f; }
 textarea { min-height:142px; resize:vertical; }
 button { margin-top:12px; background:#2d6155; color:white; font-weight:700; cursor:pointer; }
+button:disabled { opacity:.48; cursor:not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline:3px solid #2d6155; outline-offset:2px; }
 button.secondary { background:#6c756f; }
 button.safe { background:#8a5a2b; }
 #preview { background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
 #preview svg { width:100%; height:auto; max-height:80vh; }
 pre { white-space:pre-wrap; max-height:250px; overflow:auto; color:#9ed1ff; }
 .status { min-height:24px; color:#2d6155; margin-top:10px; }
+.workflow-hint { margin:8px 0 14px; padding:10px 12px; background:#e9f1ed; border-radius:10px; color:#36574d; font-size:13px; }
 .check { display:flex; align-items:center; gap:8px; margin-top:12px; }
 .check input { width:auto; }
 details { margin-top:12px; border-top:1px solid #263545; padding-top:8px; }
@@ -99,10 +102,11 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <nav class="app-tabs" aria-label="Printrbot tools"><a class="active" href="/">Write notes</a><a href="/raster">Image trace</a><a href="/studio2">Art workflow</a></nav>
 <h1>Write notes for the plotter</h1>
 <p>Choose a human writing style, write your note, preview the exact strokes, then move to image or art workflows without leaving the app.</p>
+<p class="workflow-hint"><strong>Simple flow:</strong> 1. Write or edit your note → 2. Choose a style → 3. Render preview → 4. Download G-code.</p>
 <div class="grid">
 <section class="card">
 <label for="text">Text</label>
-<textarea id="text">Today I need to remember…</textarea>
+<textarea id="text">Today I need to remember:</textarea>
 <div class="row">
   <div><label for="preset">Writing style</label><select id="preset" onchange="applyPreset()"><option value="human">Natural notes</option><option value="cursive">Cursive notes</option><option value="clean">Clean print</option><option value="robot">Technical mono</option></select></div>
   <div><label for="fontSize">Cap height (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
@@ -145,11 +149,11 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 </details>
 <div class="check"><input id="airPlot" type="checkbox"><label for="airPlot" style="margin:0">Generate air plot (never lower pen)</label></div>
-<button onclick="renderJob()">Render writing preview</button>
+<button id="renderButton" onclick="renderJob()">Render writing preview</button>
 <button class="secondary" onclick="saveNote()">Save note locally</button>
 <button class="safe" onclick="renderCalibration()">Generate 10 mm air calibration</button>
-<button class="secondary" onclick="downloadGcode()">Download G-code</button>
-<div class="status" id="status">Your note is saved in this browser as you type.</div>
+<button id="downloadButton" class="secondary" onclick="downloadGcode()" disabled>Download G-code</button>
+<div class="status" id="status" role="status" aria-live="polite">Example loaded. Edit your note, then render a new preview.</div>
 <pre id="meta"></pre>
 </section>
 <section class="card" id="preview">Preview will appear here.</section>
@@ -200,13 +204,16 @@ async function postJson(url, body){
 }
 function showJob(data){
  byId('preview').innerHTML=data.preview_svg; latestGcode=data.gcode;
+ byId('downloadButton').disabled=!latestGcode;
  byId('meta').textContent=JSON.stringify(data.metadata,null,2);
  byId('status').textContent='Ready: preview and G-code use the same machine-space paths.';
 }
 async function renderJob(){
- byId('status').textContent='Rendering…';
+ const button=byId('renderButton'); button.disabled=true; byId('downloadButton').disabled=true;
+ byId('status').textContent='Rendering your note…';
  try { showJob(await postJson('/api/render',payload())); }
- catch(error){ byId('status').textContent=error.message; }
+ catch(error){ latestGcode=''; byId('status').textContent='Could not render this note: '+error.message; }
+ finally { button.disabled=false; }
 }
 async function renderCalibration(){
  byId('status').textContent='Generating safe calibration…';
@@ -218,7 +225,7 @@ function downloadGcode(){
  const blob=new Blob([latestGcode],{type:'text/plain'});
  const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download='plot.gcode'; link.click(); URL.revokeObjectURL(link.href);
 }
-applyPreset(); renderJob();
+applyPreset();
 </script>
 </main></body></html>"""
 
