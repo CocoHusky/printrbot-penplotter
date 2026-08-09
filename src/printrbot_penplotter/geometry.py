@@ -133,6 +133,28 @@ def place_on_page(
     return placed
 
 
+def flip_y_in_page(polylines: Polylines, page: PageConfig) -> Polylines:
+    """Mirror machine-space paths vertically within a page rectangle.
+
+    Raster-derived geometry is produced in image coordinates (origin at the
+    top-left, Y increasing downward), while the plotter uses Cartesian
+    coordinates (origin at the bottom-left, Y increasing upward).  Interactive
+    Studio previews may already be placed on the page before the final-size
+    transform runs, so this small shared transform keeps those previews in the
+    same orientation as the final machine output.
+    """
+
+    page.validate()
+    validate_polylines(polylines)
+    page_center_y = page.origin_y_mm + page.height_mm * 0.5
+    mirrored = [
+        [(x, 2.0 * page_center_y - y) for x, y in line]
+        for line in polylines
+    ]
+    validate_polylines(mirrored)
+    return mirrored
+
+
 def fit_to_page(
     polylines: Polylines,
     page: PageConfig,

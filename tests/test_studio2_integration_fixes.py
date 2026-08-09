@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from printrbot_penplotter import line_art, studio2
 from printrbot_penplotter import __version__
+from printrbot_penplotter.geometry import flip_y_in_page, place_on_page
 from printrbot_penplotter.models import LayoutConfig, MachineConfig, PageConfig
 from printrbot_penplotter.studio_server import app
 from printrbot_penplotter.vector_cleanup import VectorCleanupConfig
@@ -81,6 +82,20 @@ def test_studio2_image_geometry_is_mirrored_into_cartesian_y_before_placement() 
     # Machine coordinates are Y-up, so the visually upper source point must have
     # the larger machine Y. preview_svg flips machine Y back for browser display.
     assert placed[0][0][1] > placed[0][1][1]
+
+
+def test_studio_stage_preview_mirrors_placed_image_geometry_once() -> None:
+    page = PageConfig()
+    placed = place_on_page(
+        [[(0.0, 0.0), (0.0, 10.0)]],
+        page,
+        LayoutConfig(fit_mode="fit"),
+        MachineConfig(),
+    )
+    mirrored = flip_y_in_page(placed, page)
+    # The stage preview receives image-space geometry from the legacy renderer;
+    # after the shared conversion, its visually upper source point is machine-up.
+    assert mirrored[0][0][1] > mirrored[0][1][1]
 
 
 def test_studio_cleanup_no_longer_stops_at_legacy_20k_soft_limit() -> None:

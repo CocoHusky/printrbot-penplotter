@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .auto_optimize import AutoOptimizeConfig, optimize_analysis
 from .gcode import polylines_to_gcode
-from .geometry import place_on_page, preview_svg, validate_polylines
+from .geometry import flip_y_in_page, place_on_page, preview_svg, validate_polylines
 from .image_preprocess import ImagePreprocessConfig, ThresholdConfig, preprocess_image, threshold_image
 from .image_understanding import ImageUnderstandingConfig, ImageUnderstandingResult, analyze_gray, analyze_image
 from .line_art import LineArtConfig, STYLE_NAMES, render_line_art_from_analysis
@@ -358,12 +358,23 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
             "plot_strokes_dropped_before_preview": raw_before_plot_cap - len(raw),
         }
         placed = place_on_page(raw, PageConfig(), LayoutConfig(fit_mode="fit"), MachineConfig())
+        # The stage preview is rendered before Studio 2's final-size transform.
+        # Convert the image-space Y orientation here so it matches the final
+        # preview and G-code instead of showing an upside-down hatch layer.
+        preview_page = PageConfig()
+        preview_placed = flip_y_in_page(placed, preview_page)
         stages["edges"] = _mask_data_uri(analysis.selected_edges) if not analysis.metadata.get("edge_analysis_skipped") else ""
         return {
             "stage": stage,
-            "preview_svg": preview_svg(placed, PageConfig(), MachineConfig()),
+            "preview_svg": preview_svg(preview_placed, preview_page, MachineConfig()),
             "stages": stages,
-            "metadata": {**analysis.metadata, **artistic_meta, "artistic_strokes": len(raw), "studio_stage_seconds": timings},
+            "metadata": {
+                **analysis.metadata,
+                **artistic_meta,
+                "artistic_strokes": len(raw),
+                "studio_stage_orientation_corrected": True,
+                "studio_stage_seconds": timings,
+            },
         }
     return {
         "stage": stage,
