@@ -481,7 +481,23 @@ const targetHeight=document.getElementById('targetHeight');
 const keepAspect=document.getElementById('keepAspect');
 function updateSizeMode(){const natural=sizeMode.value==='natural';targetWidth.disabled=natural;targetHeight.disabled=natural;keepAspect.disabled=natural;}
 sizeMode.addEventListener('change',updateSizeMode);updateSizeMode();
-floatingGenerate.onclick=()=>document.getElementById('f').requestSubmit();
+const submitDrawing=()=>{
+  const target=document.getElementById('f');
+  const submitter=document.getElementById('generate');
+  if(!target){return;}
+  // Some embedded browser builds expose requestSubmit but do not dispatch
+  // the handler for a hidden submit button. Call the existing legacy handler
+  // directly first, with requestSubmit as the native fallback.
+  if(typeof target.onsubmit==='function'){
+    void target.onsubmit(new Event('submit',{bubbles:true,cancelable:true}));
+  }else if(typeof target.requestSubmit==='function'){
+    target.requestSubmit(submitter);
+  }else{
+    const status=document.getElementById('status');
+    if(status){status.className='status error';status.textContent='Drawing form is not ready. Reload the page and try again.';}
+  }
+};
+floatingGenerate.onclick=submitDrawing;
 const stopActive=()=>{if(window.__studioStageAbort){window.__studioStageAbort.abort();return;}if(window.__studioAbortController)window.__studioAbortController.abort();};
 floatingStop.onclick=stopActive;loadingStop.onclick=stopActive;
 const syncActions=()=>{const busy=document.getElementById('generate').disabled;const pipelineReady=window.__studioStepReady!==false;const machine=document.querySelector('.step-panel.active')?.dataset.stepPanel==='machine';floatingGenerate.hidden=!machine;floatingStop.hidden=!machine;saveSvg.hidden=!machine;saveGcode.hidden=!machine;floatingGenerate.disabled=busy||!pipelineReady;floatingStop.disabled=!busy;loadingStop.disabled=!busy&&!window.__studioStageAbort;const ready=!!window.__studioLast&&!busy;saveSvg.disabled=!ready;saveGcode.disabled=!ready;if(busy){loading.classList.add('active');loading.setAttribute('aria-hidden','false');loadingTitle.textContent='Generating drawing';loadingDetail.textContent=document.getElementById('status')?.textContent||'Processing…';}else if(!window.__studioStageAbort){loading.classList.remove('active');loading.setAttribute('aria-hidden','true');}};

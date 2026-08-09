@@ -29,6 +29,8 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "fd.set(n,'-1')" in text
     assert "window.__studioAbortController" in text
     assert "window.__studioStageAbort" in text
+    assert "const submitDrawing=()=>" in text
+    assert "target.onsubmit(new Event('submit'" in text
     assert "if(stop)stop.disabled=false" in text
     assert "setupControlSections" in text
     assert "className='control-section'" in text
