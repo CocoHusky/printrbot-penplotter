@@ -42,6 +42,10 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Edge extraction" in text
     assert "Style & vectorization" in text
     assert "Machine & export" in text
+    assert "stageData" in text
+    assert "stageStale" in text
+    assert "Current style path" in text
+    assert "Dependent stages remain cached" in text
     assert "Choose the recipe first" in text
     assert "needsThreshold" in text
     assert "setTimeout(()=>" in text
