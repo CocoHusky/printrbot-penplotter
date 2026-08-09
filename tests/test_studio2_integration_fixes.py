@@ -46,6 +46,9 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "stageStale" in text
     assert "Current style path" in text
     assert "Dependent stages remain cached" in text
+    assert "Standard reference image" in text
+    assert "loadStandardExample" in text
+    assert "studio-reference.png" in text
     assert "Choose the recipe first" in text
     assert "needsThreshold" in text
     assert "setTimeout(()=>" in text
