@@ -23,6 +23,7 @@ from .gcode import polylines_to_gcode
 from .geometry import preview_svg, validate_polylines
 from .models import MachineConfig, PageConfig, PenConfig, Polylines
 from .optimize import motion_metrics
+from .ui_theme import LAB_THEME_CSS
 
 router = APIRouter()
 
@@ -483,7 +484,7 @@ saveGcode.onclick=()=>{const j=window.__studioLast;if(j)saveText('printrbot-draw
 </script>
 '''
     html = html.replace('</body></html>', step_editor + floating + '</body></html>')
-    return html
+    return html.replace('</head>', LAB_THEME_CSS + '</head>', 1)
 
 
 @router.get("/api/studio2/version")

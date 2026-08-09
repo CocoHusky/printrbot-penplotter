@@ -34,6 +34,7 @@ from .raster import (
     editable_trace_svg,
     trace_raster,
 )
+from .ui_theme import LAB_THEME_CSS
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -100,7 +101,7 @@ class FinalizeRequest(BaseModel):
 
 @router.get("/raster", response_class=HTMLResponse)
 def raster_studio() -> str:
-    return STUDIO_HTML
+    return STUDIO_HTML.replace("</head>", LAB_THEME_CSS + "</head>", 1)
 
 
 @router.post("/api/raster/trace")

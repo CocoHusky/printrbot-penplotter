@@ -16,6 +16,7 @@ def test_unified_tool_navigation_is_present_on_each_workspace() -> None:
         assert 'href="/raster"' in text
         assert 'href="/studio2"' in text
         assert active in text
+        assert 'id="printrbot-lab-theme"' in text
 
 
 def test_notes_workspace_has_local_draft_and_human_preset_controls() -> None:

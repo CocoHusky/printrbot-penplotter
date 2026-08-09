@@ -13,6 +13,7 @@ from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleCon
 from .pipeline import render_calibration_job, render_text_job
 from .sender import MarlinSender
 from .stroke_fonts import available_stroke_fonts, get_builtin_stroke_font
+from .ui_theme import LAB_THEME_CSS
 
 app = FastAPI(title="Printrbot Pen Plotter", version="0.3.0")
 
@@ -296,7 +297,7 @@ def _render(request: RenderRequest):
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return HTML
+    return HTML.replace("</head>", LAB_THEME_CSS + "</head>", 1)
 
 
 @app.get("/api/fonts")
