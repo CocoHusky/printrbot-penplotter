@@ -18,7 +18,9 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-neural/
 env/
+.external/
 
 # Node
 node_modules/

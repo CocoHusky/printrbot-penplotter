@@ -34,6 +34,20 @@ app.include_router(studio2_router)
 app.include_router(product_router)
 
 
+def _configure_local_neural_worker() -> None:
+    """Use the optional repo-local Graves install when it has been prepared."""
+    repo_root = Path(__file__).resolve().parents[2]
+    worker = repo_root / "scripts" / "graves_worker.py"
+    python = repo_root / ".venv-neural" / "bin" / "python"
+    model = repo_root / ".external" / "handwriting-synthesis"
+    if worker.is_file() and python.is_file() and model.is_dir():
+        import os
+
+        os.environ.setdefault("PRINTRBOT_HANDWRITING_WORKER", str(worker))
+        os.environ.setdefault("PRINTRBOT_HANDWRITING_PYTHON", str(python))
+        os.environ.setdefault("PRINTRBOT_GRAVES_SOURCE", str(model))
+
+
 def _validate_studio_runtime() -> None:
     """Refuse to start Studio with the legacy 20k shared geometry guard."""
     if MAX_STROKES < 200_000 or MAX_POINTS < 20_000_000:
@@ -48,6 +62,7 @@ def main() -> None:
     import uvicorn
 
     _validate_studio_runtime()
+    _configure_local_neural_worker()
     package_root = Path(__file__).resolve().parent
     print(
         "Studio 2 geometry guard: "

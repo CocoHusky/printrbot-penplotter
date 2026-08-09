@@ -182,18 +182,23 @@ byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,b
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function applyPreset(){
  const value=byId('preset').value;
+ const neural=byId('writingBackend').querySelector('option[value="neural"]');
  if(value==='cursive'){
   byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='seeded';
   byId('connectLetters').checked=true; byId('slant').value=9; byId('letterSpacing').value=-0.08;
+  if(!neural.disabled){byId('writingBackend').value='neural';byId('neuralStyle').value=12;}
  } else if(value==='robot'){
   byId('engine').value='stroke'; byId('strokeFont').value='robot'; byId('variantMode').value='first';
   byId('connectLetters').checked=false; byId('slant').value=0; byId('letterSpacing').value=1.2;
+  byId('writingBackend').value='stroke';
  } else if(value==='clean'){
   byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='first';
   byId('connectLetters').checked=false; byId('slant').value=0; byId('letterSpacing').value=0.45;
+  byId('writingBackend').value='stroke';
  } else {
   byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='seeded';
   byId('connectLetters').checked=false; byId('slant').value=3; byId('letterSpacing').value=0.55;
+  if(!neural.disabled){byId('writingBackend').value='neural';byId('neuralStyle').value=9;}
  }
 }
 function payload(){ return {
@@ -247,6 +252,7 @@ function syncNeuralState(available){
  controls.open=select.value==='neural';
  hint.textContent=available?'Optional neural worker is ready. It is slower but generates variable model-based trajectories.':'Optional neural handwriting is not configured on this server; authored plotter lettering is ready now.';
  select.onchange=()=>{controls.open=select.value==='neural';};
+ if(available && (byId('preset').value==='human' || byId('preset').value==='cursive')){select.value='neural';controls.open=true;}
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
 applyPreset();
