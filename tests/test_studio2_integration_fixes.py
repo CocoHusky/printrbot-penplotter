@@ -49,7 +49,11 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Art style goal" in text
     assert "This choice stays visible while you process the image." in text
     assert "4. Vectorization" in text
-    assert "Dependent stages remain cached" in text
+    assert "The next required step is ready." in text
+    assert "const nextStep=" in text
+    assert "{advance=true}" in text
+    assert "{advance:false}" in text
+    assert "select('source')" in text
     assert "Standard reference image" in text
     assert "loadStandardExample" in text
     assert "studio-reference.png" in text
