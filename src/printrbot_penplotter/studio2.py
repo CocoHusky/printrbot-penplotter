@@ -828,8 +828,7 @@ STUDIO2_HTML = r'''<!doctype html>
 <label>Detail</label><select name="detail"><option>low</option><option>medium</option><option selected>high</option><option>extreme</option></select>
 <label>Background</label><select name="background_mode"><option>none</option><option selected>suppress</option><option>remove</option></select>
 <label>Pen tip (mm)</label><input name="pen_tip_mm" type="number" value="0.5" min="0.05" max="5" step="0.05">
-<label>Pen-up Z height (mm)</label><input name="z_up_mm" type="number" value="5.0" min="0" max="20" step="0.1">
-<label>Pen-down Z height (mm)</label><input name="z_down_mm" type="number" value="0.0" min="-5" max="20" step="0.1">
+<label>Pen lift height (mm)</label><input name="z_up_mm" type="number" value="5.0" min="0" max="20" step="0.1">
 <label class="check"><input name="air_plot" type="checkbox" checked> Air plot</label>
 <label class="check"><input name="home_before_plot" type="checkbox" checked> Home before plot</label>
 <button id="advancedToggle" class="advanced-toggle" type="button">Advanced image & style controls ▾</button>

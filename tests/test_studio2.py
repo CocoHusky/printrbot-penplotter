@@ -43,8 +43,8 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Angle offset (degrees)" in text
     assert "Density scale" in text
     assert "Outline join distance (px)" in text
-    assert "Pen-up Z height (mm)" in text
-    assert "Pen-down Z height (mm)" in text
+    assert "Pen lift height (mm)" in text
+    assert 'name="z_down_mm"' not in text
     assert "Max plotted lines (longest kept)" in text
     assert "Limits still apply to the selected recipe." in text
 

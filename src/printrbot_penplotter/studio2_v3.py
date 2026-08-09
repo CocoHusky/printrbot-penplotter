@@ -289,7 +289,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   stylePathSummary.id='stylePathSummary';
   stylePathSummary.className='style-path-summary';
   styleChoice.appendChild(stylePathSummary);
-  ['[name="pen_tip_mm"]','[name="z_up_mm"]','[name="z_down_mm"]','[name="air_plot"]','[name="home_before_plot"]'].forEach(selector=>moveField(selector,'machine'));
+  ['[name="pen_tip_mm"]','[name="z_up_mm"]','[name="air_plot"]','[name="home_before_plot"]'].forEach(selector=>moveField(selector,'machine'));
   moveGroup('finalSize','machine');
   ['#generate','#status','#selectedStyle'].forEach(selector=>moveField(selector,'machine'));
   const sliderDefaults={

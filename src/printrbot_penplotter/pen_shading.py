@@ -99,6 +99,25 @@ def _length(line: Polyline) -> float:
     return sum(_distance(a, b) for a, b in zip(line, line[1:]))
 
 
+def _orient_strokes_for_ink(polylines: Polylines) -> Polylines:
+    """Use a stable axis direction for open strokes.
+
+    Ballpoint pens can lay down unevenly when a short hatch stroke reverses
+    direction from its neighbor. Keep closed marks untouched, and orient open
+    strokes left-to-right or top-to-bottom based on their dominant axis.
+    """
+    oriented: Polylines = []
+    for line in polylines:
+        if len(line) < 2 or _distance(line[0], line[-1]) < 1e-6:
+            oriented.append(line)
+            continue
+        dx = line[-1][0] - line[0][0]
+        dy = line[-1][1] - line[0][1]
+        forward = dx >= 0 if abs(dx) >= abs(dy) else dy >= 0
+        oriented.append(line if forward else list(reversed(line)))
+    return oriented
+
+
 def _darkness(gray: np.ndarray) -> np.ndarray:
     return 1.0 - gray.astype(np.float64) / 255.0
 
@@ -391,6 +410,7 @@ def render_pen_shading_from_analysis(
     config.validate()
     polylines, extra = _recipe(analysis, config)
     polylines = [line for line in polylines if len(line) >= 2 and _length(line) >= config.min_stroke_length_px]
+    polylines = _orient_strokes_for_ink(polylines)
     if not polylines:
         raise ValueError("Pen-shading style produced no drawable geometry.")
     points = sum(len(line) for line in polylines)
@@ -412,6 +432,7 @@ def render_pen_shading_from_analysis(
         "angle_offset_deg": config.angle_offset_deg,
         "density_scale": config.density_scale,
         "outline_join_distance_px": config.outline_join_distance_px,
+        "stroke_direction_policy": "dominant-axis-consistent",
     })
     metadata.update(extra)
     return PenShadingResult(polylines=polylines, metadata=metadata)
