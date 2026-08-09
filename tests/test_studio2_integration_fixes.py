@@ -25,7 +25,8 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Ready for another image." in text
     assert "form.addEventListener('submit'" not in text
     assert "fd.set(n,'-1')" in text
-    assert "requestSerial=0" in text
+    assert "window.__studioAbortController" in text
+    assert "window.__studioStageAbort" in text
     assert "setupControlSections" in text
     assert "className='control-section'" in text
     assert 'class="stage-tabs"' in text

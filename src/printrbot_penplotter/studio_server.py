@@ -11,7 +11,6 @@ from .geometry import MAX_POINTS, MAX_STROKES
 from .product_api import router as product_router
 from .raster_studio import router as raster_router
 from . import studio2_fixes, studio2_v3
-from .studio2_stop_patch import apply_stop_button
 from .web import app
 
 # Preserve the Studio-only large-job cleanup propagation. Studio 2.1 owns the
@@ -29,7 +28,6 @@ studio2_v3.UploadFile = StarletteUploadFile
 studio2_v3.legacy._WORKING_DIMENSION["quick"] = 320
 
 studio2_router = studio2_v3.router
-apply_stop_button(studio2_router)
 
 app.include_router(raster_router)
 app.include_router(studio2_router)

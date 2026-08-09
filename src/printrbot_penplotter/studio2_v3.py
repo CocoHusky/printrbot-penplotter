@@ -216,7 +216,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
     rail.appendChild(tab);
     const panel=document.createElement('section');
     panel.className='step-panel';panel.dataset.stepPanel=id;
-    const action=(id==='source'||id==='threshold'||id==='edges'||id==='style')?'<button type="button" class="step-generate" data-stage-action="'+id+'">Generate '+(id==='source'?'grayscale':id==='threshold'?'black & white':id==='edges'?'edges':'style')+'</button><div class="step-stage-status" aria-live="polite"></div>':'';
+    const action=(id==='source'||id==='threshold'||id==='edges'||id==='style')?'<div class="step-actions"><button type="button" class="step-generate" data-stage-action="'+id+'">Generate '+(id==='source'?'grayscale':id==='threshold'?'black & white':id==='edges'?'edges':'style')+'</button><button type="button" class="step-stop" data-stage-stop="'+id+'" disabled>Stop</button><div class="step-stage-status" aria-live="polite"></div></div>':'';
     panel.innerHTML='<h2>'+title+'</h2><p>'+description+'</p>'+action;
     form.appendChild(panel);panels[id]=panel;
   }
@@ -293,38 +293,63 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const syncSteps=()=>{rail.querySelectorAll('.process-tab').forEach(tab=>{const allowed=canOpen(tab.dataset.step);tab.disabled=!allowed;tab.setAttribute('aria-disabled',allowed?'false':'true');});window.__studioStepReady=completed.style;window.dispatchEvent(new Event('studio-step-ready'));const floating=document.getElementById('floatingGenerate');if(floating&&!document.getElementById('generate').disabled)floating.disabled=!completed.style;};
   const invalidate=(step)=>{const index=order.indexOf(step);for(let i=index;i<order.length;i++)completed[order[i]]=false;clearOutputsFrom(step);syncSteps();if(!canOpen(document.querySelector('.process-tab.active')?.dataset.step||'source'))select(step);};
   form.addEventListener('change',event=>{const panel=event.target.closest&&event.target.closest('.step-panel');if(panel)invalidate(panel.dataset.stepPanel);});
+  const showLoading=(title,detail)=>{const overlay=document.getElementById('studio2Loading');if(!overlay)return;overlay.classList.add('active');overlay.setAttribute('aria-hidden','false');document.getElementById('studio2LoadingTitle').textContent=title;document.getElementById('studio2LoadingDetail').textContent=detail||'Please wait…';};
+  const hideLoading=()=>{const overlay=document.getElementById('studio2Loading');if(overlay){overlay.classList.remove('active');overlay.setAttribute('aria-hidden','true');}};
   const runStage=async(stage,button)=>{
-    if(!document.getElementById('file')?.files?.length){button.nextElementSibling.textContent='Choose an image first.';return;}
-    button.disabled=true;const stageStatus=button.nextElementSibling;const started=performance.now();const updateStageStatus=()=>{stageStatus.className='step-stage-status busy';stageStatus.innerHTML='<span class="spinner"></span>Processing '+stage+'… '+((performance.now()-started)/1000).toFixed(1)+' s';};updateStageStatus();const timer=setInterval(updateStageStatus,250);
+    const actionBar=button.parentElement;const stageStatus=actionBar.querySelector('.step-stage-status');const stop=actionBar.querySelector('.step-stop');
+    if(!document.getElementById('file')?.files?.length){stageStatus.textContent='Choose an image first.';return;}
+    button.disabled=true;stop.disabled=false;const controller=new AbortController();window.__studioStageAbort=controller;stop.onclick=()=>controller.abort();const started=performance.now();const updateStageStatus=()=>{stageStatus.className='step-stage-status busy';stageStatus.innerHTML='<span class="spinner"></span>Processing '+stage+'… '+((performance.now()-started)/1000).toFixed(1)+' s';document.getElementById('studio2LoadingDetail').textContent=stageStatus.textContent;};updateStageStatus();showLoading('Processing '+stage,'Starting…');const timer=setInterval(updateStageStatus,250);
     const fd=new FormData(form);fd.set('stage',stage);if(document.getElementById('mode')?.value==='auto')fd.set('style','');
     form.querySelectorAll('input[type="checkbox"]').forEach(input=>fd.set(input.name,input.checked?'true':'false'));
     for(const name of ['style_simplify_tolerance_px','style_smooth_passes','style_join_distance_px'])if(String(fd.get(name)||'').trim()==='')fd.set(name,'-1');
-    try{const response=await fetch('/api/studio2/stage',{method:'POST',body:fd});const body=await response.json();if(!response.ok)throw new Error(body.detail||'Stage processing failed.');
+    try{const response=await fetch('/api/studio2/stage',{method:'POST',body:fd,signal:controller.signal});const body=await response.json();if(!response.ok)throw new Error(body.detail||'Stage processing failed.');
       if(stage==='source'){setStage('sourceCorrected',body.stages.corrected);setStage('thresholdCorrected',body.stages.corrected);}if(stage==='threshold'){setStage('thresholdCorrected',body.stages.corrected);setStage('thresholdMask',body.stages.mask);setStage('edgesMask',body.stages.mask);}if(stage==='edges'){setStage('edgesMask',body.stages.mask);setStage('edgesEdges',body.stages.edges);setStage('styleEdges',body.stages.edges);}if(stage==='style'){setStage('styleEdges',body.stages.edges,'Edges are not required for this style.');setSvg('preview',body.preview_svg,'Generate style paths to see the result.');}
       completed[stage]=true;stageStatus.className='step-stage-status';stageStatus.textContent='Complete. You can continue to the next step.';syncSteps();
-    }catch(error){stageStatus.className='step-stage-status error';stageStatus.textContent=error instanceof Error?error.message:String(error);}finally{clearInterval(timer);button.disabled=false;}
+    }catch(error){if(error?.name==='AbortError'){stageStatus.className='step-stage-status';stageStatus.textContent='Stopped.';}else{stageStatus.className='step-stage-status error';stageStatus.textContent=error instanceof Error?error.message:String(error);}}finally{clearInterval(timer);stop.disabled=true;button.disabled=false;if(window.__studioStageAbort===controller)window.__studioStageAbort=null;hideLoading();}
   };
   panels.source.querySelector('[data-stage-action="source"]').onclick=event=>runStage('source',event.currentTarget);
   panels.threshold.querySelector('[data-stage-action="threshold"]').onclick=event=>runStage('threshold',event.currentTarget);
   panels.edges.querySelector('[data-stage-action="edges"]').onclick=event=>runStage('edges',event.currentTarget);
   panels.style.querySelector('[data-stage-action="style"]').onclick=event=>runStage('style',event.currentTarget);
   document.getElementById('file')?.addEventListener('change',()=>invalidate('source'));
-  const select=(id)=>{document.querySelectorAll('.process-tab').forEach(tab=>{const active=tab.dataset.step===id;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',active?'true':'false');});Object.values(panels).forEach(panel=>panel.classList.toggle('active',panel.dataset.stepPanel===id));document.querySelectorAll('.step-visual').forEach(visual=>visual.classList.toggle('active',visual.dataset.stepVisual===id));};
+  const select=(id)=>{document.querySelectorAll('.process-tab').forEach(tab=>{const active=tab.dataset.step===id;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',active?'true':'false');});Object.values(panels).forEach(panel=>panel.classList.toggle('active',panel.dataset.stepPanel===id));document.querySelectorAll('.step-visual').forEach(visual=>visual.classList.toggle('active',visual.dataset.stepVisual===id));window.dispatchEvent(new Event('studio-step-selected'));};
   rail.querySelectorAll('.process-tab').forEach(tab=>tab.addEventListener('click',()=>select(tab.dataset.step)));
   syncSteps();select('source');
 })();
 </script>
 '''
     floating = r'''
+<style>
+.step-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.step-actions button{margin-top:0}
+.step-stop{background:#fff;color:#b22;border-color:#e5aaaa}
+.step-stage-status{flex-basis:100%}
+.step-stage-status.error{color:#b22}
+.studio-loading{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.72);backdrop-filter:blur(2px)}
+.studio-loading.active{display:flex}
+.studio-loading-card{min-width:280px;padding:24px;border:1px solid #ccc;border-radius:14px;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.18);text-align:center}
+.studio-loading-card strong{display:block;font-size:18px}.studio-loading-card span{display:block;margin-top:8px;color:#666}
+</style>
 <div class="floating-actions" id="studio2FloatingActions">
 <button id="floatingGenerate" class="primary" type="button">Generate drawing</button>
+<button id="floatingStop" type="button" disabled>Stop</button>
 <button id="floatingSaveSvg" type="button" disabled>Save SVG</button>
 <button id="floatingSaveGcode" type="button" disabled>Save G-code</button>
 </div>
+<div id="studio2Loading" class="studio-loading" role="status" aria-live="polite" aria-hidden="true">
+<div class="studio-loading-card"><strong id="studio2LoadingTitle">Processing</strong><span id="studio2LoadingDetail">Please wait…</span><button id="studio2LoadingStop" type="button">Stop</button></div>
+</div>
 <script>
 const floatingGenerate=document.getElementById('floatingGenerate');
+const floatingStop=document.getElementById('floatingStop');
 const saveSvg=document.getElementById('floatingSaveSvg');
 const saveGcode=document.getElementById('floatingSaveGcode');
+const loading=document.getElementById('studio2Loading');
+const loadingTitle=document.getElementById('studio2LoadingTitle');
+const loadingDetail=document.getElementById('studio2LoadingDetail');
+const loadingStop=document.getElementById('studio2LoadingStop');
+const nativeFetch=window.fetch.bind(window);
+window.fetch=async(input,init={})=>{const url=String(input);if(url.endsWith('/api/studio2/render')){const controller=new AbortController();window.__studioAbortController=controller;try{return await nativeFetch(input,{...init,signal:controller.signal});}finally{if(window.__studioAbortController===controller)window.__studioAbortController=null;}}return nativeFetch(input,init);};
 const sizeMode=document.getElementById('sizeMode');
 const targetWidth=document.getElementById('targetWidth');
 const targetHeight=document.getElementById('targetHeight');
@@ -332,10 +357,13 @@ const keepAspect=document.getElementById('keepAspect');
 function updateSizeMode(){const natural=sizeMode.value==='natural';targetWidth.disabled=natural;targetHeight.disabled=natural;keepAspect.disabled=natural;}
 sizeMode.addEventListener('change',updateSizeMode);updateSizeMode();
 floatingGenerate.onclick=()=>document.getElementById('f').requestSubmit();
-const syncActions=()=>{const busy=document.getElementById('generate').disabled;const pipelineReady=window.__studioStepReady!==false;floatingGenerate.disabled=busy||!pipelineReady;const ready=!!window.__studioLast&&!busy;saveSvg.disabled=!ready;saveGcode.disabled=!ready;};
+const stopActive=()=>{if(window.__studioStageAbort){window.__studioStageAbort.abort();return;}if(window.__studioAbortController)window.__studioAbortController.abort();};
+floatingStop.onclick=stopActive;loadingStop.onclick=stopActive;
+const syncActions=()=>{const busy=document.getElementById('generate').disabled;const pipelineReady=window.__studioStepReady!==false;const machine=document.querySelector('.step-panel.active')?.dataset.stepPanel==='machine';floatingGenerate.hidden=!machine;floatingStop.hidden=!machine;saveSvg.hidden=!machine;saveGcode.hidden=!machine;floatingGenerate.disabled=busy||!pipelineReady;floatingStop.disabled=!busy;loadingStop.disabled=!busy&&!window.__studioStageAbort;const ready=!!window.__studioLast&&!busy;saveSvg.disabled=!ready;saveGcode.disabled=!ready;if(busy){loading.classList.add('active');loading.setAttribute('aria-hidden','false');loadingTitle.textContent='Generating drawing';loadingDetail.textContent=document.getElementById('status')?.textContent||'Processing…';}else if(!window.__studioStageAbort){loading.classList.remove('active');loading.setAttribute('aria-hidden','true');}};
 const observer=new MutationObserver(syncActions);
 observer.observe(document.getElementById('status'),{childList:true,subtree:true,characterData:true,attributes:true});
 window.addEventListener('studio-step-ready',syncActions);
+window.addEventListener('studio-step-selected',syncActions);
 syncActions();
 async function saveText(name,text,type){const blob=new Blob([text],{type});if(window.showSaveFilePicker){try{const handle=await window.showSaveFilePicker({suggestedName:name,types:[{description:type,accept:{[type]:[name.endsWith('.svg')?'.svg':'.gcode']}}]});const writable=await handle.createWritable();await writable.write(blob);await writable.close();return;}catch(e){if(e&&e.name==='AbortError')return;}}const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
 saveSvg.onclick=()=>{const j=window.__studioLast;if(j)saveText('printrbot-drawing.svg',j.preview_svg,'image/svg+xml');};
