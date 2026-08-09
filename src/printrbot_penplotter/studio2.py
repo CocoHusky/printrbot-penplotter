@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from .auto_optimize import AutoOptimizeConfig, optimize_analysis
 from .gcode import polylines_to_gcode
 from .geometry import place_on_page, preview_svg, validate_polylines
-from .image_preprocess import ImagePreprocessConfig, ThresholdConfig, threshold_image
+from .image_preprocess import ImagePreprocessConfig, ThresholdConfig, preprocess_image, threshold_image
 from .image_understanding import ImageUnderstandingConfig, ImageUnderstandingResult, analyze_image
 from .line_art import LineArtConfig, STYLE_NAMES, render_line_art_from_analysis
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig
@@ -141,6 +141,167 @@ def _apply_threshold_and_component_cleanup(
         regions=analysis.regions,
         metadata=metadata,
     )
+
+
+def _stage_form_value(form: object, name: str, default: object) -> object:
+    value = getattr(form, "get")(name)
+    return default if value is None or str(value).strip() == "" else value
+
+
+def _stage_form_bool(form: object, name: str, default: bool = False) -> bool:
+    return str(_stage_form_value(form, name, str(default))).lower() in {"1", "true", "yes", "on"}
+
+
+def _stage_form_float(form: object, name: str, default: float) -> float:
+    return float(_stage_form_value(form, name, default))
+
+
+def _stage_form_int(form: object, name: str, default: int) -> int:
+    return int(_stage_form_value(form, name, default))
+
+
+def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str, object]:
+    """Run one interactive image stage without vectorizing later stages."""
+
+    if stage not in {"source", "threshold", "edges", "style"}:
+        raise ValueError("Interactive stage must be source, threshold, edges, or style.")
+    requested_quality = str(_stage_form_value(form, "quality", "balanced"))
+    mode = str(_stage_form_value(form, "mode", "auto"))
+    quality = "quick" if mode == "auto" and requested_quality != "best" else requested_quality
+    if quality not in _WORKING_DIMENSION:
+        raise ValueError("Unsupported quality.")
+    preprocess = ImagePreprocessConfig(
+        grayscale_mode=str(_stage_form_value(form, "grayscale_mode", "luminance")),  # type: ignore[arg-type]
+        rgb_weights=(
+            _stage_form_float(form, "rgb_red", 0.2126),
+            _stage_form_float(form, "rgb_green", 0.7152),
+            _stage_form_float(form, "rgb_blue", 0.0722),
+        ),
+        exposure_ev=_stage_form_float(form, "exposure_ev", 0.0),
+        brightness=_stage_form_float(form, "brightness", 0.0),
+        contrast=_stage_form_float(form, "contrast", 1.0),
+        gamma=_stage_form_float(form, "gamma", 1.0),
+        black_point=_stage_form_int(form, "black_point", 0),
+        white_point=_stage_form_int(form, "white_point", 255),
+        auto_levels=_stage_form_bool(form, "auto_levels", True),
+        histogram_equalize=_stage_form_bool(form, "histogram_equalize"),
+        clahe_clip_limit=_stage_form_float(form, "clahe_clip_limit", 0.0),
+        gaussian_blur_radius_px=_stage_form_float(form, "gaussian_blur_radius_px", 0.0),
+        median_radius_px=_stage_form_int(form, "median_radius_px", 0),
+        despeckle_radius_px=_stage_form_int(form, "despeckle_radius_px", 0),
+        background_mode=("keep" if str(_stage_form_value(form, "background_mode", "suppress")) == "none" else str(_stage_form_value(form, "background_mode", "suppress"))),  # type: ignore[arg-type]
+        background_radius_px=_stage_form_float(form, "background_radius_px", 24.0),
+        background_strength=_stage_form_float(form, "background_strength", 1.0),
+        max_dimension_px=_AUTO_WORKING_DIMENSION[quality] if mode == "auto" else _WORKING_DIMENSION[quality],
+    )
+    started = time.perf_counter()
+    normalized = preprocess_image(source, preprocess)
+    timings = {"grayscale": round(time.perf_counter() - started, 4)}
+    if stage == "source":
+        return {
+            "stage": stage,
+            "stages": {"corrected": _png_data_uri(normalized.gray)},
+            "metadata": {**normalized.metadata, "studio_stage_seconds": timings},
+        }
+
+    understanding = ImageUnderstandingConfig(
+        edge_method=str(_stage_form_value(form, "edge_method", "multiscale_canny")),  # type: ignore[arg-type]
+        detail_level=str(_stage_form_value(form, "detail", "high")),  # type: ignore[arg-type]
+        edge_low=_stage_form_float(form, "edge_low", 0.10),
+        edge_high=_stage_form_float(form, "edge_high", 0.24),
+        tonal_bands=_parse_tonal_bands(str(_stage_form_value(form, "tonal_bands", "42,84,126,168,210"))),
+        min_region_px=max(1, _stage_form_int(form, "min_component_px", 8)),
+        compute_edges=stage == "edges" or (stage == "style" and _style_needs_edges(
+            mode, str(_stage_form_value(form, "style", "refined_pen_sketch")), include_outline=_stage_form_bool(form, "include_outline", True)
+        )),
+    )
+    started = time.perf_counter()
+    analysis = analyze_image(source, preprocess=preprocess, understanding=understanding)
+    analysis = _apply_threshold_and_component_cleanup(
+        analysis,
+        threshold_mode=str(_stage_form_value(form, "threshold_mode", "otsu")),
+        threshold_value=str(_stage_form_value(form, "threshold_value", "")),
+        threshold_invert=_stage_form_bool(form, "threshold_invert"),
+        threshold_window_px=_stage_form_int(form, "threshold_window_px", 31),
+        threshold_offset=_stage_form_float(form, "threshold_offset", 5.0),
+        min_component_px=_stage_form_int(form, "min_component_px", 8),
+    )
+    timings["threshold" if stage == "threshold" else "edges"] = round(time.perf_counter() - started, 4)
+    stages = {
+        "corrected": _png_data_uri(analysis.gray),
+        "mask": _mask_data_uri(analysis.foreground_mask),
+    }
+    if stage == "edges":
+        stages["edges"] = _mask_data_uri(analysis.selected_edges)
+    if stage == "style":
+        max_strokes, max_points = _effective_art_limits(
+            _stage_form_int(form, "artistic_stroke_limit", _DEFAULT_ART_STROKES),
+            _stage_form_int(form, "artistic_point_limit", _DEFAULT_ART_POINTS),
+            _stage_form_bool(form, "bypass_artistic_limit"),
+        )
+        style = str(_stage_form_value(form, "style", "refined_pen_sketch"))
+        if mode == "auto":
+            artistic = optimize_analysis(
+                analysis,
+                AutoOptimizeConfig(
+                    quality=quality,
+                    max_output_strokes=max_strokes,
+                    max_output_points=max_points,
+                    max_skeleton_iterations=64 if quality == "quick" else 256,
+                ),
+            )
+            raw = artistic.polylines
+            artistic_meta = artistic.metadata
+        elif mode == "line_art":
+            artistic = render_line_art_from_analysis(
+                analysis,
+                LineArtConfig(
+                    style=style,
+                    max_output_strokes=max_strokes,
+                    max_output_points=max_points,
+                    max_skeleton_iterations=_stage_form_int(form, "max_skeleton_iterations", 256),
+                    edge_threshold=_stage_form_float(form, "style_edge_threshold", 0.58),
+                    strong_edge_threshold=_stage_form_float(form, "style_strong_edge_threshold", 0.72),
+                    tone_threshold=_stage_form_int(form, "style_tone_threshold", 170),
+                    dilation_passes=_stage_form_int(form, "style_dilation_passes", 1),
+                ),
+            )
+            raw = artistic.polylines
+            artistic_meta = artistic.metadata
+        else:
+            outline_style = str(_stage_form_value(form, "outline_style", "refined_pen_sketch"))
+            artistic = render_pen_shading_from_analysis(
+                analysis,
+                PenShadingConfig(
+                    style=style,
+                    include_outline=_stage_form_bool(form, "include_outline", True),
+                    outline_style=outline_style,
+                    hatch_spacing_px=_stage_form_float(form, "hatch_spacing_px", 5.0),
+                    darkness_threshold=_stage_form_float(form, "darkness_threshold", 0.22),
+                    min_stroke_length_px=_stage_form_float(form, "shading_min_stroke_px", 1.25),
+                    max_output_strokes=max_strokes,
+                    max_output_points=max_points,
+                    seed=_stage_form_int(form, "shading_seed", 0),
+                    angle_offset_deg=_stage_form_float(form, "shading_angle_offset_deg", 0.0),
+                    density_scale=_stage_form_float(form, "shading_density_scale", 1.0),
+                    outline_join_distance_px=_stage_form_float(form, "shading_outline_join_distance_px", 0.0),
+                ),
+            )
+            raw = artistic.polylines
+            artistic_meta = artistic.metadata
+        placed = place_on_page(raw, PageConfig(), LayoutConfig(fit_mode="fit"), MachineConfig())
+        stages["edges"] = _mask_data_uri(analysis.selected_edges) if not analysis.metadata.get("edge_analysis_skipped") else ""
+        return {
+            "stage": stage,
+            "preview_svg": preview_svg(placed, PageConfig(), MachineConfig()),
+            "stages": stages,
+            "metadata": {**analysis.metadata, **artistic_meta, "artistic_strokes": len(raw), "studio_stage_seconds": timings},
+        }
+    return {
+        "stage": stage,
+        "stages": stages,
+        "metadata": {**analysis.metadata, "studio_stage_seconds": timings},
+    }
 
 
 def _style_needs_edges(mode: str, style: str, *, include_outline: bool) -> bool:

@@ -7,7 +7,10 @@ single source for both preview SVG and G-code after the optional final-size tran
 from __future__ import annotations
 
 import math
+import hashlib
+import tempfile
 import time
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
@@ -175,7 +178,7 @@ def studio2() -> str:
     html = html.replace('<button id="generate">Generate drawing</button>', '<button id="generate" style="display:none">Generate drawing</button>')
     html = html.replace(
         '</style></head>',
-        '.control-section{margin-top:10px;border:1px solid #e2e2e2;border-radius:9px;background:#fff;overflow:hidden}.control-section>summary{padding:10px;cursor:pointer;font-size:14px;font-weight:700;list-style-position:inside}.control-section>summary:hover{background:#f7f7f7}.control-section>.group{margin:0;border:0;border-top:1px solid #eee;border-radius:0}.control-section[hidden]{display:none}.floating-actions{position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:8px;padding:10px;background:rgba(255,255,255,.96);border:1px solid #d5d5d5;border-radius:12px;box-shadow:0 5px 22px rgba(0,0,0,.14)}.floating-actions button{width:auto;min-width:112px;margin:0}.floating-actions button.primary{background:#111;color:#fff;border-color:#111}.studio-step-shell{display:grid;grid-template-columns:190px minmax(360px,460px) minmax(0,1fr);gap:16px;align-items:start}.studio-step-shell>.step-rail{position:sticky;top:16px}.step-rail{display:flex;flex-direction:column;gap:6px}.process-tab{text-align:left;margin:0;padding:12px;border:1px solid #ddd;background:#fff;border-radius:9px;font-size:13px}.process-tab strong{display:block;font-size:13px}.process-tab span{display:block;color:#777;font-size:11px;font-weight:400;margin-top:3px}.process-tab.active{background:#111;color:#fff;border-color:#111}.process-tab.active span{color:#ddd}.step-controls{min-width:0}.step-controls>.step-panel{display:none}.step-controls>.step-panel.active{display:block}.step-panel{background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px}.step-panel>h2{margin:0 0 4px;font-size:18px}.step-panel>p{margin:0 0 14px;color:#666;font-size:12px}.step-panel>.group,.step-panel>.control-section{margin-top:12px}.step-panel>#advancedToggle,.step-panel>#advanced{display:none}.step-visuals{min-width:0}.step-visual{display:none;background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px}.step-visual.active{display:block}.step-visual h2{margin:0 0 4px;font-size:18px}.step-visual .visual-subtitle{color:#666;font-size:12px;margin-bottom:14px}.before-after{display:grid;grid-template-columns:1fr 1fr;gap:12px}.before-after .pane{min-height:360px}.before-after .pane h3{font-size:13px}.before-after .pane img,.before-after .pane svg{height:320px}.step-visual pre{max-height:180px}.step-visual .placeholder{height:320px}.step-visuals .stage-tabs,.step-visuals+.card{display:none}.studio-step-shell>.step-controls>.card{box-shadow:none}.step-actions{margin-top:14px}.step-actions button{margin-top:0}.legacy-preview{display:none!important}@media(max-width:1000px){.studio-step-shell{grid-template-columns:150px minmax(320px,1fr)}.step-visuals{grid-column:1 / -1;grid-row:2}.studio-step-shell>.step-controls{grid-column:2}.studio-step-shell>.step-rail{grid-column:1;grid-row:1}.before-after .pane{min-height:280px}.before-after .pane img,.before-after .pane svg,.step-visual .placeholder{height:240px}}@media(max-width:700px){.studio-step-shell{display:block}.studio-step-shell>.step-rail{position:static;display:grid;grid-template-columns:1fr 1fr;margin-bottom:10px}.process-tab{padding:9px}.step-controls{margin-bottom:12px}.before-after{grid-template-columns:1fr}.before-after .pane{min-height:220px}.before-after .pane img,.before-after .pane svg,.step-visual .placeholder{height:220px}}\n</style></head>',
+        '.control-section{margin-top:10px;border:1px solid #e2e2e2;border-radius:9px;background:#fff;overflow:hidden}.control-section>summary{padding:10px;cursor:pointer;font-size:14px;font-weight:700;list-style-position:inside}.control-section>summary:hover{background:#f7f7f7}.control-section>.group{margin:0;border:0;border-top:1px solid #eee;border-radius:0}.control-section[hidden]{display:none}.floating-actions{position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:8px;padding:10px;background:rgba(255,255,255,.96);border:1px solid #d5d5d5;border-radius:12px;box-shadow:0 5px 22px rgba(0,0,0,.14)}.floating-actions button{width:auto;min-width:112px;margin:0}.floating-actions button.primary{background:#111;color:#fff;border-color:#111}.studio-step-shell{display:grid;grid-template-columns:190px minmax(360px,460px) minmax(0,1fr);gap:16px;align-items:start}.studio-step-shell>.step-rail{position:sticky;top:16px}.step-rail{display:flex;flex-direction:column;gap:6px}.process-tab{text-align:left;margin:0;padding:12px;border:1px solid #ddd;background:#fff;border-radius:9px;font-size:13px}.process-tab strong{display:block;font-size:13px}.process-tab span{display:block;color:#777;font-size:11px;font-weight:400;margin-top:3px}.process-tab.active{background:#111;color:#fff;border-color:#111}.process-tab.active span{color:#ddd}.step-controls{min-width:0}.step-controls>.step-panel{display:none}.step-controls>.step-panel.active{display:block}.step-panel{background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px}.step-panel>h2{margin:0 0 4px;font-size:18px}.step-panel>p{margin:0 0 14px;color:#666;font-size:12px}.step-generate{margin:0;background:#111;color:#fff;border-color:#111}.step-stage-status{min-height:18px;margin-top:8px;color:#666;font-size:12px}.step-panel>.group,.step-panel>.control-section{margin-top:12px}.step-panel>#advancedToggle,.step-panel>#advanced{display:none}.step-visuals{min-width:0}.step-visual{display:none;background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px}.step-visual.active{display:block}.step-visual h2{margin:0 0 4px;font-size:18px}.step-visual .visual-subtitle{color:#666;font-size:12px;margin-bottom:14px}.before-after{display:grid;grid-template-columns:1fr 1fr;gap:12px}.before-after .pane{min-height:360px}.before-after .pane h3{font-size:13px}.before-after .pane img,.before-after .pane svg{height:320px}.step-visual pre{max-height:180px}.step-visual .placeholder{height:320px}.step-visuals .stage-tabs,.step-visuals+.card{display:none}.studio-step-shell>.step-controls>.card{box-shadow:none}.step-actions{margin-top:14px}.step-actions button{margin-top:0}.legacy-preview{display:none!important}@media(max-width:1000px){.studio-step-shell{grid-template-columns:150px minmax(320px,1fr)}.step-visuals{grid-column:1 / -1;grid-row:2}.studio-step-shell>.step-controls{grid-column:2}.studio-step-shell>.step-rail{grid-column:1;grid-row:1}.before-after .pane{min-height:280px}.before-after .pane img,.before-after .pane svg,.step-visual .placeholder{height:240px}}@media(max-width:700px){.studio-step-shell{display:block}.studio-step-shell>.step-rail{position:static;display:grid;grid-template-columns:1fr 1fr;margin-bottom:10px}.process-tab{padding:9px}.step-controls{margin-bottom:12px}.before-after{grid-template-columns:1fr}.before-after .pane{min-height:220px}.before-after .pane img,.before-after .pane svg,.step-visual .placeholder{height:220px}}\n</style></head>',
     )
     pre_script = r'''<script>
 window.__studioLast=null;
@@ -213,7 +216,8 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
     rail.appendChild(tab);
     const panel=document.createElement('section');
     panel.className='step-panel';panel.dataset.stepPanel=id;
-    panel.innerHTML='<h2>'+title+'</h2><p>'+description+'</p>';
+    const action=(id==='source'||id==='threshold'||id==='edges'||id==='style')?'<button type="button" class="step-generate" data-stage-action="'+id+'">Generate '+(id==='source'?'grayscale':id==='threshold'?'black & white':id==='edges'?'edges':'style')+'</button><div class="step-stage-status" aria-live="polite"></div>':'';
+    panel.innerHTML='<h2>'+title+'</h2><p>'+description+'</p>'+action;
     form.appendChild(panel);panels[id]=panel;
   }
   const directBlock=(selector)=>{
@@ -279,9 +283,35 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const preview=content('preview');
   const mirror=new MutationObserver(()=>{machinePreview.className=preview.className;machinePreview.innerHTML=preview.innerHTML;machineInput.className=preview.className;machineInput.innerHTML=preview.innerHTML;});
   mirror.observe(preview,{childList:true,subtree:true,attributes:true,characterData:true});
+  const order=definitions.map(item=>item[0]);
+  const completed={source:false,threshold:false,edges:false,style:false,machine:false};
+  window.__studioStepReady=false;
+  const setStage=(id,uri,message)=>{const target=document.getElementById(id);if(!target)return;target.innerHTML='';if(!uri){target.className='placeholder';target.textContent=message||'This stage has not been generated.';return;}target.className='';const image=document.createElement('img');image.src=uri;target.appendChild(image);};
+  const setSvg=(id,markup,message)=>{const target=document.getElementById(id);if(!target)return;target.innerHTML=markup||'';if(!markup){target.className='placeholder';target.textContent=message||'This stage has not been generated.';return;}target.className='';};
+  const clearOutputsFrom=(step)=>{const index=order.indexOf(step);if(index<=0)setStage('corrected','', 'Generate grayscale to see the result.');if(index<=1)setStage('mask','', 'Generate black & white to see the result.');if(index<=2)setStage('edges','', 'Generate edges to see the result.');if(index<=3){setStage('preview','', 'Generate style paths to see the result.');setStage('machineInput','', 'Generate style paths to see the result.');setStage('machinePreview','', 'Generate the final machine output.');}};
+  const canOpen=(id)=>{const index=order.indexOf(id);return index===0||completed[order[index-1]];};
+  const syncSteps=()=>{rail.querySelectorAll('.process-tab').forEach(tab=>{const allowed=canOpen(tab.dataset.step);tab.disabled=!allowed;tab.setAttribute('aria-disabled',allowed?'false':'true');});window.__studioStepReady=completed.style;window.dispatchEvent(new Event('studio-step-ready'));const floating=document.getElementById('floatingGenerate');if(floating&&!document.getElementById('generate').disabled)floating.disabled=!completed.style;};
+  const invalidate=(step)=>{const index=order.indexOf(step);for(let i=index;i<order.length;i++)completed[order[i]]=false;clearOutputsFrom(step);syncSteps();if(!canOpen(document.querySelector('.process-tab.active')?.dataset.step||'source'))select(step);};
+  form.addEventListener('change',event=>{const panel=event.target.closest&&event.target.closest('.step-panel');if(panel)invalidate(panel.dataset.stepPanel);});
+  const runStage=async(stage,button)=>{
+    if(!document.getElementById('file')?.files?.length){button.nextElementSibling.textContent='Choose an image first.';return;}
+    button.disabled=true;button.nextElementSibling.textContent='Processing '+stage+'…';
+    const fd=new FormData(form);fd.set('stage',stage);if(document.getElementById('mode')?.value==='auto')fd.set('style','');
+    form.querySelectorAll('input[type="checkbox"]').forEach(input=>fd.set(input.name,input.checked?'true':'false'));
+    for(const name of ['style_simplify_tolerance_px','style_smooth_passes','style_join_distance_px'])if(String(fd.get(name)||'').trim()==='')fd.set(name,'-1');
+    try{const response=await fetch('/api/studio2/stage',{method:'POST',body:fd});const body=await response.json();if(!response.ok)throw new Error(body.detail||'Stage processing failed.');
+      if(stage==='source')setStage('corrected',body.stages.corrected);if(stage==='threshold'){setStage('corrected',body.stages.corrected);setStage('mask',body.stages.mask);}if(stage==='edges'){setStage('mask',body.stages.mask);setStage('edges',body.stages.edges);}if(stage==='style'){setStage('edges',body.stages.edges,'Edges are not required for this style.');setSvg('preview',body.preview_svg,'Generate style paths to see the result.');}
+      completed[stage]=true;button.nextElementSibling.textContent='Complete. You can continue to the next step.';syncSteps();
+    }catch(error){button.nextElementSibling.textContent=error instanceof Error?error.message:String(error);}finally{button.disabled=false;}
+  };
+  panels.source.querySelector('[data-stage-action="source"]').onclick=event=>runStage('source',event.currentTarget);
+  panels.threshold.querySelector('[data-stage-action="threshold"]').onclick=event=>runStage('threshold',event.currentTarget);
+  panels.edges.querySelector('[data-stage-action="edges"]').onclick=event=>runStage('edges',event.currentTarget);
+  panels.style.querySelector('[data-stage-action="style"]').onclick=event=>runStage('style',event.currentTarget);
+  document.getElementById('file')?.addEventListener('change',()=>invalidate('source'));
   const select=(id)=>{document.querySelectorAll('.process-tab').forEach(tab=>{const active=tab.dataset.step===id;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',active?'true':'false');});Object.values(panels).forEach(panel=>panel.classList.toggle('active',panel.dataset.stepPanel===id));document.querySelectorAll('.step-visual').forEach(visual=>visual.classList.toggle('active',visual.dataset.stepVisual===id));};
   rail.querySelectorAll('.process-tab').forEach(tab=>tab.addEventListener('click',()=>select(tab.dataset.step)));
-  select('source');
+  syncSteps();select('source');
 })();
 </script>
 '''
@@ -302,8 +332,11 @@ const keepAspect=document.getElementById('keepAspect');
 function updateSizeMode(){const natural=sizeMode.value==='natural';targetWidth.disabled=natural;targetHeight.disabled=natural;keepAspect.disabled=natural;}
 sizeMode.addEventListener('change',updateSizeMode);updateSizeMode();
 floatingGenerate.onclick=()=>document.getElementById('f').requestSubmit();
-const observer=new MutationObserver(()=>{const busy=document.getElementById('generate').disabled;floatingGenerate.disabled=busy;const ready=!!window.__studioLast&&!busy;saveSvg.disabled=!ready;saveGcode.disabled=!ready;});
+const syncActions=()=>{const busy=document.getElementById('generate').disabled;const pipelineReady=window.__studioStepReady!==false;floatingGenerate.disabled=busy||!pipelineReady;const ready=!!window.__studioLast&&!busy;saveSvg.disabled=!ready;saveGcode.disabled=!ready;};
+const observer=new MutationObserver(syncActions);
 observer.observe(document.getElementById('status'),{childList:true,subtree:true,characterData:true,attributes:true});
+window.addEventListener('studio-step-ready',syncActions);
+syncActions();
 async function saveText(name,text,type){const blob=new Blob([text],{type});if(window.showSaveFilePicker){try{const handle=await window.showSaveFilePicker({suggestedName:name,types:[{description:type,accept:{[type]:[name.endsWith('.svg')?'.svg':'.gcode']}}]});const writable=await handle.createWritable();await writable.write(blob);await writable.close();return;}catch(e){if(e&&e.name==='AbortError')return;}}const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
 saveSvg.onclick=()=>{const j=window.__studioLast;if(j)saveText('printrbot-drawing.svg',j.preview_svg,'image/svg+xml');};
 saveGcode.onclick=()=>{const j=window.__studioLast;if(j)saveText('printrbot-drawing.gcode',j.gcode,'text/plain');};
@@ -311,6 +344,44 @@ saveGcode.onclick=()=>{const j=window.__studioLast;if(j)saveText('printrbot-draw
 '''
     html = html.replace('</body></html>', step_editor + floating + '</body></html>')
     return html
+
+
+@router.post("/api/studio2/stage")
+async def render_studio2_stage(request: Request) -> dict[str, object]:
+    form = await request.form()
+    upload = form.get("file")
+    if not isinstance(upload, UploadFile):
+        raise HTTPException(400, "A source image is required.")
+    stage = _str(form, "stage", "source")
+    data = await upload.read(legacy.MAX_UPLOAD_BYTES + 1)
+    if not data:
+        raise HTTPException(400, "Uploaded image is empty.")
+    if len(data) > legacy.MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Image exceeds the 20 MiB studio upload limit.")
+    suffix = Path(upload.filename or "upload.png").suffix or ".png"
+    try:
+        with tempfile.TemporaryDirectory(prefix="printrbot-studio2-stage-") as directory:
+            source = Path(directory) / f"source{suffix}"
+            source.write_bytes(data)
+            result = await legacy.run_in_threadpool(
+                legacy.render_studio2_stage,
+                source,
+                stage=stage,
+                form=form,
+            )
+    except (ValueError, RuntimeError, FileNotFoundError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    metadata = dict(result.get("metadata", {}))
+    metadata.update(
+        {
+            "studio_schema": "printrbot-studio2/stage-v1",
+            "source_filename": upload.filename,
+            "source_sha256": hashlib.sha256(data).hexdigest(),
+            "stage": stage,
+        }
+    )
+    result["metadata"] = metadata
+    return result
 
 
 @router.post("/api/studio2/render")
