@@ -50,9 +50,9 @@ def main() -> int:
         coords = offsets_to_coords(offsets)
         coords = denoise(coords)
         coords[:, :2] = align(coords[:, :2])
-        # Keep the model's mathematical Y orientation.  The shared Printrbot
-        # preview and machine layout flip Y once when they map it to SVG/page
-        # coordinates; flipping here as well mirrors the handwriting.
+        # The Graves checkpoint emits image-style coordinates (Y grows down).
+        # Declare that contract in the worker response; the shared client
+        # converts it once to Printrbot's Cartesian machine coordinates.
         current: list[list[float]] = []
         for point, eos in zip(coords, coords[:, 2]):
             current.append([float(point[0]), float(point[1])])
@@ -63,7 +63,14 @@ def main() -> int:
         if len(current) >= 2:
             strokes.append(current)
 
-    json.dump({"backend": "graves-rnn", "strokes": strokes}, sys.stdout)
+    json.dump(
+        {
+            "backend": "graves-rnn",
+            "coordinate_system": "image-y-down",
+            "strokes": strokes,
+        },
+        sys.stdout,
+    )
     return 0
 
 

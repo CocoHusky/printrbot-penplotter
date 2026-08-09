@@ -22,6 +22,16 @@ def _worker(path: Path) -> None:
     )
 
 
+def _image_y_worker(path: Path) -> None:
+    path.write_text(
+        "import json, sys\n"
+        "json.load(sys.stdin)\n"
+        "json.dump({'backend': 'image-y-test', 'coordinate_system': 'image-y-down', "
+        "'strokes': [[[0, 2], [1, 3], [2, 2]]]}, sys.stdout)\n",
+        encoding="utf-8",
+    )
+
+
 def test_neural_worker_protocol_returns_shared_polylines(tmp_path: Path) -> None:
     worker = tmp_path / "worker.py"
     _worker(worker)
@@ -31,6 +41,17 @@ def test_neural_worker_protocol_returns_shared_polylines(tmp_path: Path) -> None
     )
     assert strokes == [[(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)]]
     assert metadata["writing_backend"] == "test-neural"
+
+
+def test_neural_worker_normalizes_image_y_down_coordinates(tmp_path: Path) -> None:
+    worker = tmp_path / "image-y-worker.py"
+    _image_y_worker(worker)
+    strokes, metadata = generate_neural_trajectories(
+        "hello",
+        config=NeuralWritingConfig(command=str(worker)),
+    )
+    assert strokes == [[(0.0, -2.0), (1.0, -3.0), (2.0, -2.0)]]
+    assert metadata["neural_coordinate_system"] == "image-y-down"
 
 
 def test_neural_backend_flows_through_layout_and_gcode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

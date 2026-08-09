@@ -67,6 +67,12 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError("Neural handwriting worker returned invalid JSON.") from exc
+    coordinate_system = payload.get("coordinate_system", "cartesian-y-up")
+    if coordinate_system not in {"cartesian-y-up", "image-y-down"}:
+        raise RuntimeError(
+            "Neural handwriting worker returned an unsupported coordinate system: "
+            f"{coordinate_system!r}."
+        )
     strokes: Polylines = []
     for raw_stroke in payload.get("strokes", []):
         if not isinstance(raw_stroke, list) or len(raw_stroke) < 2:
@@ -75,13 +81,19 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
         for raw_point in raw_stroke:
             if not isinstance(raw_point, list) or len(raw_point) != 2:
                 raise RuntimeError("Neural handwriting worker returned an invalid point.")
-            stroke.append((float(raw_point[0]), float(raw_point[1])))
+            x, y = float(raw_point[0]), float(raw_point[1])
+            # Worker trajectories are Cartesian by default for backwards
+            # compatibility. Graves reports image coordinates explicitly;
+            # normalize those here so preview SVG and G-code share one
+            # upright machine-space orientation.
+            stroke.append((x, -y if coordinate_system == "image-y-down" else y))
         if len(stroke) >= 2:
             strokes.append(stroke)
     if not strokes:
         raise RuntimeError("Neural handwriting worker returned no drawable strokes.")
     return strokes, {
         "writing_backend": payload.get("backend", "neural"),
+        "neural_coordinate_system": coordinate_system,
         "neural_style": config.style,
         "neural_bias": config.bias,
     }
