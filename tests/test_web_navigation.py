@@ -7,14 +7,16 @@ client = TestClient(app)
 
 
 def test_unified_tool_navigation_is_present_on_each_workspace() -> None:
-    for path, active in (("/", "Write notes"), ("/raster", "Image trace"), ("/studio2", "Art workflow")):
+    for path, active in (("/", "Test"), ("/raster", "Test"), ("/studio2", "Art")):
         response = client.get(path)
         assert response.status_code == 200
         text = response.text
         assert 'aria-label="Printrbot tools"' in text
+        assert text.count('class="app-tabs"') == 1
+        assert "Image trace" not in text
         assert 'href="/"' in text
-        assert 'href="/raster"' in text
         assert 'href="/studio2"' in text
+        assert text.count('href="/') == 2
         assert active in text
         assert 'id="printrbot-lab-theme"' in text
 

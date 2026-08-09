@@ -103,7 +103,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </style>
 </head>
 <body><main>
-<nav class="app-tabs" aria-label="Printrbot tools"><a class="active" href="/">Write notes</a><a href="/raster">Image trace</a><a href="/studio2">Art workflow</a></nav>
+<nav class="app-tabs" aria-label="Printrbot tools"><a class="active" href="/">Test</a><a href="/studio2">Art</a></nav>
 <h1>Write notes for the plotter</h1>
 <p>Choose a human writing style, write your note, preview the exact strokes, then move to image or art workflows without leaving the app.</p>
 <p class="workflow-hint"><strong>Simple flow:</strong> 1. Write your note → 2. Choose the lettering → 3. Generate the preview → 4. Export G-code.</p>
