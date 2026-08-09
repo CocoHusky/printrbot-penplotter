@@ -26,3 +26,5 @@ def test_notes_workspace_has_local_draft_and_human_preset_controls() -> None:
     assert "Cursive notes" in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
+    assert "STEP 1" in text and "STEP 2" in text and "STEP 3" in text
+    assert 'id="neuralControls"' in text

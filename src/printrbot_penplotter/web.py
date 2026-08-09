@@ -106,11 +106,14 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <nav class="app-tabs" aria-label="Printrbot tools"><a class="active" href="/">Write notes</a><a href="/raster">Image trace</a><a href="/studio2">Art workflow</a></nav>
 <h1>Write notes for the plotter</h1>
 <p>Choose a human writing style, write your note, preview the exact strokes, then move to image or art workflows without leaving the app.</p>
-<p class="workflow-hint"><strong>Simple flow:</strong> 1. Write or edit your note → 2. Choose a style → 3. Render preview → 4. Download G-code.</p>
+<p class="workflow-hint"><strong>Simple flow:</strong> 1. Write your note → 2. Choose the lettering → 3. Generate the preview → 4. Export G-code.</p>
 <div class="grid">
-<section class="card">
+<section class="card workflow-card">
+<div class="workflow-step"><div class="step-kicker">STEP 1</div><h2>Write your note</h2>
 <label for="text">Text</label>
 <textarea id="text">Today I need to remember:</textarea>
+</div>
+<div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
 <div class="row">
   <div><label for="preset">Writing style</label><select id="preset" onchange="applyPreset()"><option value="human">Natural notes</option><option value="cursive">Cursive notes</option><option value="clean">Clean print</option><option value="robot">Technical mono</option></select></div>
   <div><label for="fontSize">Cap height (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
@@ -120,10 +123,9 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
   <div><label for="strokeFont">Stroke font</label><select id="strokeFont"><option>hand</option><option>robot</option></select></div>
 </div>
 <div class="row">
-  <div><label for="writingBackend">Writing backend</label><select id="writingBackend"><option value="stroke">Authored stroke font</option><option value="neural">Neural trajectory (Graves)</option></select></div>
-  <div><label for="neuralStyle">Neural style (0–12)</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div>
+  <div><label for="writingBackend">Generation method</label><select id="writingBackend"><option value="stroke">Authored plotter lettering</option><option value="neural" disabled>Neural handwriting (optional)</option></select><div id="neuralStatus" class="hint">Fast authored lettering is ready. Neural handwriting requires the optional model worker.</div></div>
 </div>
-<label for="neuralBias">Neural neatness / bias (0–1)</label><input id="neuralBias" type="number" value="0.75" min="0" max="1" step="0.05">
+<details id="neuralControls"><summary>Optional neural handwriting controls</summary><div class="row"><div><label for="neuralStyle">Neural style (0–12)</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness / bias (0–1)</label><input id="neuralBias" type="number" value="0.75" min="0" max="1" step="0.05"></div></div></details>
 <div class="row">
   <div><label for="variantMode">Glyph variants</label><select id="variantMode"><option value="seeded">Seeded</option><option value="cycle">Cycle</option><option value="first">First only</option></select></div>
   <div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div>
@@ -137,6 +139,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
   <div><label for="wordSpacing">Word spacing (em)</label><input id="wordSpacing" type="number" value="0.42" step="0.02"></div>
 </div>
 <div class="check"><input id="connectLetters" type="checkbox"><label for="connectLetters" style="margin:0">Join letters when glyph anchors permit</label></div>
+</div>
 <details>
 <summary>Outline compatibility and custom font paths</summary>
 <label for="font">Outline font family</label><input id="font" value="DejaVu Sans">
@@ -157,11 +160,13 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
   <div><label for="originY">Page origin Y (mm)</label><input id="originY" type="number" value="0"></div>
 </div>
 </details>
+<div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
 <div class="check"><input id="airPlot" type="checkbox"><label for="airPlot" style="margin:0">Generate air plot (never lower pen)</label></div>
 <button id="renderButton" onclick="renderJob()">Render writing preview</button>
 <button class="secondary" onclick="saveNote()">Save note locally</button>
 <button class="safe" onclick="renderCalibration()">Generate 10 mm air calibration</button>
 <button id="downloadButton" class="secondary" onclick="downloadGcode()" disabled>Download G-code</button>
+</div>
 <div class="status" id="status" role="status" aria-live="polite">Example loaded. Edit your note, then render a new preview.</div>
 <pre id="meta"></pre>
 </section>
@@ -235,6 +240,15 @@ function downloadGcode(){
  const blob=new Blob([latestGcode],{type:'text/plain'});
  const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download='plot.gcode'; link.click(); URL.revokeObjectURL(link.href);
 }
+function syncNeuralState(available){
+ const select=byId('writingBackend'), option=select.querySelector('option[value="neural"]'), controls=byId('neuralControls'), hint=byId('neuralStatus');
+ option.disabled=!available;
+ if(!available && select.value==='neural') select.value='stroke';
+ controls.open=select.value==='neural';
+ hint.textContent=available?'Optional neural worker is ready. It is slower but generates variable model-based trajectories.':'Optional neural handwriting is not configured on this server; authored plotter lettering is ready now.';
+ select.onchange=()=>{controls.open=select.value==='neural';};
+}
+fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
 applyPreset();
 </script>
 </main></body></html>"""
@@ -312,6 +326,14 @@ def fonts() -> dict[str, object]:
             for name in available_stroke_fonts()
         ]
     }
+
+
+@app.get("/api/handwriting/status")
+def handwriting_status() -> dict[str, bool]:
+    """Tell the notes UI whether the optional neural worker is configured."""
+    worker = os.environ.get("PRINTRBOT_HANDWRITING_WORKER", "").strip()
+    available = bool(worker) and (not worker.endswith(".py") or os.path.isfile(worker))
+    return {"neural_available": available}
 
 
 @app.post("/api/render")
