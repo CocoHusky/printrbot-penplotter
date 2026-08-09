@@ -41,6 +41,9 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Black & white" in text
     assert "Edge extraction" in text
     assert "Style & vectorization" in text
+    assert "Style examples" in text
+    assert "exampleSvg" in text
+    assert "style-example-grid" in text
     assert "Machine & export" in text
     assert "Choose the recipe first" in text
     assert "needsThreshold" in text

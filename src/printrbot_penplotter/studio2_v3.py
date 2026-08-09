@@ -280,6 +280,30 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   moveGroupSelector('[name="edge_method"]','edges');
   ['#mode','#style','[name="quality"]','[name="detail"]'].forEach(selector=>moveField(selector,'style'));
   ['lineArtAdvanced','shadingAdvanced','geometryLimits'].forEach(id=>moveGroup(id,'style'));
+  const exampleDescriptions={
+    minimal_outline:'Few clean contours',clean_outline:'Smooth subject outline',detailed_outline:'Outline plus details',continuous_contour:'Flowing contour lines',one_line_art:'Single connected drawing',loose_sketch:'Loose expressive marks',refined_pen_sketch:'Balanced pen sketch',pet_portrait:'Pet-focused portrait',portrait:'Face and form study',comic_ink:'Bold ink contours',architectural_pen:'Structured technical lines',technical_drawing:'Precise high-contrast lines',silhouette:'Solid shape boundaries',topographic:'Grayscale tone contours',
+    parallel_hatch:'Even directional hatch',crosshatch:'Crossed hatch shading',dense_crosshatch:'Dense dark hatch',curved_hatch:'Curved form-following hatch',contour_hatch:'Contours that wrap the form',directional_hatch:'Directional texture',scribble:'Loose scribble texture',stipple:'Dot-based shading',pointillism:'Fine tonal dots',halftone:'Screen-like dot pattern',engraving:'Fine engraved lines',etching:'Irregular etched marks',woodcut:'Bold carved texture',scratchboard:'Scratchboard highlights',fur_texture:'Short fur strokes',hair_texture:'Directional hair strokes'
+  };
+  const exampleSvg=(name,kind)=>{
+    const base='<path d="M24 61 C24 44 31 35 39 31 L43 18 L49 29 C57 26 67 26 75 29 L81 18 L85 32 C94 37 99 47 98 61" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M39 47 Q45 42 51 47 M71 47 Q77 42 83 47 M54 57 Q61 62 68 57" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"/>';
+    if(name==='silhouette')return '<svg viewBox="0 0 120 76" aria-hidden="true"><rect width="120" height="76" fill="#fff"/><path d="M24 61 C24 44 31 35 39 31 L43 18 L49 29 C57 26 67 26 75 29 L81 18 L85 32 C94 37 99 47 98 61 Z" fill="#111"/></svg>';
+    if(name==='topographic')return '<svg viewBox="0 0 120 76" aria-hidden="true"><rect width="120" height="76" fill="#fff"/><g fill="none" stroke="#111" stroke-width="1.3"><ellipse cx="60" cy="43" rx="43" ry="26"/><ellipse cx="60" cy="43" rx="35" ry="21"/><ellipse cx="60" cy="43" rx="27" ry="16"/><ellipse cx="60" cy="43" rx="19" ry="11"/><ellipse cx="60" cy="43" rx="11" ry="6"/></g></svg>';
+    if(kind==='shading')return '<svg viewBox="0 0 120 76" aria-hidden="true"><defs><pattern id="p'+name.replaceAll('_','')+'" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate('+(name.includes('cross')?'45':'25')+')"><path d="M0 0V7" stroke="#111" stroke-width="1.2"/></pattern></defs><rect width="120" height="76" fill="#fff"/><path d="M24 61 C24 44 31 35 39 31 L43 18 L49 29 C57 26 67 26 75 29 L81 18 L85 32 C94 37 99 47 98 61 Z" fill="url(#p'+name.replaceAll('_','')+')" stroke="#111" stroke-width="2"/></svg>';
+    const extras=name.includes('outline')||name==='architectural_pen'||name==='technical_drawing'?'<path d="M15 66 H105 M28 66 L42 70 M78 66 L92 70" stroke="#111" stroke-width="1" fill="none"/>':'';
+    const overlay=name==='one_line_art'?'<path d="M21 63 C34 10 84 10 101 63" fill="none" stroke="#111" stroke-width="1.2"/>':name==='comic_ink'?'<path d="M22 64 Q60 70 100 64" fill="none" stroke="#111" stroke-width="4"/>':name==='loose_sketch'?'<path d="M18 62 C35 35 80 35 103 63 M20 66 C42 42 78 42 101 66" fill="none" stroke="#111" stroke-width=".9"/>':'';
+    return '<svg viewBox="0 0 120 76" aria-hidden="true"><rect width="120" height="76" fill="#fff"/>'+base+extras+overlay+'</svg>';
+  };
+  const styleExamples=document.createElement('section');
+  styleExamples.className='style-examples';
+  styleExamples.innerHTML='<h3>Style examples</h3><p>Choose a recipe to see the kind of mark it produces. These are simple previews; your uploaded image is rendered in the next step.</p><div class="style-example-grid"></div>';
+  const exampleGrid=styleExamples.querySelector('.style-example-grid');
+  for(const [kind,names] of [['line_art',lineStyles],['shading',shadingStyles]])for(const name of names){
+    const card=document.createElement('button');card.type='button';card.className='style-example';card.dataset.exampleMode=kind;card.dataset.exampleStyle=name;
+    card.innerHTML=exampleSvg(name,kind)+'<strong>'+name.replaceAll('_',' ')+'</strong><span>'+exampleDescriptions[name]+'</span>';
+    card.addEventListener('click',()=>{mode.value=kind;mode.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(()=>{style.value=name;style.dispatchEvent(new Event('change',{bubbles:true}));},0);});
+    exampleGrid.appendChild(card);
+  }
+  panels.style.insertBefore(styleExamples,panels.style.querySelector('.step-actions'));
   ['[name="pen_tip_mm"]','[name="z_up_mm"]','[name="z_down_mm"]','[name="air_plot"]','[name="home_before_plot"]'].forEach(selector=>moveField(selector,'machine'));
   moveGroup('finalSize','machine');
   ['#generate','#status','#selectedStyle'].forEach(selector=>moveField(selector,'machine'));
@@ -395,6 +419,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
 '''
     floating = r'''
 <style>
+.style-examples{margin:0 0 14px;padding:12px;border:1px solid #e2e2e2;border-radius:10px;background:#fafafa}.style-examples h3{margin:0;font-size:14px}.style-examples p{margin:4px 0 10px;color:#666;font-size:11px}.style-example-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-height:330px;overflow:auto;padding-right:2px}.style-example{display:block;padding:6px;border:1px solid #ddd;border-radius:8px;background:#fff;text-align:left;cursor:pointer}.style-example:hover,.style-example:focus{border-color:#111;box-shadow:0 0 0 2px rgba(0,0,0,.08)}.style-example svg{display:block;width:100%;height:74px;background:#fff;border-radius:5px}.style-example strong{display:block;margin-top:5px;font-size:11px}.style-example span{display:block;color:#777;font-size:10px;line-height:1.2;margin-top:2px}@media(max-width:700px){.style-example-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .step-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .step-actions button{margin-top:0}
 .step-stop{background:#fff;color:#b22;border-color:#e5aaaa}
