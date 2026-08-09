@@ -66,24 +66,28 @@ HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Printrbot Pen Plotter 0.3</title>
 <style>
-:root { font-family: system-ui, sans-serif; color-scheme: dark; }
-body { margin:0; background:#0b1017; color:#eef3f8; }
+:root { font-family: system-ui, sans-serif; color-scheme: light; }
+body { margin:0; background:#f5f2ec; color:#20211f; }
 main { width:min(1240px,calc(100% - 28px)); margin:24px auto; }
-h1 { margin-bottom:4px; } p { color:#aebdca; }
+h1 { margin-bottom:4px; letter-spacing:-.03em; } p { color:#66706d; }
+.app-tabs { display:flex; gap:6px; margin:0 0 20px; padding:5px; background:#e8e4dc; border-radius:12px; width:max-content; }
+.app-tabs a { color:#59615d; text-decoration:none; padding:9px 15px; border-radius:8px; font-weight:700; font-size:13px; }
+.app-tabs a:hover { background:#f8f6f1; color:#20211f; }
+.app-tabs a.active { background:#20211f; color:#fff; }
 .grid { display:grid; grid-template-columns:minmax(320px,430px) 1fr; gap:16px; }
-.card { background:#131b25; border:1px solid #263545; border-radius:16px; padding:16px; }
+.card { background:#fffdf9; border:1px solid #d9d4ca; border-radius:16px; padding:16px; box-shadow:0 8px 24px rgba(56,48,35,.06); }
 .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-label { display:block; margin:12px 0 5px; color:#c7d3dd; }
-textarea,input,select,button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid #34475b; padding:10px; font:inherit; }
-textarea,input,select { background:#0c131b; color:#eef3f8; }
+label { display:block; margin:12px 0 5px; color:#414844; }
+textarea,input,select,button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid #c9c5bc; padding:10px; font:inherit; }
+textarea,input,select { background:#fff; color:#20211f; }
 textarea { min-height:142px; resize:vertical; }
-button { margin-top:12px; background:#2b74ad; color:white; font-weight:700; cursor:pointer; }
-button.secondary { background:#304052; }
-button.safe { background:#276847; }
+button { margin-top:12px; background:#2d6155; color:white; font-weight:700; cursor:pointer; }
+button.secondary { background:#6c756f; }
+button.safe { background:#8a5a2b; }
 #preview { background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
 #preview svg { width:100%; height:auto; max-height:80vh; }
 pre { white-space:pre-wrap; max-height:250px; overflow:auto; color:#9ed1ff; }
-.status { min-height:24px; color:#77e2a7; margin-top:10px; }
+.status { min-height:24px; color:#2d6155; margin-top:10px; }
 .check { display:flex; align-items:center; gap:8px; margin-top:12px; }
 .check input { width:auto; }
 details { margin-top:12px; border-top:1px solid #263545; padding-top:8px; }
@@ -92,14 +96,15 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </style>
 </head>
 <body><main>
-<h1>Printrbot Pen Plotter 0.3</h1>
-<p>Native single-line writing, seeded glyph alternates, cursive joins, physical wrapping, and exact machine-space preview.</p>
+<nav class="app-tabs" aria-label="Printrbot tools"><a class="active" href="/">Write notes</a><a href="/raster">Image trace</a><a href="/studio2">Art workflow</a></nav>
+<h1>Write notes for the plotter</h1>
+<p>Choose a human writing style, write your note, preview the exact strokes, then move to image or art workflows without leaving the app.</p>
 <div class="grid">
 <section class="card">
 <label for="text">Text</label>
-<textarea id="text">Hello from Printrbot</textarea>
+<textarea id="text">Today I need to remember…</textarea>
 <div class="row">
-  <div><label for="preset">Writing style</label><select id="preset" onchange="applyPreset()"><option>human</option><option>clean</option><option>cursive</option><option>robot</option></select></div>
+  <div><label for="preset">Writing style</label><select id="preset" onchange="applyPreset()"><option value="human">Natural notes</option><option value="cursive">Cursive notes</option><option value="clean">Clean print</option><option value="robot">Technical mono</option></select></div>
   <div><label for="fontSize">Cap height (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
 </div>
 <div class="row">
@@ -141,9 +146,10 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </details>
 <div class="check"><input id="airPlot" type="checkbox"><label for="airPlot" style="margin:0">Generate air plot (never lower pen)</label></div>
 <button onclick="renderJob()">Render writing preview</button>
+<button class="secondary" onclick="saveNote()">Save note locally</button>
 <button class="safe" onclick="renderCalibration()">Generate 10 mm air calibration</button>
 <button class="secondary" onclick="downloadGcode()">Download G-code</button>
-<div class="status" id="status"></div>
+<div class="status" id="status">Your note is saved in this browser as you type.</div>
 <pre id="meta"></pre>
 </section>
 <section class="card" id="preview">Preview will appear here.</section>
@@ -151,6 +157,10 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <script>
 let latestGcode = "";
 const byId = id => document.getElementById(id);
+const noteStorageKey = 'printrbot-note-draft';
+function saveNote(){ localStorage.setItem(noteStorageKey,byId('text').value); byId('status').textContent='Note saved locally on this computer.'; }
+const savedNote=localStorage.getItem(noteStorageKey); if(savedNote)byId('text').value=savedNote;
+byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,byId('text').value);byId('status').textContent='Draft saved locally.';});
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function applyPreset(){
  const value=byId('preset').value;
