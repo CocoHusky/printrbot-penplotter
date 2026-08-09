@@ -174,6 +174,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 <script>
 let latestGcode = "";
+let renderTimer = null;
 const byId = id => document.getElementById(id);
 const noteStorageKey = 'printrbot-note-draft';
 function saveNote(){ localStorage.setItem(noteStorageKey,byId('text').value); byId('status').textContent='Note saved locally on this computer.'; }
@@ -230,10 +231,12 @@ function showJob(data){
 }
 async function renderJob(){
  const button=byId('renderButton'); button.disabled=true; byId('downloadButton').disabled=true;
- byId('status').textContent='Rendering your note…';
+ const started=Date.now();
+ const updateStatus=()=>byId('status').textContent='Rendering your note… '+((Date.now()-started)/1000).toFixed(1)+' s';
+ updateStatus(); renderTimer=setInterval(updateStatus,250);
  try { showJob(await postJson('/api/render',payload())); }
  catch(error){ latestGcode=''; byId('status').textContent='Could not render this note: '+error.message; }
- finally { button.disabled=false; }
+ finally { clearInterval(renderTimer); renderTimer=null; button.disabled=false; }
 }
 async function renderCalibration(){
  byId('status').textContent='Generating safe calibration…';
