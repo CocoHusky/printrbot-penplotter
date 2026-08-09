@@ -347,7 +347,6 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   const preview=content('preview');
   const mirror=new MutationObserver(()=>{machinePreview.className=preview.className;machinePreview.innerHTML=preview.innerHTML;machineInput.className=preview.className;machineInput.innerHTML=preview.innerHTML;});
   mirror.observe(preview,{childList:true,subtree:true,attributes:true,characterData:true});
-  const order=definitions.map(item=>item[0]);
   const stageData={source:null,threshold:null,edges:null,style:null};
   const stageStale={source:false,threshold:false,edges:false,style:false};
   window.__studioStepReady=false;
@@ -375,7 +374,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   form.addEventListener('change',event=>{const panel=event.target.closest&&event.target.closest('.step-panel');const choice=event.target.closest&&event.target.closest('.style-choice');if(!panel&&!choice)return;const field=event.target.name||'';if(choice){if(field==='mode')markStale('source');else markStale('style');syncSteps();select(field==='mode'?'source':'style');return;}if(panel.dataset.stepPanel==='style'&&['mode','quality'].includes(field)){markStale('source');syncSteps();select('source');}else if(panel.dataset.stepPanel==='style'&&field==='detail'){markStale('edges');syncSteps();select(needsEdges()?'edges':'style');}else invalidate(panel.dataset.stepPanel);});
   const showLoading=(title,detail)=>{const overlay=document.getElementById('studio2Loading');if(!overlay)return;overlay.classList.add('active');overlay.setAttribute('aria-hidden','false');document.getElementById('studio2LoadingTitle').textContent=title;document.getElementById('studio2LoadingDetail').textContent=detail||'Please wait…';const stop=document.getElementById('studio2LoadingStop');if(stop)stop.disabled=false;};
   const hideLoading=()=>{const overlay=document.getElementById('studio2Loading');if(overlay){overlay.classList.remove('active');overlay.setAttribute('aria-hidden','true');}const stop=document.getElementById('studio2LoadingStop');if(stop)stop.disabled=true;};
-  const runStage=async(stage,button,{advance=true}={})=>{
+  const runStage=async(stage,button)=>{
     const actionBar=button.parentElement;const stageStatus=actionBar.querySelector('.step-stage-status');const stop=actionBar.querySelector('.step-stop');
     if(!document.getElementById('file')?.files?.length){stageStatus.textContent='Choose an image first.';return;}
     if(stage==='threshold'&&!needsThreshold()){stageStatus.textContent='This style uses grayscale directly; black & white is skipped.';return;}
@@ -386,7 +385,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
       for(const prerequisite of required){
         if(stageReady(prerequisite))continue;
         stageStatus.className='step-stage-status busy';stageStatus.innerHTML='<span class="spinner"></span>Preparing '+prerequisite+'…';
-        await runStage(prerequisite,panels[prerequisite].querySelector('[data-stage-action="'+prerequisite+'"]'),{advance:false});
+        await runStage(prerequisite,panels[prerequisite].querySelector('[data-stage-action="'+prerequisite+'"]'));
         if(!stageReady(prerequisite)){stageStatus.className='step-stage-status error';stageStatus.textContent='Preparation stopped or failed at '+prerequisite+'.';stop.disabled=true;button.disabled=false;return;}
       }
     }
@@ -396,7 +395,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
     for(const name of ['style_simplify_tolerance_px','style_smooth_passes','style_join_distance_px'])if(String(fd.get(name)||'').trim()==='')fd.set(name,'-1');
     try{const response=await fetch('/api/studio2/stage',{method:'POST',body:fd,signal:controller.signal});const body=await response.json();if(!response.ok)throw new Error(body.detail||'Stage processing failed.');
       if(stage==='source'){setStage('sourceCorrected',body.stages.corrected);setStage('thresholdCorrected',body.stages.corrected);}if(stage==='threshold'){setStage('thresholdCorrected',body.stages.corrected);setStage('thresholdMask',body.stages.mask);setStage('edgesMask',body.stages.mask);}if(stage==='edges'){setStage('edgesMask',body.stages.mask);setStage('edgesEdges',body.stages.edges);setStage('styleEdges',body.stages.edges);}if(stage==='style'){setStage('styleEdges',body.stages.edges,'Edges are not required for this style.');setSvg('preview',body.preview_svg,'Generate style paths to see the result.');}
-      stageData[stage]=body;stageStale[stage]=false;if(stage==='source')markStale('threshold');if(stage==='threshold')markStale('edges');if(stage==='edges')markStale('style');stageStatus.className='step-stage-status';stageStatus.textContent=stage==='style'?'Style output ready. You can adjust settings and regenerate it.':'Saved. The next required step is ready.';syncSteps();if(advance){const next=nextStep(stage);if(next)select(next);}
+      stageData[stage]=body;stageStale[stage]=false;if(stage==='source')markStale('threshold');if(stage==='threshold')markStale('edges');if(stage==='edges')markStale('style');stageStatus.className='step-stage-status';stageStatus.textContent=stage==='style'?'Style output ready. You can adjust settings and regenerate it.':'Saved. The next required step is ready. Choose it from the steps menu when you are ready.';syncSteps();
     }catch(error){if(error?.name==='AbortError'){stageStatus.className='step-stage-status';stageStatus.textContent='Stopped.';}else{stageStatus.className='step-stage-status error';stageStatus.textContent=error instanceof Error?error.message:String(error);}}finally{clearInterval(timer);stop.disabled=true;button.disabled=false;if(window.__studioStageAbort===controller)window.__studioStageAbort=null;hideLoading();}
   };
   panels.source.querySelector('[data-stage-action="source"]').onclick=event=>runStage('source',event.currentTarget);
@@ -417,7 +416,6 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   });
   document.getElementById('file')?.addEventListener('change',()=>{resetForNewFile();syncSteps();select('source');});
   const select=(id)=>{document.querySelectorAll('.process-tab').forEach(tab=>{const active=tab.dataset.step===id;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',active?'true':'false');});Object.values(panels).forEach(panel=>panel.classList.toggle('active',panel.dataset.stepPanel===id));document.querySelectorAll('.step-visual').forEach(visual=>visual.classList.toggle('active',visual.dataset.stepVisual===id));window.dispatchEvent(new Event('studio-step-selected'));};
-  const nextStep=(current)=>{for(const id of order.slice(order.indexOf(current)+1)){if(id==='threshold'&&!needsThreshold())continue;if(id==='edges'&&!needsEdges())continue;if(id==='machine'||canOpen(id))return id;}return null;};
   rail.querySelectorAll('.process-tab').forEach(tab=>tab.addEventListener('click',()=>select(tab.dataset.step)));
   syncSteps();select('source');
 })();
