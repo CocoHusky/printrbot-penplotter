@@ -21,6 +21,15 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "httpx>=0.28,<1"]
+neural = [
+  "tensorflow>=2.16,<2.17; python_version >= '3.12' and python_version < '3.14'",
+  "tensorflow-probability>=0.24,<0.25; python_version >= '3.12' and python_version < '3.14'",
+  "tf-keras>=2.16,<2.17; python_version >= '3.12' and python_version < '3.14'",
+  "scipy>=1.10,<1.15",
+  "pandas>=2,<3",
+  "scikit-learn>=1.4,<2",
+  "svgwrite>=1.4,<2",
+]
 
 [project.scripts]
 printrbot-plotter = "printrbot_penplotter.cli:main"

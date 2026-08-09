@@ -168,6 +168,9 @@ class StyleConfig:
 
     preset: Literal["clean", "human", "cursive", "robot"] = "human"
     engine: TextEngine = "stroke"
+    writing_backend: Literal["stroke", "neural"] = "stroke"
+    neural_style: int = 9
+    neural_bias: float = 0.75
 
     # Outline-engine compatibility.
     font_family: str = "DejaVu Sans"
@@ -266,6 +269,7 @@ class StyleConfig:
             ("baseline_jitter_mm", self.baseline_jitter_mm),
             ("x_jitter_mm", self.x_jitter_mm),
             ("scale_jitter", self.scale_jitter),
+            ("neural_bias", self.neural_bias),
         ):
             _require_finite(name, value)
         if self.wrap_width_mm is not None:
@@ -282,6 +286,12 @@ class StyleConfig:
             raise ValueError("Scale jitter must be in [0, 1).")
         if self.engine not in ("stroke", "outline"):
             raise ValueError("Text engine must be 'stroke' or 'outline'.")
+        if self.writing_backend not in ("stroke", "neural"):
+            raise ValueError("Writing backend must be 'stroke' or 'neural'.")
+        if not 0 <= self.neural_style <= 12:
+            raise ValueError("Neural style must be between 0 and 12.")
+        if not 0 <= self.neural_bias <= 1:
+            raise ValueError("Neural bias must be between 0 and 1.")
         if self.variant_mode not in ("first", "seeded", "cycle"):
             raise ValueError("Variant mode must be first, seeded, or cycle.")
         if self.stroke_order not in ("authored", "nearest"):

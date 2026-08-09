@@ -21,6 +21,9 @@ class RenderRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
     preset: Literal["clean", "human", "cursive", "robot"] = "human"
     engine: Literal["stroke", "outline"] = "stroke"
+    writing_backend: Literal["stroke", "neural"] = "stroke"
+    neural_style: int = Field(default=9, ge=0, le=12)
+    neural_bias: float = Field(default=0.75, ge=0, le=1)
     font_family: str = "DejaVu Sans"
     font_path: str | None = None
     stroke_font: str = "hand"
@@ -116,6 +119,11 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
   <div><label for="strokeFont">Stroke font</label><select id="strokeFont"><option>hand</option><option>robot</option></select></div>
 </div>
 <div class="row">
+  <div><label for="writingBackend">Writing backend</label><select id="writingBackend"><option value="stroke">Authored stroke font</option><option value="neural">Neural trajectory (Graves)</option></select></div>
+  <div><label for="neuralStyle">Neural style (0–12)</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div>
+</div>
+<label for="neuralBias">Neural neatness / bias (0–1)</label><input id="neuralBias" type="number" value="0.75" min="0" max="1" step="0.05">
+<div class="row">
   <div><label for="variantMode">Glyph variants</label><select id="variantMode"><option value="seeded">Seeded</option><option value="cycle">Cycle</option><option value="first">First only</option></select></div>
   <div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div>
 </div>
@@ -184,6 +192,7 @@ function applyPreset(){
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:byId('engine').value,
+ writing_backend:byId('writingBackend').value, neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
  font_family:byId('font').value, font_path:null, stroke_font:byId('strokeFont').value,
  stroke_font_path:byId('strokeFontPath').value.trim()||null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
@@ -254,6 +263,9 @@ def _render(request: RenderRequest):
     style = StyleConfig.for_preset(
         request.preset,
         engine=request.engine,
+        writing_backend=request.writing_backend,
+        neural_style=request.neural_style,
+        neural_bias=request.neural_bias,
         font_family=request.font_family,
         font_path=request.font_path,
         stroke_font=request.stroke_font,

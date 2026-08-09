@@ -11,6 +11,7 @@ from .image_preprocess import ImagePreprocessConfig
 from .image_understanding import ImageUnderstandingConfig
 from .line_art import LineArtConfig, render_line_art
 from .models import Polylines, StyleConfig
+from .neural_handwriting import NeuralWritingConfig, generate_neural_trajectories
 from .raster import RasterTraceConfig, trace_raster
 from .vector_cleanup import VectorCleanupConfig, cleanup_polylines
 from .writing import stroke_text_to_polylines
@@ -112,6 +113,11 @@ def text_to_polylines_with_metadata(
 ) -> tuple[Polylines, dict[str, object]]:
     """Render text and return engine-specific metadata."""
 
+    if style.writing_backend == "neural":
+        return generate_neural_trajectories(
+            text,
+            config=NeuralWritingConfig(style=style.neural_style, bias=style.neural_bias),
+        )
     if style.engine == "stroke":
         result = stroke_text_to_polylines(text, style)
         return result.polylines, {

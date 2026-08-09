@@ -85,6 +85,9 @@ def _style(args: argparse.Namespace) -> StyleConfig:
     overrides: dict[str, object] = {
         "font_size_mm": args.font_size,
         "seed": args.seed,
+        "writing_backend": args.writing_backend,
+        "neural_style": args.neural_style,
+        "neural_bias": args.neural_bias,
     }
     optional = {
         "engine": args.engine,
@@ -219,6 +222,14 @@ def _add_text_options(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Use centerline writing or conventional TTF/OTF outlines.",
     )
+    parser.add_argument(
+        "--writing-backend",
+        choices=("stroke", "neural"),
+        default="stroke",
+        help="Use authored strokes or the optional neural trajectory worker.",
+    )
+    parser.add_argument("--neural-style", type=int, default=9, choices=range(13))
+    parser.add_argument("--neural-bias", type=float, default=0.75)
     parser.add_argument("--font-family", default=None, help="Outline-engine font family.")
     parser.add_argument("--font-path", default=None, help="Outline-engine TTF/OTF path.")
     parser.add_argument("--stroke-font", choices=available_stroke_fonts(), default=None)

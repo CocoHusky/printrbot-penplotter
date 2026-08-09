@@ -9,6 +9,7 @@ from .models import (
     RenderedJob,
     StyleConfig,
 )
+from .neural_handwriting import NeuralWritingConfig, generate_neural_trajectories
 from .optimize import (
     MotionConfig,
     MotionMetrics,
@@ -50,6 +51,7 @@ __all__ = [
     "MotionConfig",
     "MotionMetrics",
     "MotionPlan",
+    "NeuralWritingConfig",
     "PageConfig",
     "PenConfig",
     "RasterTraceConfig",
@@ -62,6 +64,7 @@ __all__ = [
     "draw_distance",
     "editable_trace_svg",
     "get_builtin_stroke_font",
+    "generate_neural_trajectories",
     "join_nearby_strokes",
     "load_stroke_font",
     "motion_metrics",
