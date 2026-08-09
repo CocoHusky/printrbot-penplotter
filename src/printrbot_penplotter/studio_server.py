@@ -48,6 +48,13 @@ def _configure_local_neural_worker() -> None:
         os.environ.setdefault("PRINTRBOT_GRAVES_SOURCE", str(model))
 
 
+# Configure the optional backend during module import as well as in ``main``.
+# This keeps the notes page consistent when the app is launched by uvicorn
+# (``uvicorn printrbot_penplotter.studio_server:app``) instead of the module
+# launcher.
+_configure_local_neural_worker()
+
+
 def _validate_studio_runtime() -> None:
     """Refuse to start Studio with the legacy 20k shared geometry guard."""
     if MAX_STROKES < 200_000 or MAX_POINTS < 20_000_000:
