@@ -359,6 +359,13 @@ def _recipe(analysis: ImageUnderstandingResult, config: PenShadingConfig) -> tup
     elif style == "scratchboard":
         bright_mask = analysis.foreground_mask.astype(bool) & (_darkness(analysis.gray) <= 0.42)
         shading = _clip_parametric_lines(bright_mask, angle_deg=32.0, spacing=config.hatch_spacing_px, min_length=config.min_stroke_length_px)
+        if not shading:
+            # Dark foreground selection can leave too little bright inverse-tone
+            # area on high-key subjects. Keep the style usable with a conservative
+            # tonal fallback instead of returning an empty drawing.
+            bright_mask = analysis.gray <= np.percentile(analysis.gray, 82)
+            shading = _clip_parametric_lines(bright_mask, angle_deg=32.0, spacing=config.hatch_spacing_px, min_length=config.min_stroke_length_px)
+            meta["inverse_tone_fallback"] = True
         meta["inverse_tone_shading"] = True
         return _outline(analysis, config, "clean_outline") + shading, meta
     elif style == "fur_texture":

@@ -23,7 +23,7 @@ from .image_understanding import ImageUnderstandingConfig, ImageUnderstandingRes
 from .line_art import LineArtConfig, STYLE_NAMES, render_line_art_from_analysis
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig
 from .pen_shading import PenShadingConfig, SHADING_STYLE_NAMES, render_pen_shading_from_analysis
-from .physical_plot import PhysicalPlotConfig, prepare_physical_plot
+from .physical_plot import PhysicalPlotConfig, polyline_length, prepare_physical_plot
 from .raster import _remove_small_components
 
 router = APIRouter()
@@ -81,6 +81,21 @@ def _effective_art_limits(strokes: int, points: int, bypass: bool) -> tuple[int,
     if bypass:
         return _HARD_ART_STROKES, _HARD_ART_POINTS
     return strokes, points
+
+
+def _keep_longest_lines(lines: list[list[tuple[float, float]]], limit: int) -> list[list[tuple[float, float]]]:
+    """Keep the longest strokes for the interactive preview and plot cap."""
+
+    if len(lines) <= limit:
+        return lines
+    return sorted(lines, key=lambda line: (-polyline_length(line), tuple(line[0]), len(line)))[:limit]
+
+
+def _stage_optional_number(form: object, name: str, *, integer: bool = False) -> float | int | None:
+    value = str(_stage_form_value(form, name, "")).strip()
+    if not value or value == "-1":
+        return None
+    return int(value) if integer else float(value)
 
 
 def _apply_threshold_and_component_cleanup(
@@ -240,6 +255,7 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
             _stage_form_bool(form, "bypass_artistic_limit"),
         )
         style = str(_stage_form_value(form, "style", "refined_pen_sketch"))
+        plot_stroke_limit = max(1, _stage_form_int(form, "plot_stroke_limit", _DEFAULT_PLOT_STROKES))
         if mode == "auto":
             artistic = optimize_analysis(
                 analysis,
@@ -253,6 +269,13 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
             raw = artistic.polylines
             artistic_meta = artistic.metadata
         elif mode == "line_art":
+            simplify_tolerance = _stage_optional_number(form, "style_simplify_tolerance_px")
+            smooth_passes = _stage_optional_number(form, "style_smooth_passes", integer=True)
+            join_distance = _stage_optional_number(form, "style_join_distance_px")
+            if quality == "quick":
+                simplify_tolerance = 0.8 if simplify_tolerance is None else simplify_tolerance
+                smooth_passes = 0 if smooth_passes is None else smooth_passes
+                join_distance = 0.0 if join_distance is None else join_distance
             artistic = render_line_art_from_analysis(
                 analysis,
                 LineArtConfig(
@@ -264,6 +287,9 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
                     strong_edge_threshold=_stage_form_float(form, "style_strong_edge_threshold", 0.72),
                     tone_threshold=_stage_form_int(form, "style_tone_threshold", 170),
                     dilation_passes=_stage_form_int(form, "style_dilation_passes", 1),
+                    simplify_tolerance_px=simplify_tolerance,
+                    smooth_passes=smooth_passes,
+                    join_distance_px=join_distance,
                 ),
             )
             raw = artistic.polylines
@@ -289,6 +315,13 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
             )
             raw = artistic.polylines
             artistic_meta = artistic.metadata
+        raw_before_plot_cap = len(raw)
+        raw = _keep_longest_lines(raw, plot_stroke_limit)
+        artistic_meta = {
+            **artistic_meta,
+            "plot_stroke_limit": plot_stroke_limit,
+            "plot_strokes_dropped_before_preview": raw_before_plot_cap - len(raw),
+        }
         placed = place_on_page(raw, PageConfig(), LayoutConfig(fit_mode="fit"), MachineConfig())
         stages["edges"] = _mask_data_uri(analysis.selected_edges) if not analysis.metadata.get("edge_analysis_skipped") else ""
         return {
@@ -453,6 +486,12 @@ def _render_pipeline(
         effective_style = str(artistic.metadata.get("auto_selected_style", "auto"))
         effective_pipeline = str(artistic.metadata.get("auto_selected_kind", "auto"))
     elif mode == "line_art":
+        if quality == "quick":
+            # Avoid the quadratic join pass during interactive/full quick
+            # renders unless the user explicitly supplied cleanup controls.
+            style_simplify_tolerance_px = 0.8 if style_simplify_tolerance_px is None else style_simplify_tolerance_px
+            style_smooth_passes = 0 if style_smooth_passes is None else style_smooth_passes
+            style_join_distance_px = 0.0 if style_join_distance_px is None else style_join_distance_px
         artistic = render_line_art_from_analysis(
             analysis,
             LineArtConfig(

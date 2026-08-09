@@ -160,6 +160,32 @@ def test_studio2_interactive_stages_run_independently() -> None:
         assert body["stages"][expected].startswith("data:image/png;base64,")
 
 
+def test_studio2_interactive_style_honors_fast_cleanup_and_plot_line_cap() -> None:
+    response = client.post(
+        "/api/studio2/stage",
+        files={"file": ("fixture.png", _png(), "image/png")},
+        data={
+            "stage": "style",
+            "mode": "line_art",
+            "style": "clean_outline",
+            "quality": "quick",
+            "detail": "low",
+            "max_skeleton_iterations": "32",
+            "plot_stroke_limit": "3",
+            "style_simplify_tolerance_px": "-1",
+            "style_smooth_passes": "-1",
+            "style_join_distance_px": "-1",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["metadata"]["stage"] == "style"
+    assert body["metadata"]["plot_stroke_limit"] == 3
+    assert body["metadata"]["artistic_strokes"] <= 3
+    assert body["metadata"]["plot_strokes_dropped_before_preview"] >= 0
+    assert body["preview_svg"].startswith("<svg")
+
+
 def test_studio2_force_exact_size_and_final_scale() -> None:
     response = client.post(
         "/api/studio2/render",

@@ -259,7 +259,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   visuals.className='step-visuals';
   grid.appendChild(visuals);
   const content=(id)=>document.getElementById(id);
-  const makePane=(title,id)=>{const pane=document.createElement('div');pane.className='pane';pane.innerHTML='<h3>'+title+'</h3>';const node=content(id);if(node)pane.appendChild(node);return pane;};
+  const makePane=(title,id)=>{const pane=document.createElement('div');pane.className='pane';pane.innerHTML='<h3>'+title+'</h3>';const node=content(id);if(node)pane.appendChild(node);else{const placeholder=document.createElement('div');placeholder.id=id;placeholder.className='placeholder';placeholder.textContent='This stage has not been generated.';pane.appendChild(placeholder);}return pane;};
   const makeVisual=(id,title,subtitle,beforeTitle,beforeId,afterTitle,afterId)=>{
     const visual=document.createElement('section');visual.className='step-visual';visual.dataset.stepVisual=id;
     visual.innerHTML='<h2>'+title+'</h2><div class="visual-subtitle">'+subtitle+'</div>';
@@ -267,12 +267,12 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
     compare.appendChild(makePane(beforeTitle,beforeId));compare.appendChild(makePane(afterTitle,afterId));
     visual.appendChild(compare);visuals.appendChild(visual);return visual;
   };
-  makeVisual('source','Source & grayscale','See the original image beside the current grayscale result.','Before · original','sourcePreview','After · grayscale','corrected');
+  makeVisual('source','Source & grayscale','See the original image beside the current grayscale result.','Before · original','sourcePreview','After · grayscale','sourceCorrected');
   const sourceVisual=visuals.lastElementChild;
   const grayNote=document.createElement('div');grayNote.className='hint';grayNote.textContent='This grayscale preview is enlarged to fit the panel. Interactive processing uses a bounded raster for speed; final machine size is set later in Machine & export.';sourceVisual.querySelector('.before-after .pane:last-child').appendChild(grayNote);
-  makeVisual('threshold','Black & white','See grayscale input beside the thresholded foreground mask.','Before · grayscale','corrected','After · black & white','mask');
-  makeVisual('edges','Edge extraction','See the threshold mask beside the selected contour map.','Before · black & white','mask','After · edges','edges');
-  makeVisual('style','Style & vectorization','See the detected input beside the generated artistic paths.','Before · detected input','edges','After · artistic paths','preview');
+  makeVisual('threshold','Black & white','See grayscale input beside the thresholded foreground mask.','Before · grayscale','thresholdCorrected','After · black & white','thresholdMask');
+  makeVisual('edges','Edge extraction','See the threshold mask beside the selected contour map.','Before · black & white','edgesMask','After · edges','edgesEdges');
+  makeVisual('style','Style & vectorization','See the detected input beside the generated artistic paths.','Before · detected input','styleEdges','After · artistic paths','preview');
   const machineVisual=document.createElement('section');machineVisual.className='step-visual';machineVisual.dataset.stepVisual='machine';machineVisual.innerHTML='<h2>Machine & export</h2><div class="visual-subtitle">Review the generated paths beside the final machine-output view.</div>';
   const machineCompare=document.createElement('div');machineCompare.className='before-after';
   const machineBefore=document.createElement('div');machineBefore.className='pane';machineBefore.innerHTML='<h3>Before · artistic paths</h3>';machineBefore.insertAdjacentHTML('beforeend','<div id="machineInput" class="placeholder">Generate a drawing to see artistic paths.</div>');
@@ -288,7 +288,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   window.__studioStepReady=false;
   const setStage=(id,uri,message)=>{const target=document.getElementById(id);if(!target)return;target.innerHTML='';if(!uri){target.className='placeholder';target.textContent=message||'This stage has not been generated.';return;}target.className='';const image=document.createElement('img');image.src=uri;target.appendChild(image);};
   const setSvg=(id,markup,message)=>{const target=document.getElementById(id);if(!target)return;target.innerHTML=markup||'';if(!markup){target.className='placeholder';target.textContent=message||'This stage has not been generated.';return;}target.className='';};
-  const clearOutputsFrom=(step)=>{const index=order.indexOf(step);if(index<=0)setStage('corrected','', 'Generate grayscale to see the result.');if(index<=1)setStage('mask','', 'Generate black & white to see the result.');if(index<=2)setStage('edges','', 'Generate edges to see the result.');if(index<=3){setStage('preview','', 'Generate style paths to see the result.');setStage('machineInput','', 'Generate style paths to see the result.');setStage('machinePreview','', 'Generate the final machine output.');}};
+  const clearOutputsFrom=(step)=>{const index=order.indexOf(step);if(index<=0){setStage('sourceCorrected','', 'Generate grayscale to see the result.');setStage('thresholdCorrected','', 'Generate grayscale to see the result.');}if(index<=1){setStage('thresholdMask','', 'Generate black & white to see the result.');setStage('edgesMask','', 'Generate black & white to see the result.');}if(index<=2){setStage('edgesEdges','', 'Generate edges to see the result.');setStage('styleEdges','', 'Generate edges to see the result.');}if(index<=3){setStage('preview','', 'Generate style paths to see the result.');setStage('machineInput','', 'Generate style paths to see the result.');setStage('machinePreview','', 'Generate the final machine output.');}};
   const canOpen=(id)=>{const index=order.indexOf(id);return index===0||completed[order[index-1]];};
   const syncSteps=()=>{rail.querySelectorAll('.process-tab').forEach(tab=>{const allowed=canOpen(tab.dataset.step);tab.disabled=!allowed;tab.setAttribute('aria-disabled',allowed?'false':'true');});window.__studioStepReady=completed.style;window.dispatchEvent(new Event('studio-step-ready'));const floating=document.getElementById('floatingGenerate');if(floating&&!document.getElementById('generate').disabled)floating.disabled=!completed.style;};
   const invalidate=(step)=>{const index=order.indexOf(step);for(let i=index;i<order.length;i++)completed[order[i]]=false;clearOutputsFrom(step);syncSteps();if(!canOpen(document.querySelector('.process-tab.active')?.dataset.step||'source'))select(step);};
@@ -300,7 +300,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
     form.querySelectorAll('input[type="checkbox"]').forEach(input=>fd.set(input.name,input.checked?'true':'false'));
     for(const name of ['style_simplify_tolerance_px','style_smooth_passes','style_join_distance_px'])if(String(fd.get(name)||'').trim()==='')fd.set(name,'-1');
     try{const response=await fetch('/api/studio2/stage',{method:'POST',body:fd});const body=await response.json();if(!response.ok)throw new Error(body.detail||'Stage processing failed.');
-      if(stage==='source')setStage('corrected',body.stages.corrected);if(stage==='threshold'){setStage('corrected',body.stages.corrected);setStage('mask',body.stages.mask);}if(stage==='edges'){setStage('mask',body.stages.mask);setStage('edges',body.stages.edges);}if(stage==='style'){setStage('edges',body.stages.edges,'Edges are not required for this style.');setSvg('preview',body.preview_svg,'Generate style paths to see the result.');}
+      if(stage==='source'){setStage('sourceCorrected',body.stages.corrected);setStage('thresholdCorrected',body.stages.corrected);}if(stage==='threshold'){setStage('thresholdCorrected',body.stages.corrected);setStage('thresholdMask',body.stages.mask);setStage('edgesMask',body.stages.mask);}if(stage==='edges'){setStage('edgesMask',body.stages.mask);setStage('edgesEdges',body.stages.edges);setStage('styleEdges',body.stages.edges);}if(stage==='style'){setStage('styleEdges',body.stages.edges,'Edges are not required for this style.');setSvg('preview',body.preview_svg,'Generate style paths to see the result.');}
       completed[stage]=true;button.nextElementSibling.textContent='Complete. You can continue to the next step.';syncSteps();
     }catch(error){button.nextElementSibling.textContent=error instanceof Error?error.message:String(error);}finally{button.disabled=false;}
   };
