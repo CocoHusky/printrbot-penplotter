@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 import hashlib
+import os
+import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -16,7 +18,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 
-from . import studio2 as legacy
+from . import __version__, studio2 as legacy
 from .gcode import polylines_to_gcode
 from .geometry import preview_svg, validate_polylines
 from .models import MachineConfig, PageConfig, PenConfig, Polylines
@@ -25,6 +27,28 @@ from .optimize import motion_metrics
 router = APIRouter()
 
 SizeMode = Literal["natural", "fit_box", "force_exact"]
+
+
+def _source_revision() -> str:
+    """Return a short build revision, with a safe fallback for wheel installs."""
+    configured = os.environ.get("PRINTRBOT_BUILD_COMMIT")
+    if configured:
+        return configured[:12]
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=12", "HEAD"],
+            cwd=Path(__file__).resolve().parents[2],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
+STUDIO_BUILD = {"version": __version__, "commit": _source_revision()}
 
 
 def _bool(form: object, name: str, default: bool) -> bool:
@@ -169,6 +193,12 @@ def studio2() -> str:
 <div class="hint">Sizing is applied after drawing generation, before the final preview and G-code export.</div>
 </div>
 '''
+    version_badge = (
+        f'<div id="studioVersion" title="Match this commit with GitHub main" '
+        f'style="margin:-10px 0 14px;color:#666;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace">'
+        f'Printrbot Pen Plotter v{STUDIO_BUILD["version"]} · commit {STUDIO_BUILD["commit"]}</div>'
+    )
+    html = html.replace('<h1>Printrbot Studio 2.0</h1>', '<h1>Printrbot Studio 2.0</h1>' + version_badge)
     html = html.replace(
         '<button id="advancedToggle" class="advanced-toggle" type="button">Advanced image & style controls ▾</button>',
         size_controls + '<button id="advancedToggle" class="advanced-toggle" type="button">Advanced image & style controls ▾</button>',
@@ -374,6 +404,12 @@ saveGcode.onclick=()=>{const j=window.__studioLast;if(j)saveText('printrbot-draw
     return html
 
 
+@router.get("/api/studio2/version")
+def studio2_version() -> dict[str, str]:
+    """Expose the running package/build identity for support and troubleshooting."""
+    return {"software": "printrbot-penplotter", **STUDIO_BUILD}
+
+
 @router.post("/api/studio2/stage")
 async def render_studio2_stage(request: Request) -> dict[str, object]:
     form = await request.form()
@@ -406,6 +442,8 @@ async def render_studio2_stage(request: Request) -> dict[str, object]:
             "source_filename": upload.filename,
             "source_sha256": hashlib.sha256(data).hexdigest(),
             "stage": stage,
+            "software_version": STUDIO_BUILD["version"],
+            "software_commit": STUDIO_BUILD["commit"],
         }
     )
     result["metadata"] = metadata
@@ -521,6 +559,8 @@ async def render_studio2(request: Request) -> dict[str, object]:
         metadata = dict(result.get("metadata", {}))
         metadata.update(size_meta)
         metadata["studio_schema"] = "printrbot-studio2/v3"
+        metadata["software_version"] = STUDIO_BUILD["version"]
+        metadata["software_commit"] = STUDIO_BUILD["commit"]
         metadata["requested_quality"] = requested_quality
         metadata["effective_quality"] = effective_quality
         metadata["auto_interactive_preview"] = mode == "auto" and requested_quality != effective_quality

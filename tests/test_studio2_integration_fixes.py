@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from printrbot_penplotter import line_art, studio2
+from printrbot_penplotter import __version__
 from printrbot_penplotter.models import LayoutConfig, MachineConfig, PageConfig
 from printrbot_penplotter.studio_server import app
 from printrbot_penplotter.vector_cleanup import VectorCleanupConfig
@@ -40,6 +41,17 @@ def test_studio2_has_always_visible_generate_and_save_actions() -> None:
     assert "Edge extraction" in text
     assert "Style & vectorization" in text
     assert "Machine & export" in text
+    assert 'id="studioVersion"' in text
+    assert f"v{__version__}" in text
+
+
+def test_studio2_version_endpoint_identifies_running_build() -> None:
+    response = client.get("/api/studio2/version")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["software"] == "printrbot-penplotter"
+    assert body["version"] == __version__
+    assert body["commit"]
 
 
 def test_studio2_image_geometry_is_mirrored_into_cartesian_y_before_placement() -> None:
