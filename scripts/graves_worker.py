@@ -24,6 +24,7 @@ def main() -> int:
     sys.path.insert(0, str(source))
     os.chdir(source)
     from demo import Hand  # type: ignore[import-not-found]
+    from drawing import align, denoise, offsets_to_coords  # type: ignore[import-not-found]
 
     request = json.load(sys.stdin)
     text = str(request.get("text", ""))
@@ -40,10 +41,21 @@ def main() -> int:
             continue
         samples = hand._sample([line], biases=[bias], styles=[style])
         offsets = samples[0]
-        coords = np.cumsum(offsets[:, :2], axis=0)
+        # Match the reference renderer's cleanup before converting the model's
+        # pen-state stream into separate Printrbot polylines.  Without this,
+        # raw recurrent-model jitter is visible as doubled loops and slanted
+        # baselines in the plotter preview.
+        offsets = np.asarray(offsets, dtype=float).copy()
+        offsets[:, :2] *= 1.5
+        coords = offsets_to_coords(offsets)
+        coords = denoise(coords)
+        coords[:, :2] = align(coords[:, :2])
+        # Keep the model's mathematical Y orientation.  The shared Printrbot
+        # preview and machine layout flip Y once when they map it to SVG/page
+        # coordinates; flipping here as well mirrors the handwriting.
         current: list[list[float]] = []
-        for point, eos in zip(coords, offsets[:, 2]):
-            current.append([float(point[0]), float(-point[1])])
+        for point, eos in zip(coords, coords[:, 2]):
+            current.append([float(point[0]), float(point[1])])
             if eos >= 0.5:
                 if len(current) >= 2:
                     strokes.append(current)
