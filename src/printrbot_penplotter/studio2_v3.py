@@ -268,6 +268,9 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
 
   ['#file','#grayMode','[name="background_mode"]'].forEach(selector=>moveField(selector,'source'));
   moveGroup('grayMode','source');
+  const sourceAction=panels.source.querySelector('.step-actions');
+  const sourceFile=panels.source.querySelector('#file')?.closest('.control-block');
+  if(sourceAction&&sourceFile)panels.source.insertBefore(sourceFile,sourceAction);
   ['#thresholdMode'].forEach(selector=>moveField(selector,'threshold'));
   moveGroup('thresholdMode','threshold');
   moveField('[name="edge_method"]','edges');
