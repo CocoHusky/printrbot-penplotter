@@ -46,6 +46,27 @@ def _variant_for(
 
 def _stroke_compatible_character(character: str) -> str:
     """Use the base Latin glyph for accents in the compact stroke alphabets."""
+    # CJK text commonly uses full-width punctuation. The authored centerline
+    # alphabets intentionally stay compact, so use the matching ASCII glyph
+    # instead of silently drawing the fallback question mark.
+    fullwidth_punctuation = {
+        "，": ",",
+        "、": ",",
+        "。": ".",
+        "．": ".",
+        "！": "!",
+        "？": "?",
+        "：": ":",
+        "；": ";",
+        "（": "(",
+        "）": ")",
+        "「": "(",
+        "」": ")",
+        "『": "(",
+        "』": ")",
+    }
+    if character in fullwidth_punctuation:
+        return fullwidth_punctuation[character]
     normalized = unicodedata.normalize("NFKD", character)
     base = "".join(part for part in normalized if not unicodedata.combining(part))
     return base if len(base) == 1 and base in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?" else character

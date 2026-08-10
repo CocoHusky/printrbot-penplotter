@@ -64,6 +64,13 @@ def test_standard_typed_preset_is_centerline_only() -> None:
     assert job.metadata["stroke_font"] == "robot"
 
 
+def test_fullwidth_cjk_punctuation_uses_centerline_equivalents() -> None:
+    style = StyleConfig.for_preset("standard", font_size_mm=10)
+    fullwidth = stroke_text_to_polylines("，！", style).polylines
+    ascii_equivalent = stroke_text_to_polylines(",!", style).polylines
+    assert fullwidth == ascii_equivalent
+
+
 def test_centerline_text_rejects_unsupported_non_latin_instead_of_falling_back() -> None:
     style = StyleConfig.for_preset("standard", font_family="Arial", font_size_mm=10)
     with pytest.raises(ValueError, match="cannot draw"):
