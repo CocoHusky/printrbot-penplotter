@@ -49,6 +49,48 @@ def bounds(polylines: Iterable[Polyline]) -> tuple[float, float, float, float]:
     return min(xs), min(ys), max(xs), max(ys)
 
 
+def compensate_pen_contact(polylines: Polylines, radius_mm: float) -> Polylines:
+    """Extend open stroke ends by the pen-contact radius.
+
+    A ball-point's ink contact is approximately its tip radius beyond the
+    carriage's mathematical centerline. Extending each open endpoint along
+    its tangent lets adjacent strokes meet instead of leaving a tiny gap.
+    Closed loops are unchanged, and the returned geometry is a new list.
+    """
+
+    if not math.isfinite(radius_mm) or radius_mm < 0:
+        raise ValueError("Pen contact radius must be finite and non-negative.")
+    validate_polylines(polylines)
+    if radius_mm == 0:
+        return [line[:] for line in polylines]
+
+    compensated: Polylines = []
+    for line in polylines:
+        if len(line) < 2 or line[0] == line[-1]:
+            compensated.append(line[:])
+            continue
+        start_x, start_y = line[0]
+        next_x, next_y = line[1]
+        end_x, end_y = line[-1]
+        previous_x, previous_y = line[-2]
+        start_length = math.hypot(next_x - start_x, next_y - start_y)
+        end_length = math.hypot(end_x - previous_x, end_y - previous_y)
+        updated = line[:]
+        if start_length > 1e-9:
+            updated[0] = (
+                start_x - radius_mm * (next_x - start_x) / start_length,
+                start_y - radius_mm * (next_y - start_y) / start_length,
+            )
+        if end_length > 1e-9:
+            updated[-1] = (
+                end_x + radius_mm * (end_x - previous_x) / end_length,
+                end_y + radius_mm * (end_y - previous_y) / end_length,
+            )
+        compensated.append(updated)
+    validate_polylines(compensated)
+    return compensated
+
+
 def place_on_page(
     polylines: Polylines,
     page: PageConfig,

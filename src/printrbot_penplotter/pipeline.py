@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .calibration import square_cross_pattern
 from .gcode import polylines_to_gcode
-from .geometry import bounds, place_on_page, preview_svg, simplify_polylines
+from .geometry import bounds, compensate_pen_contact, place_on_page, preview_svg, simplify_polylines
 from .inputs import (
     raster_to_polylines_with_metadata,
     svg_to_polylines,
@@ -38,7 +38,9 @@ def _finish_job(
     motion: MotionConfig | None = None,
     metadata: dict[str, object] | None = None,
 ) -> RenderedJob:
-    placed = place_on_page(raw, page, layout, machine)
+    contact_radius = pen.pen_tip_mm / 2 if pen.contact_compensation else 0.0
+    contact_adjusted = compensate_pen_contact(raw, contact_radius)
+    placed = place_on_page(contact_adjusted, page, layout, machine)
     simplified = simplify_polylines(placed, simplify_tolerance_mm)
     motion_plan = optimize_motion(simplified, motion or MotionConfig(), pen=pen)
     final = motion_plan.polylines
@@ -54,6 +56,8 @@ def _finish_job(
         "fit_mode": layout.fit_mode,
         "corner_feed_mm_min": pen.corner_feed_mm_min,
         "corner_angle_deg": pen.corner_angle_deg,
+        "pen_tip_mm": pen.pen_tip_mm,
+        "contact_compensation": pen.contact_compensation,
     }
     complete_metadata.update(motion_plan.metadata())
     if metadata:

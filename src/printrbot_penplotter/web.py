@@ -52,6 +52,8 @@ class RenderRequest(BaseModel):
     scale: float = Field(default=1.0, gt=0, le=20)
     z_up_mm: float = 5.0
     z_down_mm: float = 0.0
+    pen_tip_mm: float = Field(default=0.5, gt=0, le=10)
+    contact_compensation: bool = True
     home_before_plot: bool = True
     air_plot: bool = False
 
@@ -154,6 +156,8 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 </details>
 <div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
+<div class="row"><div><label for="penTip">Pen tip width (mm)</label><input id="penTip" type="number" min="0.1" max="10" step="0.1" value="0.5"></div></div>
+<p class="control-note">Open stroke ends are extended by half this width so ball-point ink overlaps at joins. Closed loops are unchanged.</p>
 <div class="check"><input id="airPlot" type="checkbox"><label for="airPlot" style="margin:0">Generate air plot (never lower pen)</label></div>
 <div class="check"><input id="homeBeforePlot" type="checkbox" checked><label for="homeBeforePlot" style="margin:0">Home before plot and re-home X/Y at the end</label></div>
 <p class="control-note">Homing is enabled by default for hardware-safe G-code. The export adds a full G28 before movement, then a safe pen-up, M400, and X/Y re-home at the end. Turn it off only for diagnostic files.</p>
@@ -209,7 +213,7 @@ function payload(){ return {
  page_origin_x_mm:Number(byId('originX').value), page_origin_y_mm:Number(byId('originY').value),
  margin_mm:8, fit_mode:byId('fitMode').value, horizontal_align:byId('align').value,
  vertical_align:'center', offset_x_mm:0, offset_y_mm:0, scale:1,
- z_up_mm:5, z_down_mm:0, home_before_plot:byId('homeBeforePlot').checked, air_plot:byId('airPlot').checked
+ z_up_mm:5, z_down_mm:0, pen_tip_mm:Number(byId('penTip').value), contact_compensation:true, home_before_plot:byId('homeBeforePlot').checked, air_plot:byId('airPlot').checked
 }; }
 async function postJson(url, body){
  const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
@@ -300,6 +304,8 @@ def _render(request: RenderRequest):
         page=page,
         machine=machine,
         pen=PenConfig(
+            pen_tip_mm=request.pen_tip_mm,
+            contact_compensation=request.contact_compensation,
             z_up_mm=request.z_up_mm,
             z_down_mm=request.z_down_mm,
             home_before_plot=request.home_before_plot,

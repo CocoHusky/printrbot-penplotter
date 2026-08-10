@@ -111,6 +111,8 @@ class LayoutConfig:
 class PenConfig:
     """Marlin motion settings for a Z-axis pen lift."""
 
+    pen_tip_mm: float = 0.5
+    contact_compensation: bool = True
     z_up_mm: float = 5.0
     z_down_mm: float = 0.0
     travel_feed_mm_min: float = 3000.0
@@ -125,6 +127,7 @@ class PenConfig:
 
     def validate(self, machine: MachineConfig | None = None) -> None:
         for name, value in (
+            ("pen_tip_mm", self.pen_tip_mm),
             ("z_up_mm", self.z_up_mm),
             ("z_down_mm", self.z_down_mm),
             ("travel_feed_mm_min", self.travel_feed_mm_min),
@@ -134,6 +137,8 @@ class PenConfig:
             ("z_feed_mm_min", self.z_feed_mm_min),
         ):
             _require_finite(name, value)
+        if self.pen_tip_mm <= 0:
+            raise ValueError("pen_tip_mm must be positive.")
         for name, value in (
             ("travel_feed_mm_min", self.travel_feed_mm_min),
             ("draw_feed_mm_min", self.draw_feed_mm_min),

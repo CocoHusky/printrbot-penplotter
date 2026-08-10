@@ -4,7 +4,7 @@ import pytest
 
 from printrbot_penplotter.calibration import square_cross_pattern
 from printrbot_penplotter.gcode import polylines_to_gcode
-from printrbot_penplotter.geometry import bounds, place_on_page
+from printrbot_penplotter.geometry import bounds, compensate_pen_contact, place_on_page
 from printrbot_penplotter.models import (
     LayoutConfig,
     MachineConfig,
@@ -21,6 +21,26 @@ def test_text_pipeline_is_deterministic() -> None:
     second = render_text_job("Hello", style=style)
     assert first.gcode == second.gcode
     assert first.preview_svg == second.preview_svg
+
+
+def test_pen_contact_compensation_extends_open_ends_by_half_tip_width() -> None:
+    result = compensate_pen_contact([[(10.0, 20.0), (20.0, 20.0)]], 0.25)
+    assert result == [[(9.75, 20.0), (20.25, 20.0)]]
+
+
+def test_pen_contact_compensation_preserves_closed_loops() -> None:
+    square = [(10.0, 10.0), (20.0, 10.0), (20.0, 20.0), (10.0, 10.0)]
+    assert compensate_pen_contact([square], 0.25) == [square]
+
+
+def test_text_metadata_reports_contact_compensation() -> None:
+    job = render_text_job(
+        "A",
+        pen=PenConfig(pen_tip_mm=0.6, contact_compensation=True),
+        style=StyleConfig.for_preset("standard", font_size_mm=10),
+    )
+    assert job.metadata["pen_tip_mm"] == pytest.approx(0.6)
+    assert job.metadata["contact_compensation"] is True
 
 
 def test_rendered_geometry_stays_inside_page() -> None:
