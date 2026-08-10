@@ -7,6 +7,7 @@ import random
 from pathlib import Path
 
 from .geometry import rotate_scale_translate
+from .centerline_fonts import text_to_centerline_polylines
 from .image_preprocess import ImagePreprocessConfig
 from .image_understanding import ImageUnderstandingConfig
 from .line_art import LineArtConfig, render_line_art
@@ -173,6 +174,19 @@ def text_to_polylines_with_metadata(
             text,
             config=NeuralWritingConfig(style=style.neural_style, bias=style.neural_bias),
         )
+    if any(
+        0x3400 <= ord(character) <= 0x4DBF
+        or 0x4E00 <= ord(character) <= 0x9FFF
+        or 0x3040 <= ord(character) <= 0x30FF
+        or 0xAC00 <= ord(character) <= 0xD7AF
+        for character in text
+    ):
+        resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
+        return text_to_centerline_polylines(text, style, resolved_font_path), {
+            "text_engine": "centerline-raster",
+            "font_family": style.font_family,
+            "font_path": resolved_font_path,
+        }
     if style.engine == "stroke":
         result = stroke_text_to_polylines(text, style)
         return result.polylines, {
@@ -184,10 +198,17 @@ def text_to_polylines_with_metadata(
             "glyph_variants": list(result.variant_labels),
             "unsupported_characters": list(result.unsupported_characters),
         }
-    return outline_text_to_polylines(text, style), {
-        "text_engine": "outline",
-        "font_family": style.font_family,
-        "font_path": _resolve_outline_font(style.font_family, style.font_path, text),
+    # ``outline`` is accepted only as a legacy request value. Never use it in
+    # the product pipeline: all text must be emitted as centerline strokes.
+    result = stroke_text_to_polylines(text, style)
+    return result.polylines, {
+        "text_engine": "stroke",
+        "stroke_font": result.font_name,
+        "glyphs": result.glyph_count,
+        "connectors": result.connector_count,
+        "lines": result.line_count,
+        "glyph_variants": list(result.variant_labels),
+        "unsupported_characters": list(result.unsupported_characters),
     }
 
 

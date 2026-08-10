@@ -170,7 +170,7 @@ byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,b
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function hasCjk(text){ return /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/u.test(text); }
 function syncTypefaceForText(){
- byId('languageHint').textContent=hasCjk(byId('text').value)?'CJK characters need a CJK centerline font pack; no outline fallback is used.':'Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.';
+ byId('languageHint').textContent=hasCjk(byId('text').value)?'CJK detected. A compatible installed font is converted to centerlines; no outline fallback is used.':'Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.';
 }
 function applyPreset(){
  const value=byId('preset').value;
@@ -185,7 +185,7 @@ function applyPreset(){
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='standard'?byId('font').value:byId('preset').value==='robot'?'robot':'hand',
+ font_family:hasCjk(byId('text').value)?'Hiragino Sans GB':'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='standard'?byId('font').value:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
  wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,

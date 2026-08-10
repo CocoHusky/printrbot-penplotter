@@ -51,9 +51,20 @@ def test_standard_typed_preset_is_centerline_only() -> None:
 
 
 def test_centerline_text_rejects_unsupported_non_latin_instead_of_falling_back() -> None:
-    style = StyleConfig.for_preset("standard", font_size_mm=10)
-    with pytest.raises(ValueError, match="centerline alphabet"):
+    style = StyleConfig.for_preset("standard", font_family="Arial", font_size_mm=10)
+    with pytest.raises(ValueError, match="cannot draw"):
         text_to_polylines_with_metadata("你好", style)
+
+
+def test_cjk_text_uses_skeletonized_centerlines_when_font_is_available() -> None:
+    style = StyleConfig.for_preset(
+        "standard",
+        font_family="PingFang SC",
+        font_size_mm=10,
+    )
+    polylines, metadata = text_to_polylines_with_metadata("你好 世界", style)
+    assert polylines
+    assert metadata["text_engine"] == "centerline-raster"
 
 
 def test_seeded_glyph_selection_is_reproducible() -> None:
