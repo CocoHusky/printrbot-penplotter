@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 import shlex
+import unicodedata
 from dataclasses import dataclass
 
 from .models import Point, Polylines
@@ -38,6 +39,16 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
     config.validate()
     if not text.strip():
         raise ValueError("Text input cannot be empty.")
+    normalized_text = unicodedata.normalize("NFKD", text)
+    normalized_text = "".join(
+        character for character in normalized_text if not unicodedata.combining(character)
+    )
+    if any(ord(character) > 127 for character in normalized_text):
+        raise RuntimeError(
+            "Neural handwriting currently supports Latin characters and accents. "
+            "For Chinese, Japanese, Korean, or other scripts, choose Typed font "
+            "and select a matching Unicode/CJK typeface."
+        )
     command = config.command or os.environ.get("PRINTRBOT_HANDWRITING_WORKER")
     if not command:
         raise RuntimeError(
@@ -52,7 +63,7 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
     try:
         result = subprocess.run(
             argv,
-            input=json.dumps({"text": text, "style": config.style, "bias": config.bias}),
+            input=json.dumps({"text": normalized_text, "style": config.style, "bias": config.bias}),
             capture_output=True,
             text=True,
             timeout=config.timeout_seconds,

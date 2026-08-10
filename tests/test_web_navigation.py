@@ -29,7 +29,7 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "Handwritten" in text
     assert 'class="lettering-choices"' in text
     assert "Handwriting adjustments" in text
-    assert "Choose one simple lettering mode" in text
+    assert "Typed font supports" in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
     assert "Rendering your note…" in text

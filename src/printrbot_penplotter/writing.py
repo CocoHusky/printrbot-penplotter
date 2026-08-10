@@ -6,6 +6,7 @@ import hashlib
 import math
 import random
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from .models import Point, Polylines, StyleConfig
@@ -41,6 +42,13 @@ def _variant_for(
     if style.variant_mode == "cycle":
         return variants[glyph_index % len(variants)]
     return variants[_seed_value(style.seed, glyph_index, character, "variant") % len(variants)]
+
+
+def _stroke_compatible_character(character: str) -> str:
+    """Use the base Latin glyph for accents in the compact stroke alphabets."""
+    normalized = unicodedata.normalize("NFKD", character)
+    base = "".join(part for part in normalized if not unicodedata.combining(part))
+    return base if len(base) == 1 and base in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?" else character
 
 
 def _transform_point(
@@ -129,9 +137,10 @@ def stroke_text_to_polylines(text: str, style: StyleConfig) -> WritingResult:
 
             selected: list[tuple[str, GlyphVariant, int]] = []
             for character in token:
-                if character not in font.glyphs:
+                glyph_character = _stroke_compatible_character(character)
+                if glyph_character not in font.glyphs:
                     unsupported.add(character)
-                variant = _variant_for(font, character, glyph_index, style)
+                variant = _variant_for(font, glyph_character, glyph_index, style)
                 selected.append((character, variant, glyph_index))
                 glyph_index += 1
 

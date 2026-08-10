@@ -54,6 +54,22 @@ def test_neural_worker_normalizes_image_y_down_coordinates(tmp_path: Path) -> No
     assert metadata["neural_coordinate_system"] == "image-y-down"
 
 
+def test_neural_worker_normalizes_latin_accents(tmp_path: Path) -> None:
+    worker = tmp_path / "accent-worker.py"
+    worker.write_text(
+        "import json, sys\n"
+        "request = json.load(sys.stdin)\n"
+        "assert request['text'] == 'Cafe manana'\n"
+        "json.dump({'strokes': [[[0, 0], [1, 1]]]}, sys.stdout)\n",
+        encoding="utf-8",
+    )
+    strokes, _ = generate_neural_trajectories(
+        "Café mañana",
+        config=NeuralWritingConfig(command=str(worker)),
+    )
+    assert strokes == [[(0.0, 0.0), (1.0, 1.0)]]
+
+
 def test_neural_backend_flows_through_layout_and_gcode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     worker = tmp_path / "worker.py"
     _worker(worker)
