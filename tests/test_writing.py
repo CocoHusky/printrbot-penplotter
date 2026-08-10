@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from printrbot_penplotter.models import LayoutConfig, PageConfig, StyleConfig
 from printrbot_penplotter.optimize import optimize_stroke_order, pen_up_distance
 from printrbot_penplotter.pipeline import render_text_job
@@ -9,6 +11,7 @@ from printrbot_penplotter.stroke_fonts import (
     load_stroke_font,
 )
 from printrbot_penplotter.writing import stroke_text_to_polylines
+from printrbot_penplotter.inputs import text_to_polylines_with_metadata
 
 
 def test_builtin_fonts_validate_and_cover_core_characters() -> None:
@@ -37,6 +40,29 @@ def test_standard_preset_uses_a_typed_font_outline() -> None:
     assert style.engine == "outline"
     assert style.font_family == "Arial"
     assert job.metadata["text_engine"] == "outline"
+
+
+def test_cjk_typed_text_uses_real_mac_font_when_available() -> None:
+    cjk_font = Path("/System/Library/Fonts/Hiragino Sans GB.ttc")
+    if not cjk_font.is_file():
+        pytest.skip("macOS CJK font is not available on this host")
+    style = StyleConfig.for_preset(
+        "standard",
+        font_family="PingFang SC",
+        font_size_mm=10,
+    )
+    polylines, metadata = text_to_polylines_with_metadata(
+        "Hello 你好 こんにちは Hola!",
+        style,
+    )
+    assert polylines
+    assert metadata["font_path"] == str(cjk_font)
+
+
+def test_typed_text_rejects_missing_glyphs_instead_of_falling_back() -> None:
+    style = StyleConfig.for_preset("standard", font_family="Arial", font_size_mm=10)
+    with pytest.raises(ValueError, match="cannot draw"):
+        text_to_polylines_with_metadata("你好", style)
 
 
 def test_seeded_glyph_selection_is_reproducible() -> None:

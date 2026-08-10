@@ -20,6 +20,63 @@ POINTS_PER_INCH = 72.0
 MM_PER_INCH = 25.4
 POINTS_TO_MM = MM_PER_INCH / POINTS_PER_INCH
 
+# Matplotlib does not always see the macOS font aliases used in the UI (most
+# notably PingFang). Keep the aliases here so a CJK selection resolves to a
+# real installed font instead of silently falling back to DejaVu Sans.
+_FONT_ALIASES = {
+    "PingFang SC": "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "Noto Sans CJK SC": "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "Hiragino Sans GB": "/System/Library/Fonts/Hiragino Sans GB.ttc",
+}
+
+
+def _resolve_outline_font(font_family: str, font_path: str | None, text: str):
+    """Resolve a font without permitting silent glyph substitution.
+
+    ``TextPath`` otherwise accepts a missing family and quietly draws the
+    default font. That is especially dangerous for CJK text because the
+    resulting geometry can be blank or replacement glyphs while the request
+    still appears successful.
+    """
+
+    from matplotlib.font_manager import FontProperties, findfont
+    from matplotlib.ft2font import FT2Font
+
+    resolved_path = font_path
+    if resolved_path is None:
+        alias_path = _FONT_ALIASES.get(font_family)
+        if alias_path and Path(alias_path).is_file():
+            resolved_path = alias_path
+        else:
+            try:
+                resolved_path = findfont(
+                    FontProperties(family=font_family),
+                    fallback_to_default=False,
+                )
+            except (OSError, ValueError) as exc:
+                raise ValueError(
+                    f"Typeface '{font_family}' is not installed. "
+                    "Choose an installed typeface or install the requested font."
+                ) from exc
+
+    if not Path(resolved_path).is_file():
+        raise FileNotFoundError(f"Font file not found: {resolved_path}")
+
+    try:
+        charmap = FT2Font(resolved_path).get_charmap()
+    except Exception as exc:
+        raise ValueError(f"Could not read typeface '{font_family}'.") from exc
+
+    missing = sorted({character for character in text if not character.isspace() and ord(character) not in charmap})
+    if missing:
+        sample = " ".join(repr(character) for character in missing[:8])
+        more = "" if len(missing) <= 8 else f" (+{len(missing) - 8} more)"
+        raise ValueError(
+            f"Typeface '{font_family}' cannot draw {sample}{more}. "
+            "Choose a typeface that supports every character in the text."
+        )
+    return resolved_path
+
 
 def outline_text_to_polylines(text: str, style: StyleConfig) -> Polylines:
     """Convert conventional font outlines to millimeter-scale polylines.
@@ -32,9 +89,6 @@ def outline_text_to_polylines(text: str, style: StyleConfig) -> Polylines:
     style.validate()
     if not text:
         raise ValueError("Text input cannot be empty.")
-    if style.font_path is not None and not Path(style.font_path).is_file():
-        raise FileNotFoundError(f"Font file not found: {style.font_path}")
-
     try:
         import matplotlib
 
@@ -45,9 +99,10 @@ def outline_text_to_polylines(text: str, style: StyleConfig) -> Polylines:
         raise RuntimeError("Outline text rendering requires matplotlib.") from exc
 
     font_size_points = style.font_size_mm / POINTS_TO_MM
+    resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
     font = FontProperties(
         family=style.font_family,
-        fname=style.font_path,
+        fname=resolved_font_path,
         size=font_size_points,
     )
     metrics = TextToPath()
@@ -132,7 +187,7 @@ def text_to_polylines_with_metadata(
     return outline_text_to_polylines(text, style), {
         "text_engine": "outline",
         "font_family": style.font_family,
-        "font_path": style.font_path,
+        "font_path": _resolve_outline_font(style.font_family, style.font_path, text),
     }
 
 
