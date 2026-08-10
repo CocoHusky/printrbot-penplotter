@@ -120,7 +120,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <textarea id="text">Today I need to remember:</textarea>
 </div>
 <div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
-<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Typed font</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Typed font</strong><small>Common Word-style fonts</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint">Typed font supports the selected font’s languages. Use PingFang or Noto CJK for Chinese/Japanese/Korean.</div></div>
+<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Typed font</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Typed font</strong><small>Common Word-style fonts</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint" id="languageHint">Typed font supports the selected font’s languages. Use PingFang or Noto CJK for Chinese/Japanese/Korean.</div></div>
 <div class="row">
   <div><label for="fontSize">Text size</label><select id="fontSize"><option value="6">Small · 6 mm</option><option value="9">Medium · 9 mm</option><option value="12">Large · 12 mm</option><option value="18" selected>Extra large · 18 mm</option><option value="24">Poster · 24 mm</option></select></div>
 </div>
@@ -166,16 +166,30 @@ const byId = id => document.getElementById(id);
 const noteStorageKey = 'printrbot-note-draft';
 function saveNote(){ localStorage.setItem(noteStorageKey,byId('text').value); byId('status').textContent='Note saved locally on this computer.'; }
 const savedNote=localStorage.getItem(noteStorageKey); if(savedNote)byId('text').value=savedNote;
-byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,byId('text').value);byId('status').textContent='Draft saved locally.';});
+byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,byId('text').value);syncTypefaceForText();byId('status').textContent='Draft saved locally.';});
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
+function hasCjk(text){ return /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/u.test(text); }
+function syncTypefaceForText(){
+ const cjk=hasCjk(byId('text').value);
+ const cjkFonts=['PingFang SC','Hiragino Sans GB','Noto Sans CJK SC'];
+ if(cjk && byId('preset').value==='standard' && !cjkFonts.includes(byId('font').value)){
+   byId('font').value='PingFang SC';
+   byId('languageHint').textContent='Chinese/Japanese/Korean detected. PingFang SC was selected automatically so every character can be plotted.';
+ } else if(cjk && byId('preset').value==='standard') {
+   byId('languageHint').textContent='CJK text detected. Use a CJK typeface such as PingFang SC; unsupported glyphs are rejected instead of drawn as question marks.';
+ } else {
+   byId('languageHint').textContent='Typed font supports the selected font’s languages. Use PingFang or Noto CJK for Chinese/Japanese/Korean.';
+ }
+}
 function applyPreset(){
  const value=byId('preset').value;
- if(value==='standard') { byId('font').value='Arial'; byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
+ if(value==='standard') { byId('font').value=hasCjk(byId('text').value)?'PingFang SC':'Arial'; byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
  else if(value==='robot') { byId('slant').value=0; byId('letterSpacing').value=1.2; byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; byId('slant').value=3; byId('letterSpacing').value=0.55; byId('handwritingControls').open=true; }
  byId('typefaceField').style.display=value==='standard'?'block':'none';
  byId('handwritingSummary').textContent=value==='standard'?'Typed fonts follow the selected typeface outline.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
  document.querySelectorAll('.lettering-choice').forEach(button=>button.classList.toggle('selected',button.dataset.preset===value));
+ syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:byId('preset').value==='standard'?'outline':'stroke',
