@@ -88,6 +88,12 @@ textarea { min-height:142px; resize:vertical; }
 button { margin-top:12px; background:#2d6155; color:white; font-weight:700; cursor:pointer; }
 button:disabled { opacity:.48; cursor:not-allowed; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline:3px solid #2d6155; outline-offset:2px; }
+.lettering-choices { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:6px; }
+.lettering-choice { margin:0; text-align:left; background:#0b1721; color:#c7d3dd; border:1px solid #2d6686; min-height:66px; }
+.lettering-choice strong { display:block; color:#f0f6fa; }
+.lettering-choice small { display:block; margin-top:4px; color:#9ab0c2; }
+.lettering-choice.selected { background:#193a4f; border-color:#70cfff; box-shadow:0 0 0 2px rgba(112,207,255,.25); }
+#preset { display:none; }
 button.secondary { background:#6c756f; }
 button.safe { background:#8a5a2b; }
 #preview { background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
@@ -115,7 +121,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 <div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
 <div class="row">
-  <div><label for="preset">Lettering type</label><select id="preset" onchange="applyPreset()"><option value="standard">Standard type</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="hint">Choose the look first. Only the controls that affect it are shown below.</div></div>
+  <div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Standard type</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Standard type</strong><small>Times-style lettering</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Clean single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint">Choose the look first. Only the controls that affect it are shown below.</div></div>
   <div><label for="fontSize">Cap height (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
 </div>
 <div class="row">
@@ -173,6 +179,7 @@ function applyPreset(){
  else { byId('neuralStyle').value=9; byId('slant').value=3; byId('letterSpacing').value=0.55; byId('handwritingControls').open=true; }
  byId('typefaceField').style.display=value==='standard'?'block':'none';
  byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
+ document.querySelectorAll('.lettering-choice').forEach(button=>button.classList.toggle('selected',button.dataset.preset===value));
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:byId('preset').value==='standard'?'outline':'stroke',
@@ -225,6 +232,7 @@ function syncNeuralState(available){
  applyPreset();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
+document.querySelectorAll('.lettering-choice').forEach(button=>button.addEventListener('click',()=>{byId('preset').value=button.dataset.preset;applyPreset();}));
 applyPreset();
 </script>
 </main></body></html>"""
