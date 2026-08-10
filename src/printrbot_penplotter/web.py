@@ -131,10 +131,6 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <details><summary>Layout</summary><div><label for="wrapWidth">Wrap width (mm; blank = none)</label><input id="wrapWidth" type="number" placeholder="e.g. 110"></div></details>
 </div>
 <details>
-<summary>Outline compatibility and custom font paths</summary>
-<label for="strokeFontPath">Custom stroke-font JSON path on host</label><input id="strokeFontPath" placeholder="/absolute/path/font.json">
-</details>
-<details>
 <summary>Page and machine placement</summary>
 <div class="row">
   <div><label for="fitMode">Fit behavior</label><select id="fitMode"><option value="downscale">Preserve size; shrink only</option><option value="none">Exact size or error</option><option value="fit">Fill page</option></select></div>
@@ -183,7 +179,7 @@ function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
  font_family:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
- stroke_font_path:byId('strokeFontPath').value.trim()||null,
+ stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
  wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,
  word_spacing_em:Number(byId('wordSpacing').value), letter_spacing_mm:Number(byId('letterSpacing').value),
