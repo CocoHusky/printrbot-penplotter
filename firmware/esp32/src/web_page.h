@@ -60,7 +60,7 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <button id="cancel" class="cancel" onclick="action('cancel')">Orderly cancel</button>
 </div>
 <button class="danger" onclick="emergency()">EMERGENCY STOP — M112</button>
-<p class="small">Pause and orderly cancellation occur between acknowledged commands. Emergency stop is immediate and may require resetting the Printrboard.</p>
+<p class="small">The bridge forces a full <code>G28</code> home before every stored job, regardless of uploaded G-code. Pause and orderly cancellation occur between acknowledged commands. Emergency stop is immediate and requires resetting the Printrboard.</p>
 </section>
 
 <section class="card">

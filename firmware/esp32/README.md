@@ -15,6 +15,7 @@ It does **not** render fonts, trace images, or plan drawing geometry. Those jobs
 - Full-file validation before motion is enabled.
 - Blocking for heaters, extrusion, tool changes, embedded `M112`, and `E`-axis motion.
 - One active hardware job at a time.
+- The bridge injects a full `G28` and `M400` before every job, even when the uploaded G-code omits homing.
 - Command-by-command Marlin acknowledgement.
 - Ready, running, paused, cancelling, cancelled, completed, failed, and emergency states.
 - Orderly cancellation using `M400`, calibrated pen-up Z, then `M400`.

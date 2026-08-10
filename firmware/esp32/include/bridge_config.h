@@ -40,6 +40,9 @@ inline constexpr float kMaximumZFeedMmMin = 300.0F;
 
 inline constexpr float kSafeZUpMm = 5.0F;
 inline constexpr std::uint32_t kSafeZFeedMmMin = 300;
+// The bridge owns the pre-job homing guarantee. Uploaded jobs are still
+// validated for their own safe end sequence, but cannot skip this step.
+inline constexpr bool kForceHomeBeforeEveryJob = true;
 
 inline constexpr std::size_t kLogLines = 24;
 inline constexpr std::size_t kMaximumLineLength = 256;

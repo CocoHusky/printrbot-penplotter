@@ -61,6 +61,7 @@ class JobRunner {
   bool pauseRequested_{false};
   bool stopping_{false};
   int stopStage_{0};
+  int startupStage_{2};
 };
 
 }  // namespace plotter

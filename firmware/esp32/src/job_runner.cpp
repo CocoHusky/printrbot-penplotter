@@ -59,6 +59,17 @@ bool JobRunner::loadStoredJob(fs::FS& filesystem, const char* path, String& erro
   std::size_t commandCount = 0;
   std::size_t lineNumber = 0;
   protocol::JobValidationState validationState;
+  if (config::kForceHomeBeforeEveryJob) {
+    const auto home = protocol::validateJobSequenceLine("G28", validationState);
+    const auto wait = protocol::validateJobSequenceLine("M400", validationState);
+    if (!home.accepted || !wait.accepted) {
+      file.close();
+      error = "Built-in pre-job homing sequence is invalid: " +
+              String((!home.accepted ? home.reason : wait.reason).c_str());
+      return false;
+    }
+    commandCount += 2;
+  }
   while (file.available()) {
     String line = file.readStringUntil('\n');
     ++lineNumber;
@@ -102,6 +113,7 @@ bool JobRunner::loadStoredJob(fs::FS& filesystem, const char* path, String& erro
   pauseRequested_ = false;
   stopping_ = false;
   stopStage_ = 0;
+  startupStage_ = config::kForceHomeBeforeEveryJob ? 0 : 2;
   state_ = JobState::Ready;
   return true;
 }
@@ -131,6 +143,7 @@ bool JobRunner::start(fs::FS& filesystem, String& error) {
   pauseRequested_ = false;
   stopping_ = false;
   stopStage_ = 0;
+  startupStage_ = config::kForceHomeBeforeEveryJob ? 0 : 2;
   state_ = JobState::Running;
   return true;
 }
@@ -181,6 +194,16 @@ void JobRunner::emergencyStop() {
 }
 
 bool JobRunner::readNextCommand(String& command, String& error) {
+  if (startupStage_ == 0) {
+    startupStage_ = 1;
+    command = "G28";
+    return true;
+  }
+  if (startupStage_ == 1) {
+    startupStage_ = 2;
+    command = "M400";
+    return true;
+  }
   while (jobFile_ && jobFile_.available()) {
     String line = jobFile_.readStringUntil('\n');
     const auto validation = protocol::validateJobLine(std::string(line.c_str()));
