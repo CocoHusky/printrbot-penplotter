@@ -21,7 +21,7 @@ app = FastAPI(title="Printrbot Pen Plotter", version="0.3.0")
 class RenderRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
     preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
-    engine: Literal["stroke", "outline"] = "stroke"
+    engine: Literal["stroke", "outline"] = "stroke"  # outline is legacy API input only
     writing_backend: Literal["stroke", "neural"] = "stroke"
     neural_style: int = Field(default=9, ge=0, le=12)
     neural_bias: float = Field(default=0.75, ge=0, le=1)
@@ -120,12 +120,12 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <textarea id="text">Today I need to remember:</textarea>
 </div>
 <div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
-<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Typed font</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Typed font</strong><small>Common Word-style fonts</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint" id="languageHint">Typed font supports the selected font’s languages. Use PingFang or Noto CJK for Chinese/Japanese/Korean.</div></div>
+<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Typed centerline</option><option value="robot">Robot centerline</option><option value="human">Handwritten centerline</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Typed centerline</strong><small>Single-stroke print lettering</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot centerline</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten centerline</strong><small>Natural pen trajectory</small></button></div><div class="hint" id="languageHint">Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.</div></div>
 <div class="row">
   <div><label for="fontSize">Text size</label><select id="fontSize"><option value="6">Small · 6 mm</option><option value="9">Medium · 9 mm</option><option value="12">Large · 12 mm</option><option value="18" selected>Extra large · 18 mm</option><option value="24">Poster · 24 mm</option></select></div>
 </div>
 <div class="row">
-  <div id="typefaceField"><label for="font">Typeface</label><select id="font"><option>Arial</option><option>Times New Roman</option><option>Calibri</option><option>Cambria</option><option>Georgia</option><option>Verdana</option><option>Tahoma</option><option>Trebuchet MS</option><option>Courier New</option><option>Comic Sans MS</option><option>Garamond</option><option>Palatino Linotype</option><option>Book Antiqua</option><option>Century Gothic</option><option>Franklin Gothic Medium</option><option>Helvetica</option><option>Arial Narrow</option><option>Impact</option><option>DejaVu Sans</option><option>DejaVu Serif</option><option>PingFang SC</option><option>Hiragino Sans GB</option><option>Noto Sans CJK SC</option></select></div>
+  <div id="typefaceField"><label for="font">Centerline alphabet</label><select id="font"><option value="robot">Robot single-line</option><option value="hand">Hand single-line</option></select></div>
 </div>
 <div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
 <details id="handwritingControls"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div><div class="row"><div><label for="letterSpacing">Letter spacing (mm)</label><input id="letterSpacing" type="number" value="0.55" step="0.05"></div><div><label for="wordSpacing">Word spacing (em)</label><input id="wordSpacing" type="number" value="0.42" step="0.02"></div></div></details>
@@ -170,31 +170,22 @@ byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,b
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function hasCjk(text){ return /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/u.test(text); }
 function syncTypefaceForText(){
- const cjk=hasCjk(byId('text').value);
- const cjkFonts=['PingFang SC','Hiragino Sans GB','Noto Sans CJK SC'];
- if(cjk && byId('preset').value==='standard' && !cjkFonts.includes(byId('font').value)){
-   byId('font').value='PingFang SC';
-   byId('languageHint').textContent='Chinese/Japanese/Korean detected. PingFang SC was selected automatically so every character can be plotted.';
- } else if(cjk && byId('preset').value==='standard') {
-   byId('languageHint').textContent='CJK text detected. Use a CJK typeface such as PingFang SC; unsupported glyphs are rejected instead of drawn as question marks.';
- } else {
-   byId('languageHint').textContent='Typed font supports the selected font’s languages. Use PingFang or Noto CJK for Chinese/Japanese/Korean.';
- }
+ byId('languageHint').textContent=hasCjk(byId('text').value)?'CJK characters need a CJK centerline font pack; no outline fallback is used.':'Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.';
 }
 function applyPreset(){
  const value=byId('preset').value;
- if(value==='standard') { byId('font').value=hasCjk(byId('text').value)?'PingFang SC':'Arial'; byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
+ if(value==='standard') { byId('font').value='robot'; byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
  else if(value==='robot') { byId('slant').value=0; byId('letterSpacing').value=1.2; byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; byId('slant').value=3; byId('letterSpacing').value=0.55; byId('handwritingControls').open=true; }
  byId('typefaceField').style.display=value==='standard'?'block':'none';
- byId('handwritingSummary').textContent=value==='standard'?'Typed fonts follow the selected typeface outline.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
+ byId('handwritingSummary').textContent=value==='standard'?'Typed centerline lettering uses the robot single-stroke alphabet.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
  document.querySelectorAll('.lettering-choice').forEach(button=>button.classList.toggle('selected',button.dataset.preset===value));
  syncTypefaceForText();
 }
 function payload(){ return {
- text:byId('text').value, preset:byId('preset').value, engine:byId('preset').value==='standard'?'outline':'stroke',
+ text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:byId('preset').value==='standard'?byId('font').value:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
+ font_family:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='standard'?'robot':byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
  wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,

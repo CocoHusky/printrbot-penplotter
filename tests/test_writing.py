@@ -34,34 +34,25 @@ def test_robot_l_is_one_centerline_stroke_not_an_outline() -> None:
     assert job.metadata["strokes"] == 1
 
 
-def test_standard_preset_uses_a_typed_font_outline() -> None:
+def test_standard_preset_uses_typed_centerline_strokes() -> None:
     style = StyleConfig.for_preset("standard", font_size_mm=12)
     job = render_text_job("Times", style=style, layout=LayoutConfig(fit_mode="none"))
-    assert style.engine == "outline"
+    assert style.engine == "stroke"
     assert style.font_family == "Arial"
-    assert job.metadata["text_engine"] == "outline"
+    assert job.metadata["text_engine"] == "stroke"
 
 
-def test_cjk_typed_text_uses_real_mac_font_when_available() -> None:
-    cjk_font = Path("/System/Library/Fonts/Hiragino Sans GB.ttc")
-    if not cjk_font.is_file():
-        pytest.skip("macOS CJK font is not available on this host")
-    style = StyleConfig.for_preset(
-        "standard",
-        font_family="PingFang SC",
-        font_size_mm=10,
-    )
-    polylines, metadata = text_to_polylines_with_metadata(
-        "Hello 你好 こんにちは Hola!",
-        style,
-    )
-    assert polylines
-    assert metadata["font_path"] == str(cjk_font)
+def test_standard_typed_preset_is_centerline_only() -> None:
+    style = StyleConfig.for_preset("standard", font_size_mm=10)
+    job = render_text_job("Hello", style=style)
+    assert style.engine == "stroke"
+    assert job.metadata["text_engine"] == "stroke"
+    assert job.metadata["stroke_font"] == "robot"
 
 
-def test_typed_text_rejects_missing_glyphs_instead_of_falling_back() -> None:
-    style = StyleConfig.for_preset("standard", font_family="Arial", font_size_mm=10)
-    with pytest.raises(ValueError, match="cannot draw"):
+def test_centerline_text_rejects_unsupported_non_latin_instead_of_falling_back() -> None:
+    style = StyleConfig.for_preset("standard", font_size_mm=10)
+    with pytest.raises(ValueError, match="centerline alphabet"):
         text_to_polylines_with_metadata("你好", style)
 
 

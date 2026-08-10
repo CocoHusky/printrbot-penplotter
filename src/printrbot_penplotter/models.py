@@ -164,7 +164,7 @@ class PenConfig:
 
 @dataclass(frozen=True)
 class StyleConfig:
-    """Text appearance for native centerline writing or outline compatibility."""
+    """Text appearance for native centerline writing."""
 
     preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
     engine: TextEngine = "stroke"
@@ -172,7 +172,7 @@ class StyleConfig:
     neural_style: int = 9
     neural_bias: float = 0.75
 
-    # Outline-engine compatibility.
+    # Retained for API compatibility; product rendering uses centerline fonts.
     font_family: str = "DejaVu Sans"
     font_path: str | None = None
 
@@ -205,7 +205,7 @@ class StyleConfig:
         if preset == "standard":
             values = {
                 "preset": preset,
-                "engine": "outline",
+                "engine": "stroke",
                 "writing_backend": "stroke",
                 "font_family": "Arial",
                 "stroke_font": "robot",

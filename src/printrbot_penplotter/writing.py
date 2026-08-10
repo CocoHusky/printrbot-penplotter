@@ -139,6 +139,18 @@ def stroke_text_to_polylines(text: str, style: StyleConfig) -> WritingResult:
             for character in token:
                 glyph_character = _stroke_compatible_character(character)
                 if glyph_character not in font.glyphs:
+                    codepoint = ord(character)
+                    is_cjk = (
+                        0x3400 <= codepoint <= 0x4DBF
+                        or 0x4E00 <= codepoint <= 0x9FFF
+                        or 0x3040 <= codepoint <= 0x30FF
+                        or 0xAC00 <= codepoint <= 0xD7AF
+                    )
+                    if is_cjk and glyph_character == character:
+                        raise ValueError(
+                            f"The centerline alphabet '{font.name}' cannot draw {character!r}. "
+                            "Choose ASCII/Latin text or install a matching centerline font pack."
+                        )
                     unsupported.add(character)
                 variant = _variant_for(font, glyph_character, glyph_index, style)
                 selected.append((character, variant, glyph_index))
