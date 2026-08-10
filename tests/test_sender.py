@@ -109,6 +109,25 @@ def test_marlin_error_attempts_orderly_safe_stop() -> None:
     assert "G28 X Y" not in commands
 
 
+def test_halted_controller_does_not_receive_retry_or_safe_stop_commands() -> None:
+    class HaltedSerial(FakeSerial):
+        def write(self, data: bytes) -> int:
+            command = data.decode("ascii").strip()
+            self.commands.append(command)
+            self.responses.append(b"Error:Printer halted. kill() called!\n")
+            return len(data)
+
+    def halted_factory(*args, **kwargs):
+        return HaltedSerial(*args, **kwargs)
+
+    with MarlinSender("fake", serial_factory=halted_factory, startup_delay_s=0) as sender:
+        with pytest.raises(MarlinError, match="reset the controller"):
+            sender.send_gcode(_safe_plot_gcode(), safe_z_up_mm=5.0)
+        with pytest.raises(MarlinError, match="reset the controller"):
+            sender.send_command("G21")
+        assert sender._serial.commands == ["G21"]
+
+
 def test_cancellation_stops_before_next_command_and_raises_pen() -> None:
     cancellation = CancellationToken()
 

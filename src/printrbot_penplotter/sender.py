@@ -99,6 +99,7 @@ class MarlinSender:
         self.serial_factory = serial_factory
         self.startup_delay_s = startup_delay_s
         self._serial: Any | None = None
+        self._halted = False
 
     def __enter__(self) -> "MarlinSender":
         if self.serial_factory is None:
@@ -116,6 +117,7 @@ class MarlinSender:
             timeout=0.25,
             write_timeout=2.0,
         )
+        self._halted = False
         if self.startup_delay_s > 0:
             time.sleep(self.startup_delay_s)
         reset = getattr(self._serial, "reset_input_buffer", None)
@@ -135,6 +137,10 @@ class MarlinSender:
 
     def send_command(self, command: str, log: TextIO | None = None) -> list[str]:
         serial_port = self._require_open()
+        if self._halted:
+            raise MarlinError(
+                "Marlin is halted after an emergency stop. reset the controller before sending another job."
+            )
         clean = command.split(";", 1)[0].strip()
         if not clean:
             return []
@@ -157,6 +163,11 @@ class MarlinSender:
             if log:
                 log.write(f"< {response}\n")
             lower = response.lower()
+            if "printer halted" in lower or "kill() called" in lower or "emergency stop" in lower:
+                self._halted = True
+                raise MarlinError(
+                    f"Marlin halted after '{clean}': reset the controller before retrying."
+                )
             if lower.startswith("ok"):
                 return responses
             if lower.startswith("error") or lower.startswith("!!"):
@@ -174,6 +185,8 @@ class MarlinSender:
         cancellation remains visible to the caller.
         """
 
+        if self._halted:
+            return
         try:
             self.send_command("M400", log=log)
             if z_up_mm is not None:
@@ -241,3 +254,4 @@ class MarlinSender:
         serial_port = self._require_open()
         serial_port.write(b"M112\n")
         serial_port.flush()
+        self._halted = True
