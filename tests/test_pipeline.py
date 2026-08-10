@@ -116,6 +116,18 @@ def test_gcode_contains_guarded_pen_sequence_without_automatic_homing() -> None:
     assert "G90" in job.gcode
 
 
+def test_gcode_adds_home_and_safe_end_when_enabled() -> None:
+    job = render_text_job(
+        "A",
+        pen=PenConfig(home_before_plot=True, z_up_mm=5.0, z_down_mm=0.25),
+        style=StyleConfig.for_preset("clean"),
+    )
+    assert "G28 ; home X/Y/Z before plot" in job.gcode
+    assert "G28 X Y ; re-home X/Y with pen safely raised" in job.gcode
+    assert job.metadata["home_before_plot"] is True
+    assert job.metadata["end_sequence"] == "pen-up + M400 + X/Y re-home"
+
+
 def test_air_plot_never_lowers_pen() -> None:
     job = render_calibration_job(pen=PenConfig(z_up_mm=5.0, z_down_mm=0.25, air_plot=True))
     assert "pen down" not in job.gcode

@@ -35,3 +35,5 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "Rendering your note…" in text
     assert "STEP 1" in text and "STEP 2" in text and "STEP 3" in text
     assert 'id="handwritingControls"' in text
+    assert 'id="homeBeforePlot"' in text
+    assert "re-home X/Y at the end" in text

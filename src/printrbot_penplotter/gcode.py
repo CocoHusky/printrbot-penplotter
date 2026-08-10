@@ -119,9 +119,11 @@ def polylines_to_gcode(
             )
 
     # Standard safe end sequence: wait, guarantee pen-up, optionally park, then
-    # re-home only the planar axes. Never G28 Z after ink motion.
+    # re-home only the planar axes when the job was configured to home. Never
+    # G28 Z after ink motion.
     lines.extend(
         [
+            "; end sequence: pen-up and wait" if not pen.home_before_plot else "; end sequence: pen-up, wait, and X/Y re-home",
             "M400 ; finish drawing motion",
             f"G0 Z{pen.z_up_mm:.3f} F{pen.z_feed_mm_min:.1f} ; final pen up",
             "M400 ; confirm pen-up motion",

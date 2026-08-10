@@ -95,6 +95,8 @@ def render_text_job(
             "letter_spacing_mm": style.letter_spacing_mm,
             "word_spacing_em": style.word_spacing_em,
             "slant_deg": style.slant_deg,
+            "home_before_plot": pen.home_before_plot,
+            "end_sequence": "pen-up + M400 + X/Y re-home" if pen.home_before_plot else "pen-up + M400",
             "variant_mode": style.variant_mode,
             "connect_letters": style.connect_letters,
             "wrap_width_mm": style.wrap_width_mm,
