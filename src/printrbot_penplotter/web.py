@@ -20,7 +20,7 @@ app = FastAPI(title="Printrbot Pen Plotter", version="0.3.0")
 
 class RenderRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
-    preset: Literal["clean", "human", "cursive", "robot"] = "human"
+    preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
     engine: Literal["stroke", "outline"] = "stroke"
     writing_backend: Literal["stroke", "neural"] = "stroke"
     neural_style: int = Field(default=9, ge=0, le=12)
@@ -115,34 +115,18 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 <div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
 <div class="row">
-  <div><label for="preset">Writing style</label><select id="preset" onchange="applyPreset()"><option value="human">Natural notes</option><option value="cursive">Cursive notes</option><option value="clean">Clean print</option><option value="robot">Technical mono</option></select></div>
+  <div><label for="preset">Lettering type</label><select id="preset" onchange="applyPreset()"><option value="standard">Standard type</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="hint">Choose the look first. Only the controls that affect it are shown below.</div></div>
   <div><label for="fontSize">Cap height (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
 </div>
 <div class="row">
-  <div><label for="engine">Text engine</label><select id="engine"><option value="stroke">Single-line stroke</option><option value="outline">TTF/OTF outline</option></select></div>
-  <div><label for="strokeFont">Stroke font</label><select id="strokeFont"><option>hand</option><option>robot</option></select></div>
+  <div id="typefaceField"><label for="font">Typeface</label><select id="font"><option>Times New Roman</option><option>Georgia</option><option>DejaVu Serif</option><option>Arial</option><option>DejaVu Sans</option></select></div>
+  <div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
 </div>
-<div class="row">
-  <div><label for="writingBackend">Generation method</label><select id="writingBackend"><option value="stroke">Authored plotter lettering</option><option value="neural" disabled>Neural handwriting (optional)</option></select><div id="neuralStatus" class="hint">Fast authored lettering is ready. Neural handwriting requires the optional model worker.</div></div>
-</div>
-<details id="neuralControls"><summary>Optional neural handwriting controls</summary><div class="row"><div><label for="neuralStyle">Neural style (0–12)</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness / bias (0–1)</label><input id="neuralBias" type="number" value="0.75" min="0" max="1" step="0.05"></div></div></details>
-<div class="row">
-  <div><label for="variantMode">Glyph variants</label><select id="variantMode"><option value="seeded">Seeded</option><option value="cycle">Cycle</option><option value="first">First only</option></select></div>
-  <div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div>
-</div>
-<div class="row">
-  <div><label for="wrapWidth">Wrap width (mm; blank = none)</label><input id="wrapWidth" type="number" placeholder="e.g. 110"></div>
-  <div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div>
-</div>
-<div class="row">
-  <div><label for="letterSpacing">Letter spacing (mm)</label><input id="letterSpacing" type="number" value="0.55" step="0.05"></div>
-  <div><label for="wordSpacing">Word spacing (em)</label><input id="wordSpacing" type="number" value="0.42" step="0.02"></div>
-</div>
-<div class="check"><input id="connectLetters" type="checkbox"><label for="connectLetters" style="margin:0">Join letters when glyph anchors permit</label></div>
+<details id="handwritingControls"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div><div class="row"><div><label for="letterSpacing">Letter spacing (mm)</label><input id="letterSpacing" type="number" value="0.55" step="0.05"></div><div><label for="wordSpacing">Word spacing (em)</label><input id="wordSpacing" type="number" value="0.42" step="0.02"></div></div></details>
+<details><summary>Layout</summary><div><label for="wrapWidth">Wrap width (mm; blank = none)</label><input id="wrapWidth" type="number" placeholder="e.g. 110"></div></details>
 </div>
 <details>
 <summary>Outline compatibility and custom font paths</summary>
-<label for="font">Outline font family</label><input id="font" value="DejaVu Sans">
 <label for="strokeFontPath">Custom stroke-font JSON path on host</label><input id="strokeFontPath" placeholder="/absolute/path/font.json">
 </details>
 <details>
@@ -174,6 +158,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 <script>
 let latestGcode = "";
+let neuralAvailable = false;
 let renderTimer = null;
 const byId = id => document.getElementById(id);
 const noteStorageKey = 'printrbot-note-draft';
@@ -183,35 +168,21 @@ byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,b
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function applyPreset(){
  const value=byId('preset').value;
- const neural=byId('writingBackend').querySelector('option[value="neural"]');
- if(value==='cursive'){
-  byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='seeded';
-  byId('connectLetters').checked=true; byId('slant').value=9; byId('letterSpacing').value=-0.08;
-  if(!neural.disabled){byId('writingBackend').value='neural';byId('neuralStyle').value=12;}
- } else if(value==='robot'){
-  byId('engine').value='stroke'; byId('strokeFont').value='robot'; byId('variantMode').value='first';
-  byId('connectLetters').checked=false; byId('slant').value=0; byId('letterSpacing').value=1.2;
-  byId('writingBackend').value='stroke';
- } else if(value==='clean'){
-  byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='first';
-  byId('connectLetters').checked=false; byId('slant').value=0; byId('letterSpacing').value=0.45;
-  byId('writingBackend').value='stroke';
- } else {
-  byId('engine').value='stroke'; byId('strokeFont').value='hand'; byId('variantMode').value='seeded';
-  byId('connectLetters').checked=false; byId('slant').value=3; byId('letterSpacing').value=0.55;
-  if(!neural.disabled){byId('writingBackend').value='neural';byId('neuralStyle').value=9;}
- }
- window.__syncNeuralControls?.();
+ if(value==='standard') { byId('font').value='Times New Roman'; byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
+ else if(value==='robot') { byId('font').value='DejaVu Sans'; byId('slant').value=0; byId('letterSpacing').value=1.2; byId('handwritingControls').open=false; }
+ else { byId('neuralStyle').value=9; byId('slant').value=3; byId('letterSpacing').value=0.55; byId('handwritingControls').open=true; }
+ byId('typefaceField').style.display=value==='standard'?'block':'none';
+ byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
 }
 function payload(){ return {
- text:byId('text').value, preset:byId('preset').value, engine:byId('engine').value,
- writing_backend:byId('writingBackend').value, neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:byId('font').value, font_path:null, stroke_font:byId('strokeFont').value,
+ text:byId('text').value, preset:byId('preset').value, engine:byId('preset').value==='standard'?'outline':'stroke',
+ writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
+ font_family:byId('preset').value==='standard'?byId('font').value:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:byId('strokeFontPath').value.trim()||null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
- wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:byId('connectLetters').checked,
+ wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,
  word_spacing_em:Number(byId('wordSpacing').value), letter_spacing_mm:Number(byId('letterSpacing').value),
- variant_mode:byId('variantMode').value, stroke_order:'authored', slant_deg:Number(byId('slant').value),
+ variant_mode:byId('preset').value==='robot'?'first':'seeded', stroke_order:byId('preset').value==='robot'?'nearest':'authored', slant_deg:Number(byId('slant').value),
  page_width_mm:Number(byId('pageWidth').value), page_height_mm:Number(byId('pageHeight').value),
  page_origin_x_mm:Number(byId('originX').value), page_origin_y_mm:Number(byId('originY').value),
  margin_mm:8, fit_mode:byId('fitMode').value, horizontal_align:byId('align').value,
@@ -250,16 +221,8 @@ function downloadGcode(){
  const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download='plot.gcode'; link.click(); URL.revokeObjectURL(link.href);
 }
 function syncNeuralState(available){
- const select=byId('writingBackend'), option=select.querySelector('option[value="neural"]'), controls=byId('neuralControls'), hint=byId('neuralStatus');
- option.disabled=!available;
- if(!available && select.value==='neural') select.value='stroke';
- const neuralActive=()=>select.value==='neural';
- const authoredOnly=['engine','strokeFont','variantMode','connectLetters','slant','letterSpacing'];
- const syncControls=()=>{const active=neuralActive();for(const id of authoredOnly){const field=byId(id);if(field)field.disabled=active;}controls.open=active;hint.textContent=active?'Neural handwriting is active. Font and authored-glyph controls are disabled; size, spacing, wrap, and placement still apply.':available?'Optional neural worker is ready. Choose it for variable model-based handwriting.':'Optional neural handwriting is not configured on this server; authored plotter lettering is ready now.';};
- window.__syncNeuralControls=syncControls;
- select.onchange=syncControls;
- if(available && (byId('preset').value==='human' || byId('preset').value==='cursive')){select.value='neural';controls.open=true;}
- syncControls();
+ neuralAvailable=available;
+ applyPreset();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
 applyPreset();

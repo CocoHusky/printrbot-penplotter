@@ -31,6 +31,14 @@ def test_robot_l_is_one_centerline_stroke_not_an_outline() -> None:
     assert job.metadata["strokes"] == 1
 
 
+def test_standard_preset_uses_a_conventional_typeface_outline() -> None:
+    style = StyleConfig.for_preset("standard", font_size_mm=12)
+    job = render_text_job("Times", style=style, layout=LayoutConfig(fit_mode="none"))
+    assert style.engine == "outline"
+    assert style.font_family == "Times New Roman"
+    assert job.metadata["text_engine"] == "outline"
+
+
 def test_seeded_glyph_selection_is_reproducible() -> None:
     style = StyleConfig.for_preset("human", seed=42, font_size_mm=10)
     first = render_text_job("aaaaaaaa", style=style)

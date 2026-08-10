@@ -214,7 +214,7 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
 
 def _add_text_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--preset", choices=("clean", "human", "cursive", "robot"), default="human"
+        "--preset", choices=("standard", "clean", "human", "cursive", "robot"), default="human"
     )
     parser.add_argument(
         "--engine",

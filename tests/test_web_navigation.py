@@ -21,14 +21,16 @@ def test_unified_tool_navigation_is_present_on_each_workspace() -> None:
         assert 'id="printrbot-lab-theme"' in text
 
 
-def test_notes_workspace_has_local_draft_and_human_preset_controls() -> None:
+def test_notes_workspace_has_simple_lettering_choices() -> None:
     text = client.get("/").text
     assert "Write notes for the plotter" in text
-    assert "Natural notes" in text
-    assert "Cursive notes" in text
-    assert "Font and authored-glyph controls are disabled" in text
+    assert "Standard type" in text
+    assert "Robot / plotter" in text
+    assert "Handwritten" in text
+    assert "Handwriting adjustments" in text
+    assert "Choose the look first" in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
     assert "Rendering your note…" in text
     assert "STEP 1" in text and "STEP 2" in text and "STEP 3" in text
-    assert 'id="neuralControls"' in text
+    assert 'id="handwritingControls"' in text

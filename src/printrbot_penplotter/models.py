@@ -166,7 +166,7 @@ class PenConfig:
 class StyleConfig:
     """Text appearance for native centerline writing or outline compatibility."""
 
-    preset: Literal["clean", "human", "cursive", "robot"] = "human"
+    preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
     engine: TextEngine = "stroke"
     writing_backend: Literal["stroke", "neural"] = "stroke"
     neural_style: int = 9
@@ -198,11 +198,27 @@ class StyleConfig:
     @classmethod
     def for_preset(
         cls,
-        preset: Literal["clean", "human", "cursive", "robot"],
+        preset: Literal["standard", "clean", "human", "cursive", "robot"],
         **overrides: object,
     ) -> "StyleConfig":
         values: dict[str, object]
-        if preset == "clean":
+        if preset == "standard":
+            values = {
+                "preset": preset,
+                "engine": "outline",
+                "writing_backend": "stroke",
+                "font_family": "Times New Roman",
+                "stroke_font": "robot",
+                "variant_mode": "first",
+                "connect_letters": False,
+                "slant_deg": 0.0,
+                "rotation_jitter_deg": 0.0,
+                "baseline_jitter_mm": 0.0,
+                "x_jitter_mm": 0.0,
+                "scale_jitter": 0.0,
+                "letter_spacing_mm": 0.0,
+            }
+        elif preset == "clean":
             values = {
                 "preset": preset,
                 "engine": "stroke",
