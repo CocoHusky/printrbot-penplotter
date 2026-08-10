@@ -7,7 +7,7 @@ import random
 from pathlib import Path
 
 from .geometry import rotate_scale_translate
-from .centerline_fonts import text_to_centerline_polylines
+from .centerline_fonts import text_to_mixed_centerlines
 from .image_preprocess import ImagePreprocessConfig
 from .image_understanding import ImageUnderstandingConfig
 from .line_art import LineArtConfig, render_line_art
@@ -182,8 +182,8 @@ def text_to_polylines_with_metadata(
         for character in text
     ):
         resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
-        return text_to_centerline_polylines(text, style, resolved_font_path), {
-            "text_engine": "centerline-raster",
+        return text_to_mixed_centerlines(text, style, resolved_font_path), {
+            "text_engine": "centerline-mixed",
             "font_family": style.font_family,
             "font_path": resolved_font_path,
         }

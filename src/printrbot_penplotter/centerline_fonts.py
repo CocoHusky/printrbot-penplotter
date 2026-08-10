@@ -157,3 +157,57 @@ def text_to_centerline_polylines(text: str, style: StyleConfig, font_path: str) 
     if not output:
         raise ValueError("The supplied text produced no centerline glyphs.")
     return output
+
+
+def text_to_mixed_centerlines(text: str, style: StyleConfig, font_path: str) -> Polylines:
+    """Use authored single-stroke Latin and skeletonized paths only for CJK."""
+
+    from .writing import stroke_text_to_polylines
+
+    output: Polylines = []
+    cursor_x = 0.0
+    cursor_y = 0.0
+    line_height = style.font_size_mm * style.line_spacing * 1.35
+    font = ImageFont.truetype(font_path, 96)
+
+    def is_cjk(character: str) -> bool:
+        codepoint = ord(character)
+        return (
+            0x3400 <= codepoint <= 0x4DBF
+            or 0x4E00 <= codepoint <= 0x9FFF
+            or 0x3040 <= codepoint <= 0x30FF
+            or 0xAC00 <= codepoint <= 0xD7AF
+        )
+
+    for character in text:
+        if character == "\n":
+            cursor_x = 0.0
+            cursor_y -= line_height
+            continue
+        if character.isspace():
+            cursor_x += max(
+                float(font.getlength(character)) / 96 * style.font_size_mm,
+                style.font_size_mm * style.word_spacing_em,
+            )
+            continue
+
+        if is_cjk(character):
+            paths, advance = _glyph_paths(character, font_path)
+            for path in paths:
+                output.append([(x * style.font_size_mm + cursor_x, y * style.font_size_mm + cursor_y) for x, y in path])
+            cursor_x += advance * style.font_size_mm + style.letter_spacing_mm
+            continue
+
+        glyph_lines = stroke_text_to_polylines(character, style).polylines
+        max_x = 0.0
+        min_x = 0.0
+        for path in glyph_lines:
+            shifted = [(x + cursor_x, y + cursor_y) for x, y in path]
+            output.append(shifted)
+            min_x = min(min_x, min(point[0] for point in path))
+            max_x = max(max_x, max(point[0] for point in path))
+        cursor_x += max(max_x - min_x, style.font_size_mm * 0.28) + style.letter_spacing_mm
+
+    if not output:
+        raise ValueError("The supplied text produced no centerline glyphs.")
+    return output

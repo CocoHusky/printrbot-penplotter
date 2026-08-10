@@ -64,7 +64,7 @@ def test_cjk_text_uses_skeletonized_centerlines_when_font_is_available() -> None
     )
     polylines, metadata = text_to_polylines_with_metadata("你好 世界", style)
     assert polylines
-    assert metadata["text_engine"] == "centerline-raster"
+    assert metadata["text_engine"] == "centerline-mixed"
 
 
 def test_seeded_glyph_selection_is_reproducible() -> None:
