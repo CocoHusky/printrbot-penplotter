@@ -32,6 +32,7 @@ File uploadFile;
 bool uploadFailed = false;
 String uploadError;
 std::size_t uploadBytes = 0;
+bool uploadDraftMode = false;
 std::uint32_t lastLedUpdateMs = 0;
 
 String jsonEscape(const String& value) {
@@ -186,8 +187,9 @@ void handleUploadChunk() {
     }
 
     if (uploadFile) uploadFile.close();
-    LittleFS.remove(plotter::config::kJobPath);
-    uploadFile = LittleFS.open(plotter::config::kJobPath, FILE_WRITE);
+    const char* uploadPath = uploadDraftMode ? plotter::config::kDraftPath : plotter::config::kJobPath;
+    LittleFS.remove(uploadPath);
+    uploadFile = LittleFS.open(uploadPath, FILE_WRITE);
     if (!uploadFile) {
       uploadFailed = true;
       uploadError = "LittleFS could not create the uploaded job.";
@@ -201,14 +203,14 @@ void handleUploadChunk() {
       uploadFailed = true;
       uploadError = "Job exceeds the 512 KiB upload limit.";
       if (uploadFile) uploadFile.close();
-      LittleFS.remove(plotter::config::kJobPath);
+      LittleFS.remove(uploadDraftMode ? plotter::config::kDraftPath : plotter::config::kJobPath);
       return;
     }
     if (!uploadFile || uploadFile.write(upload.buf, upload.currentSize) != upload.currentSize) {
       uploadFailed = true;
       uploadError = "Failed while writing the uploaded job to flash.";
       if (uploadFile) uploadFile.close();
-      LittleFS.remove(plotter::config::kJobPath);
+      LittleFS.remove(uploadDraftMode ? plotter::config::kDraftPath : plotter::config::kJobPath);
       return;
     }
     uploadBytes += upload.currentSize;
@@ -218,11 +220,15 @@ void handleUploadChunk() {
   if (upload.status == UPLOAD_FILE_END) {
     if (uploadFile) uploadFile.close();
     if (uploadFailed) return;
-    String error;
-    if (!jobRunner.loadStoredJob(LittleFS, plotter::config::kJobPath, error)) {
-      uploadFailed = true;
-      uploadError = error;
-      LittleFS.remove(plotter::config::kJobPath);
+    if (!uploadDraftMode) {
+      String error;
+      if (!jobRunner.loadStoredJob(LittleFS, plotter::config::kJobPath, error)) {
+        uploadFailed = true;
+        uploadError = error;
+        LittleFS.remove(plotter::config::kJobPath);
+      } else {
+        LittleFS.remove(plotter::config::kDraftPath);
+      }
     }
     return;
   }
@@ -231,7 +237,7 @@ void handleUploadChunk() {
     uploadFailed = true;
     uploadError = "Upload was aborted.";
     if (uploadFile) uploadFile.close();
-    LittleFS.remove(plotter::config::kJobPath);
+    LittleFS.remove(uploadDraftMode ? plotter::config::kDraftPath : plotter::config::kJobPath);
   }
 }
 
@@ -241,8 +247,11 @@ void finishUploadRequest() {
     sendError(400, uploadError);
     return;
   }
-  sendOk("Job validated and stored.");
+  sendOk(uploadDraftMode ? "G-code draft uploaded." : "Job validated and stored.");
 }
+
+void handleFinalUploadChunk() { uploadDraftMode = false; handleUploadChunk(); }
+void handleDraftUploadChunk() { uploadDraftMode = true; handleUploadChunk(); }
 
 void handleJobAction(const char* action) {
   String error;
@@ -315,7 +324,8 @@ void configureRoutes() {
   server.on("/hotspot-detect.html", HTTP_GET, []() { server.send_P(200, "text/html", plotter::web::kIndexHtml); });
   server.on("/fwlink", HTTP_GET, []() { server.send_P(200, "text/html", plotter::web::kIndexHtml); });
   server.on("/api/status", HTTP_GET, handleStatus);
-  server.on("/api/job", HTTP_POST, finishUploadRequest, handleUploadChunk);
+  server.on("/api/job", HTTP_POST, finishUploadRequest, handleFinalUploadChunk);
+  server.on("/api/job/draft", HTTP_POST, finishUploadRequest, handleDraftUploadChunk);
   server.on("/api/job/start", HTTP_POST, []() { handleJobAction("start"); });
   server.on("/api/job/pause", HTTP_POST, []() { handleJobAction("pause"); });
   server.on("/api/job/resume", HTTP_POST, []() { handleJobAction("resume"); });

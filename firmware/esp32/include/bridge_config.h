@@ -23,6 +23,7 @@ inline constexpr char kAccessPointPassword[] = "plotter123";
 inline constexpr char kMdnsHostname[] = "printrbot";
 
 inline constexpr char kJobPath[] = "/active-job.gcode";
+inline constexpr char kDraftPath[] = "/draft-job.gcode";
 inline constexpr std::size_t kMaximumJobBytes = 512 * 1024;
 inline constexpr std::size_t kMaximumCommands = 100000;
 

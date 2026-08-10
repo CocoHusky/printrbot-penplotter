@@ -48,8 +48,8 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <h2>Upload reviewed G-code</h2>
 <input id="jobFile" type="file" accept=".gcode,.gc,.txt,text/plain">
 <textarea id="jobText" placeholder="Or paste reviewed G-code here"></textarea>
-<button onclick="uploadJob()">Validate and store job</button>
-<p class="small">Jobs are stored in ESP32 LittleFS, scanned line by line, and rejected if they contain heater, extrusion, tool-change, or embedded emergency-stop commands.</p>
+<button onclick="uploadDraft()">Upload G-code draft</button><button class="secondary" onclick="validateFinalJob()">Validate and store final G-code</button>
+<p class="small">Drafts are stored separately while you edit. Only the final G-code is scanned line by line and rejected if it contains heater, extrusion, tool-change, or embedded emergency-stop commands.</p>
 </section>
 
 <section class="card full">
@@ -185,12 +185,17 @@ $('offsetX').addEventListener('input',schedulePreview);$('offsetY').addEventList
 loadEditorFromText('');renderGcodePreview('');
 async function request(url,options={}){const r=await fetch(url,options);const t=await r.text();let d={};try{d=JSON.parse(t)}catch{d={message:t}}if(!r.ok)throw new Error(d.error||d.message||('HTTP '+r.status));return d}
 function formBody(values){const p=new URLSearchParams();Object.entries(values).forEach(([k,v])=>p.set(k,v));return p}
-async function uploadJob(){
+async function uploadDraft(){
  try{
   const fd=new FormData();const file=$('jobFile').files[0];
   if(file)fd.append('job',file,file.name);else{const text=$('jobText').value;if(!text.trim())throw new Error('Choose a file or paste G-code.');fd.append('job',new Blob([text],{type:'text/plain'}),'pasted.gcode')}
-  $('message').textContent='Uploading and validating…';await request('/api/job',{method:'POST',body:fd});$('message').textContent='Job validated and stored.';await poll();
+  $('message').textContent='Uploading draft…';await request('/api/job/draft',{method:'POST',body:fd});$('message').textContent='Draft uploaded. Continue editing; final validation happens when you store the final G-code.';await poll();
  }catch(e){$('message').textContent=e.message}
+}
+async function validateFinalJob(){
+ try{
+  const text=$('jobText').value;if(!text.trim())throw new Error('There is no G-code draft to validate.');const fd=new FormData();fd.append('job',new Blob([text],{type:'text/plain'}),'final.gcode');$('message').textContent='Validating final G-code…';await request('/api/job',{method:'POST',body:fd});$('message').textContent='Final G-code validated and stored. It is ready to start.';await poll();
+ }catch(e){$('message').textContent='Final G-code rejected: '+e.message}
 }
 async function action(name){try{await request('/api/job/'+name,{method:'POST'});await poll()}catch(e){$('message').textContent=e.message}}
 async function emergency(){if(!confirm('Send M112 immediately? The Printrboard may require reset.'))return;try{await request('/api/emergency',{method:'POST'});await poll()}catch(e){$('message').textContent=e.message}}
