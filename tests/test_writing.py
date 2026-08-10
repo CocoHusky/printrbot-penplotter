@@ -34,6 +34,20 @@ def test_robot_l_is_one_centerline_stroke_not_an_outline() -> None:
     assert job.metadata["strokes"] == 1
 
 
+def test_robot_alphabet_keeps_every_letter_to_three_strokes_or_fewer() -> None:
+    font = get_builtin_stroke_font("robot")
+    assert max(len(font.glyphs[character][0].strokes) for character in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz") <= 3
+
+
+def test_centerline_text_supports_micro_physical_sizes() -> None:
+    job = render_text_job(
+        "o W",
+        style=StyleConfig.for_preset("standard", font_size_mm=2),
+        layout=LayoutConfig(fit_mode="none"),
+    )
+    assert job.metadata["text_engine"] == "stroke"
+
+
 def test_standard_preset_uses_typed_centerline_strokes() -> None:
     style = StyleConfig.for_preset("standard", font_size_mm=12)
     job = render_text_job("Times", style=style, layout=LayoutConfig(fit_mode="none"))
