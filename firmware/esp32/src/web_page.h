@@ -20,7 +20,7 @@ button,input,textarea{width:100%;border:1px solid #385069;border-radius:10px;pad
 input,textarea{background:#09121c;color:#edf5fc}textarea{min-height:150px;resize:vertical}.buttons{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 button{background:#256ca3;color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.pause{background:#8a631b}.cancel{background:#82404a}.danger{background:#aa2638}.secondary{background:#34495c}
 progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-radius:10px;padding:10px;min-height:230px;max-height:340px;overflow:auto;white-space:pre-wrap;font:12px ui-monospace,SFMono-Regular,monospace;color:#a9d3ef}
-.small{font-size:13px;color:#8da3b6}.full{grid-column:1/-1}@media(max-width:760px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
+.small{font-size:13px;color:#8da3b6}.full{grid-column:1/-1}.gcode-preview{background:#071019;border:1px solid #26394b;border-radius:12px;padding:10px;min-height:300px;display:grid;place-items:center}.gcode-preview svg{width:100%;height:auto;max-height:620px}.preview-stats{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.preview-stat{background:#1b2b3b;border-radius:8px;padding:7px 9px;color:#c6d8e8}.preview-warning{color:#ffb4bd;font-weight:700}.preview-key{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}.preview-key span{display:inline-flex;align-items:center;gap:5px}.swatch{width:22px;height:3px;display:inline-block}.swatch.ink{background:#65e9a5}.swatch.travel{height:0;border-top:2px dashed #8daecc}@media(max-width:760px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
 </style>
 </head>
 <body><main>
@@ -49,6 +49,15 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <textarea id="jobText" placeholder="Or paste reviewed G-code here"></textarea>
 <button onclick="uploadJob()">Validate and store job</button>
 <p class="small">Jobs are stored in ESP32 LittleFS, scanned line by line, and rejected if they contain heater, extrusion, tool-change, or embedded emergency-stop commands.</p>
+</section>
+
+<section class="card full">
+<h2>G-code machine preview</h2>
+<div id="gcodeMeta" class="small">Paste or choose G-code to inspect its actual XY moves before storing it.</div>
+<div id="gcodeStats" class="preview-stats"></div>
+<div id="gcodePreview" class="gcode-preview"><div class="small">No G-code loaded.</div></div>
+<div class="preview-key"><span><i class="swatch ink"></i>Pen-down drawing</span><span><i class="swatch travel"></i>Pen-up travel</span><span>Bed: 152.4 × 152.4 mm</span></div>
+<p class="small">The preview is parsed from the same G-code you are about to store. Origin is lower-left (X0/Y0); dashed margins show the 8 mm safe paper margin. Red marks mean a move is outside the configured machine bed.</p>
 </section>
 
 <section class="card">
@@ -92,6 +101,37 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 </main>
 <script>
 const $=id=>document.getElementById(id);let latest={};
+const BED={xmin:0,xmax:152.4,ymin:0,ymax:152.4,margin:8};
+function gword(line,letter){const match=line.match(new RegExp('(?:^|\\s)'+letter+'\\s*([-+]?\\d*\\.?\\d+)','i'));return match?Number(match[1]):null}
+function parseGcode(text){
+ let x=0,y=0,z=5,absolute=true,penDown=false;const segments=[];let moves=0,drawMoves=0,travelMoves=0,outOfBed=0;
+ for(const source of text.split(/\r?\n/)){
+  const line=source.replace(/\([^)]*\)/g,'').replace(/;.*$/,'').trim();if(!line)continue;
+  const command=(line.match(/^([GMT])\s*(\d+)/i)||[]).slice(1).join('').toUpperCase();
+  if(command==='G90'){absolute=true;continue} if(command==='G91'){absolute=false;continue}
+  if(command==='G28'){x=0;y=0;z=5;penDown=false;continue}
+  if(command!=='G0'&&command!=='G1')continue;
+  const oldX=x,oldY=y;const nextX=gword(line,'X'),nextY=gword(line,'Y'),nextZ=gword(line,'Z');
+  if(nextZ!==null)z=absolute?nextZ:z+nextZ;
+  if(nextX!==null)x=absolute?nextX:x+nextX;if(nextY!==null)y=absolute?nextY:y+nextY;
+  if(nextZ!==null)penDown=z<=0.5;
+  if(nextX===null&&nextY===null)continue;
+  moves++;const ink=penDown&&command==='G1';if(ink)drawMoves++;else travelMoves++;
+  const outside=[oldX,oldY,x,y].some((v,i)=>i%2===0?(v<BED.xmin||v>BED.xmax):(v<BED.ymin||v>BED.ymax));if(outside)outOfBed++;
+  segments.push({x1:oldX,y1:oldY,x2:x,y2:y,ink,outside});
+ }
+ return {segments,moves,drawMoves,travelMoves,outOfBed};
+}
+function renderGcodePreview(text){
+ const result=parseGcode(text);const syy=y=>BED.ymax-y;
+ const svg=['<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 168.4 168.4">','<rect x="0" y="0" width="152.4" height="152.4" fill="#f8fbfd" stroke="#9db4c7" stroke-width="0.35"/>','<rect x="8" y="8" width="136.4" height="136.4" fill="none" stroke="#b5c9d8" stroke-width="0.3" stroke-dasharray="1.5 1.5"/>','<text x="0" y="157" fill="#536b7d" font-size="3">X0 Y0</text>','<text x="143" y="157" fill="#536b7d" font-size="3">X152.4 Y0</text>','<text x="0" y="-2" fill="#536b7d" font-size="3">X0 Y152.4</text>','<text x="137" y="-2" fill="#536b7d" font-size="3">X152.4 Y152.4</text>'];
+ for(const s of result.segments){const color=s.outside?'#ff6678':s.ink?'#168b5a':'#8daecc';const dash=s.ink||s.outside?'':' stroke-dasharray="1.4 1.2"';svg.push('<path d="M '+s.x1.toFixed(3)+' '+syy(s.y1).toFixed(3)+' L '+s.x2.toFixed(3)+' '+syy(s.y2).toFixed(3)+'" fill="none" stroke="'+color+'" stroke-width="'+(s.ink?'0.55':'0.25')+'"'+dash+' stroke-linecap="round"/>')}
+ svg.push('</svg>');$('gcodePreview').innerHTML=result.segments.length?svg.join(''):'<div class="small">No XY moves found in this G-code.</div>';
+ $('gcodeStats').innerHTML='<span class="preview-stat">Moves '+result.moves+'</span><span class="preview-stat">Ink moves '+result.drawMoves+'</span><span class="preview-stat">Travel moves '+result.travelMoves+'</span>'+(result.outOfBed?'<span class="preview-stat preview-warning">Outside bed '+result.outOfBed+'</span>':'<span class="preview-stat">All moves inside bed</span>');
+ $('gcodeMeta').textContent=text.trim()?'Parsed from the current G-code input.':'Paste or choose G-code to inspect its actual XY moves before storing it.';
+}
+let previewTimer=null;function schedulePreview(){clearTimeout(previewTimer);previewTimer=setTimeout(()=>renderGcodePreview($('jobText').value),80)}
+$('jobText').addEventListener('input',schedulePreview);$('jobFile').addEventListener('change',async()=>{const file=$('jobFile').files[0];if(!file)return;const text=await file.text();$('jobText').value=text;renderGcodePreview(text)});
 async function request(url,options={}){const r=await fetch(url,options);const t=await r.text();let d={};try{d=JSON.parse(t)}catch{d={message:t}}if(!r.ok)throw new Error(d.error||d.message||('HTTP '+r.status));return d}
 function formBody(values){const p=new URLSearchParams();Object.entries(values).forEach(([k,v])=>p.set(k,v));return p}
 async function uploadJob(){
