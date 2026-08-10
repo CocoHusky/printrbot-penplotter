@@ -89,21 +89,19 @@ def _stroke(*points: Point) -> Stroke:
 
 
 def _dot(center: Point, radius: float = 0.035) -> Stroke:
-    """Make a small closed mark that a ball-point pen can actually ink.
+    """Make a small closed circular mark that a ball-point pen can ink.
 
     A two-point "dot" has effectively zero travel, so many plotters will
-    barely touch the paper and leave no visible mark.  A tiny closed diamond
+    barely touch the paper and leave no visible mark.  A tiny closed circle
     gives the pen measurable motion while remaining a single minimal stroke.
     """
 
     x, y = center
-    return _stroke(
-        (x, y + radius),
-        (x + radius, y),
-        (x, y - radius),
-        (x - radius, y),
-        (x, y + radius),
+    points = tuple(
+        (x + math.cos(angle) * radius, y + math.sin(angle) * radius)
+        for angle in tuple(2.0 * math.pi * index / 8.0 for index in range(9))
     )
+    return _stroke(*points)
 
 
 def _glyph(

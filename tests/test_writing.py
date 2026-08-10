@@ -47,6 +47,15 @@ def test_robot_centerline_dots_have_real_drawable_motion() -> None:
         assert all(length(stroke) >= 0.1 for stroke in font.glyphs[character][0].strokes)
 
 
+def test_robot_centerline_dots_are_closed_circular_strokes() -> None:
+    font = get_builtin_stroke_font("robot")
+    for character in ".!?:;":
+        for stroke in font.glyphs[character][0].strokes:
+            if len(stroke) >= 8:
+                assert stroke[0][0] == pytest.approx(stroke[-1][0])
+                assert stroke[0][1] == pytest.approx(stroke[-1][1])
+
+
 def test_robot_letter_shapes_remain_centerline_strokes() -> None:
     font = get_builtin_stroke_font("robot")
     assert len(font.glyphs["L"][0].strokes) == 1
