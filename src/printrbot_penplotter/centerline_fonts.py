@@ -106,6 +106,35 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
                 previous, current = current, candidate
             if len(path) >= 3:
                 paths.append(path)
+    # A junction is allowed to continue into another branch. Pairing paths at
+    # shared endpoints turns the many tiny graph edges produced by thinning
+    # into long pen strokes without drawing across empty glyph space.
+    def close(first: tuple[int, int], second: tuple[int, int]) -> bool:
+        return max(abs(first[0] - second[0]), abs(first[1] - second[1])) <= 2
+
+    changed = True
+    while changed:
+        changed = False
+        for first_index, first in enumerate(paths):
+            joined = False
+            for second_index in range(first_index + 1, len(paths)):
+                second = paths[second_index]
+                if close(first[-1], second[0]):
+                    paths[first_index] = first + second[1:]
+                elif close(first[-1], second[-1]):
+                    paths[first_index] = first + list(reversed(second[:-1]))
+                elif close(first[0], second[0]):
+                    paths[first_index] = list(reversed(first[1:])) + second
+                elif close(first[0], second[-1]):
+                    paths[first_index] = second + first[1:]
+                else:
+                    continue
+                paths.pop(second_index)
+                changed = True
+                joined = True
+                break
+            if joined:
+                break
     return paths
 
 
