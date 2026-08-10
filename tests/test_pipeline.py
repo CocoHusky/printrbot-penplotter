@@ -68,6 +68,23 @@ def test_font_size_is_physical_instead_of_always_filling_page() -> None:
     assert large_height / small_height == pytest.approx(2.0, rel=0.03)
 
 
+def test_line_spacing_changes_multiline_physical_height() -> None:
+    layout = LayoutConfig(fit_mode="none")
+    tight = render_text_job(
+        "A\nA",
+        style=StyleConfig.for_preset("standard", font_size_mm=10, line_spacing=1.0),
+        layout=layout,
+        simplify_tolerance_mm=0,
+    )
+    loose = render_text_job(
+        "A\nA",
+        style=StyleConfig.for_preset("standard", font_size_mm=10, line_spacing=2.0),
+        layout=layout,
+        simplify_tolerance_mm=0,
+    )
+    assert float(loose.metadata["height_mm"]) > float(tight.metadata["height_mm"])
+
+
 def test_fit_mode_none_rejects_oversize_geometry() -> None:
     page = PageConfig(width_mm=20, height_mm=20, margin_mm=2)
     with pytest.raises(ValueError, match="does not fit"):
