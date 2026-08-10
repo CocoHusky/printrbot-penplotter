@@ -185,7 +185,7 @@ function applyPreset(){
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='standard'?'robot':byId('preset').value==='robot'?'robot':'hand',
+ font_family:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='standard'?byId('font').value:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
  wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,
