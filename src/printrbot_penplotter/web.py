@@ -120,13 +120,14 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <textarea id="text">Today I need to remember:</textarea>
 </div>
 <div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
-<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Standard type</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Standard type</strong><small>Clean single-line text</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint">Choose the look first. Only the controls that affect it are shown below.</div></div>
+<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Typed font</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Typed font</strong><small>Common Word-style fonts</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint">Choose one simple lettering mode. Only the controls for it are shown.</div></div>
 <div class="row">
   <div><label for="fontSize">Text size</label><select id="fontSize"><option value="6">Small · 6 mm</option><option value="9">Medium · 9 mm</option><option value="12">Large · 12 mm</option><option value="18" selected>Extra large · 18 mm</option><option value="24">Poster · 24 mm</option></select></div>
 </div>
 <div class="row">
-  <div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
+  <div id="typefaceField"><label for="font">Typeface</label><select id="font"><option>Arial</option><option>Times New Roman</option><option>Calibri</option><option>Cambria</option><option>Georgia</option><option>Verdana</option><option>Tahoma</option><option>Trebuchet MS</option><option>Courier New</option><option>Comic Sans MS</option><option>Garamond</option><option>Palatino Linotype</option><option>Book Antiqua</option><option>Century Gothic</option><option>Franklin Gothic Medium</option><option>Helvetica</option><option>Arial Narrow</option><option>Impact</option><option>DejaVu Sans</option><option>DejaVu Serif</option></select></div>
 </div>
+<div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
 <details id="handwritingControls"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div><div class="row"><div><label for="letterSpacing">Letter spacing (mm)</label><input id="letterSpacing" type="number" value="0.55" step="0.05"></div><div><label for="wordSpacing">Word spacing (em)</label><input id="wordSpacing" type="number" value="0.42" step="0.02"></div></div></details>
 <details><summary>Layout</summary><div><label for="wrapWidth">Wrap width (mm; blank = none)</label><input id="wrapWidth" type="number" placeholder="e.g. 110"></div></details>
 </div>
@@ -169,16 +170,17 @@ byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,b
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function applyPreset(){
  const value=byId('preset').value;
- if(value==='standard') { byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
+ if(value==='standard') { byId('font').value='Arial'; byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
  else if(value==='robot') { byId('slant').value=0; byId('letterSpacing').value=1.2; byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; byId('slant').value=3; byId('letterSpacing').value=0.55; byId('handwritingControls').open=true; }
- byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
+ byId('typefaceField').style.display=value==='standard'?'block':'none';
+ byId('handwritingSummary').textContent=value==='standard'?'Typed fonts follow the selected typeface outline.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
  document.querySelectorAll('.lettering-choice').forEach(button=>button.classList.toggle('selected',button.dataset.preset===value));
 }
 function payload(){ return {
- text:byId('text').value, preset:byId('preset').value, engine:'stroke',
+ text:byId('text').value, preset:byId('preset').value, engine:byId('preset').value==='standard'?'outline':'stroke',
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
+ font_family:byId('preset').value==='standard'?byId('font').value:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
  wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,

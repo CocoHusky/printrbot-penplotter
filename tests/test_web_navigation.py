@@ -24,12 +24,12 @@ def test_unified_tool_navigation_is_present_on_each_workspace() -> None:
 def test_notes_workspace_has_simple_lettering_choices() -> None:
     text = client.get("/").text
     assert "Write notes for the plotter" in text
-    assert "Standard type" in text
+    assert "Typed font" in text
     assert "Robot / plotter" in text
     assert "Handwritten" in text
     assert 'class="lettering-choices"' in text
     assert "Handwriting adjustments" in text
-    assert "Choose the look first" in text
+    assert "Choose one simple lettering mode" in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
     assert "Rendering your note…" in text
