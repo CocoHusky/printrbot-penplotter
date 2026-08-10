@@ -100,6 +100,7 @@ button.secondary { background:#6c756f; }
 button.safe { background:#8a5a2b; }
 #preview { background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
 #preview svg { width:100%; height:auto; max-height:80vh; }
+.preview-legend { margin:8px 0 0; color:#66706d; font-size:12px; }
 pre { white-space:pre-wrap; max-height:250px; overflow:auto; color:#9ed1ff; }
 .status { min-height:24px; color:#2d6155; margin-top:10px; }
 .workflow-hint { margin:8px 0 14px; padding:10px 12px; background:#e9f1ed; border-radius:10px; color:#36574d; font-size:13px; }
@@ -165,6 +166,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <pre id="meta"></pre>
 </section>
 <section class="card" id="preview">Preview will appear here.</section>
+<p class="preview-legend"><strong>Preview key:</strong> black solid = pen-down ink; blue dashed = pen-up travel between strokes (it is not drawn).</p>
 </div>
 <script>
 let latestGcode = "";

@@ -34,6 +34,27 @@ def test_robot_l_is_one_centerline_stroke_not_an_outline() -> None:
     assert job.metadata["strokes"] == 1
 
 
+def test_robot_centerline_dots_have_real_drawable_motion() -> None:
+    font = get_builtin_stroke_font("robot")
+
+    def length(stroke: tuple[tuple[float, float], ...]) -> float:
+        return sum(
+            ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5
+            for a, b in zip(stroke, stroke[1:])
+        )
+
+    for character in ".!?:;":
+        assert all(length(stroke) >= 0.1 for stroke in font.glyphs[character][0].strokes)
+
+
+def test_robot_letter_shapes_remain_centerline_strokes() -> None:
+    font = get_builtin_stroke_font("robot")
+    assert len(font.glyphs["L"][0].strokes) == 1
+    assert len(font.glyphs["l"][0].strokes) == 1
+    assert len(font.glyphs["W"][0].strokes) == 1
+    assert len(font.glyphs["O"][0].strokes) == 1
+
+
 def test_robot_alphabet_keeps_every_letter_to_three_strokes_or_fewer() -> None:
     font = get_builtin_stroke_font("robot")
     assert max(len(font.glyphs[character][0].strokes) for character in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz") <= 3
