@@ -120,10 +120,9 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <textarea id="text">Today I need to remember:</textarea>
 </div>
 <div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
-<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Standard type</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Standard type</strong><small>Times-style lettering</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Clean single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint">Choose the look first. Only the controls that affect it are shown below.</div></div>
+<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Standard type</option><option value="robot">Robot / plotter</option><option value="human">Handwritten</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Standard type</strong><small>Clean single-line text</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot / plotter</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten</strong><small>Natural pen trajectory</small></button></div><div class="hint">Choose the look first. Only the controls that affect it are shown below.</div></div>
 <div class="row">
-  <div><label for="fontSize">Cap height (mm)</label><input id="fontSize" type="number" value="18" min="2" max="100"></div>
-  <div id="typefaceField"><label for="font">Typeface</label><select id="font"><option>Times New Roman</option><option>Georgia</option><option>DejaVu Serif</option><option>Arial</option><option>DejaVu Sans</option></select></div>
+  <div><label for="fontSize">Text size</label><select id="fontSize"><option value="6">Small · 6 mm</option><option value="9">Medium · 9 mm</option><option value="12">Large · 12 mm</option><option value="18" selected>Extra large · 18 mm</option><option value="24">Poster · 24 mm</option></select></div>
 </div>
 <div class="row">
   <div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
@@ -174,17 +173,16 @@ byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,b
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function applyPreset(){
  const value=byId('preset').value;
- if(value==='standard') { byId('font').value='Times New Roman'; byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
- else if(value==='robot') { byId('font').value='DejaVu Sans'; byId('slant').value=0; byId('letterSpacing').value=1.2; byId('handwritingControls').open=false; }
+ if(value==='standard') { byId('neuralStyle').value=9; byId('handwritingControls').open=false; }
+ else if(value==='robot') { byId('slant').value=0; byId('letterSpacing').value=1.2; byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; byId('slant').value=3; byId('letterSpacing').value=0.55; byId('handwritingControls').open=true; }
- byId('typefaceField').style.display=value==='standard'?'block':'none';
  byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
  document.querySelectorAll('.lettering-choice').forEach(button=>button.classList.toggle('selected',button.dataset.preset===value));
 }
 function payload(){ return {
- text:byId('text').value, preset:byId('preset').value, engine:byId('preset').value==='standard'?'outline':'stroke',
+ text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:byId('preset').value==='standard'?byId('font').value:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
+ font_family:'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:byId('strokeFontPath').value.trim()||null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
  wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,

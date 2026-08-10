@@ -205,10 +205,9 @@ class StyleConfig:
         if preset == "standard":
             values = {
                 "preset": preset,
-                "engine": "outline",
+                "engine": "stroke",
                 "writing_backend": "stroke",
-                "font_family": "Times New Roman",
-                "stroke_font": "robot",
+                "stroke_font": "hand",
                 "variant_mode": "first",
                 "connect_letters": False,
                 "slant_deg": 0.0,
@@ -216,7 +215,7 @@ class StyleConfig:
                 "baseline_jitter_mm": 0.0,
                 "x_jitter_mm": 0.0,
                 "scale_jitter": 0.0,
-                "letter_spacing_mm": 0.0,
+                "letter_spacing_mm": 0.45,
             }
         elif preset == "clean":
             values = {
