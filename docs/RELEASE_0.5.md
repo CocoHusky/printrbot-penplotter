@@ -131,13 +131,9 @@ They can be incorporated into the later unified studio without creating another 
 printrbot-studio
 ```
 
-Open:
-
-```text
-http://127.0.0.1:8000/raster
-```
-
-The root page at `http://127.0.0.1:8000/` remains the writing interface.
+This historical prototype was retired during the Studio consolidation. Use the
+current image workflow at `http://127.0.0.1:8000/studio2`; the root page at
+`http://127.0.0.1:8000/` remains the writing interface.
 
 ## Safety behavior
 

@@ -139,7 +139,7 @@ Software work may proceed in separate releases, but physical drawing remains gat
 5. **Image and handwriting ingestion** — thresholding, centerline/contour tracing, browser cleanup, manual correction.
 6. **Motion quality** — route optimization, reduced pen lifts, path cleanup, corner handling, feed optimization, and metrics.
 7. **Writing intelligence** — contextual forms, richer alternates, ligatures, and collision-aware joins.
-8. **Product UX** — job queue, saved profiles, mobile controls, editing, and reproducible job files.
+8. **Product UX** — clear local controls, editing, and reproducible job files.
 
 Writing, raster, motion, and transport code can be developed and previewed while Release 0.2 physical work is unfinished. None may bypass preflight, air-plot, motor-direction, homing, origin, level-shifter, power, or pen-height validation before real plotting.
 
@@ -148,7 +148,6 @@ Writing, raster, motion, and transport code can be developed and previewed while
 - `stroke_fonts.py` defines centerline font models, built-ins, and validated font-pack loading.
 - `writing.py` selects glyph variants, wraps text, creates joins, and emits millimeter polylines.
 - `raster.py` owns deterministic raster preprocessing, skeletonization, contour extraction, trace simplification, and editable raw-trace SVG generation.
-- `raster_studio.py` owns browser raster upload and manual pre-machine path correction.
 - `optimize.py` owns deterministic Release 0.6 motion transforms, route metrics, and route ordering without generating artwork or machine commands.
 - `inputs.py` dispatches text, SVG, and raster source material into polylines and keeps engine/trace modes explicit.
 - `geometry.py` validates, transforms, places, simplifies, and previews polylines.

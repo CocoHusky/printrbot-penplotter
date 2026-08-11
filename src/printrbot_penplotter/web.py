@@ -9,19 +9,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from . import __version__
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
 from .pipeline import render_calibration_job, render_text_job
 from .sender import MarlinSender
 from .stroke_fonts import available_stroke_fonts, get_builtin_stroke_font
 from .ui_theme import LAB_THEME_CSS
 
-app = FastAPI(title="Printrbot Pen Plotter", version="0.3.0")
+app = FastAPI(title="Printrbot Pen Plotter", version=__version__)
 
 
 class RenderRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
     preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
-    engine: Literal["stroke", "outline"] = "stroke"  # outline is legacy API input only
+    engine: Literal["stroke"] = "stroke"
     writing_backend: Literal["stroke", "neural"] = "stroke"
     neural_style: int = Field(default=9, ge=0, le=12)
     neural_bias: float = Field(default=0.75, ge=0, le=1)
@@ -72,7 +73,7 @@ HTML = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Printrbot Pen Plotter 0.3</title>
+<title>Printrbot Pen Plotter</title>
 <style>
 :root { font-family: system-ui, sans-serif; color-scheme: light; }
 body { margin:0; background:#f5f2ec; color:#20211f; }
@@ -118,9 +119,9 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </style>
 </head>
 <body><main>
-<nav class="app-tabs" aria-label="Printrbot tools"><a class="active" href="/">Test</a><a href="/studio2">Art</a></nav>
+<nav class="app-tabs" aria-label="Printrbot tools"><a class="active" href="/">Write</a><a href="/studio2">Art</a></nav>
 <h1>Write notes for the plotter</h1>
-<p>Choose a human writing style, write your note, preview the exact strokes, then move to image or art workflows without leaving the app.</p>
+<p>Choose a human writing style, write your note, preview the exact strokes, then switch to Art without leaving the app.</p>
 <p class="workflow-hint"><strong>Simple flow:</strong> 1. Write your note → 2. Choose the lettering → 3. Generate the preview → 4. Export G-code.</p>
 <div class="grid">
 <section class="card workflow-card">

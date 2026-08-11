@@ -17,6 +17,7 @@
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
 .venv/
 .venv-neural/
 env/
@@ -31,3 +32,5 @@ build/
 out/
 tmp/
 temp/
+firmware/esp32/.pio/
+firmware/marlin/build-artifacts/

@@ -7,7 +7,7 @@ client = TestClient(app)
 
 
 def test_unified_tool_navigation_is_present_on_each_workspace() -> None:
-    for path, active in (("/", "Test"), ("/raster", "Test"), ("/studio2", "Art")):
+    for path, active in (("/", "Write"), ("/studio2", "Art")):
         response = client.get(path)
         assert response.status_code == 200
         text = response.text
@@ -37,3 +37,8 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert 'id="handwritingControls"' in text
     assert 'id="homeBeforePlot"' in text
     assert "re-home X/Y at the end" in text
+
+
+def test_notes_api_rejects_legacy_outline_text() -> None:
+    response = client.post("/api/render", json={"text": "Centerline only", "engine": "outline"})
+    assert response.status_code == 422

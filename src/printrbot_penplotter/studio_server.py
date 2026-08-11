@@ -1,4 +1,4 @@
-"""Unified local web application with writing, raster, Studio 2, and product routes."""
+"""Unified local application for writing and the Studio art workflow."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from . import studio2 as studio2_module
 from .geometry import MAX_POINTS, MAX_STROKES
-from .product_api import router as product_router
-from .raster_studio import router as raster_router
 from . import studio2_fixes, studio2_v3
 from .web import app
 
@@ -29,9 +27,7 @@ studio2_v3.legacy._WORKING_DIMENSION["quick"] = 320
 
 studio2_router = studio2_v3.router
 
-app.include_router(raster_router)
 app.include_router(studio2_router)
-app.include_router(product_router)
 
 
 def _configure_local_neural_worker() -> None:

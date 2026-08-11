@@ -8,7 +8,6 @@ machine safety contract. It fixes three integration issues:
 2. Raster/style geometry uses image coordinates (Y down), while machine space
    uses Cartesian coordinates (Y up). Studio mirrors image geometry once before
    page placement so the physical plot and exact preview match the source image.
-3. Studio keeps Generate / Save SVG / Save G-code actions visible while scrolling.
 """
 
 from __future__ import annotations
@@ -21,9 +20,6 @@ from .geometry import MAX_POINTS, MAX_STROKES
 from .line_art import LineArtConfig
 from .models import Polylines
 from .vector_cleanup import VectorCleanupConfig
-
-_APPLIED = False
-
 
 def _patch_large_job_limits() -> None:
     """Make legacy cleanup defaults act as hard guards inside Studio style rendering."""
@@ -78,90 +74,3 @@ def _patch_image_orientation(studio2: ModuleType) -> None:
         return original_place(upright, page, layout, machine)
 
     studio2.place_on_page = place_image_geometry
-
-
-def _patch_studio_html(studio2: ModuleType) -> None:
-    """Add always-visible render/save controls with native Save As support."""
-
-    marker = "studio2FloatingActions"
-    if marker in studio2.STUDIO2_HTML:
-        return
-
-    floating = r'''
-<div id="studio2FloatingActions" style="position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;gap:8px;align-items:center;padding:10px;background:rgba(255,255,255,.96);border:1px solid #cfcfcf;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);backdrop-filter:blur(8px)">
-  <button id="floatingGenerate" type="button" style="width:auto;margin:0;padding:10px 16px">Generate drawing</button>
-  <button id="floatingSaveSvg" type="button" disabled style="width:auto;margin:0;padding:10px 16px">Save SVG</button>
-  <button id="floatingSaveGcode" type="button" disabled style="width:auto;margin:0;padding:10px 16px">Save G-code</button>
-</div>
-<script>
-(()=>{
-  const nativeFetch=window.fetch.bind(window);
-  const floatingGenerate=document.getElementById('floatingGenerate');
-  const saveSvg=document.getElementById('floatingSaveSvg');
-  const saveGcode=document.getElementById('floatingSaveGcode');
-  const mainGenerate=document.getElementById('generate');
-  const fileInput=document.getElementById('file');
-  window.__studio2LastRender=null;
-
-  function baseName(){
-    const name=(fileInput&&fileInput.files&&fileInput.files[0]&&fileInput.files[0].name)||'printrbot-drawing';
-    return name.replace(/\.[^.]+$/,'')||'printrbot-drawing';
-  }
-
-  async function saveText(text,suggestedName,mime,description,extension){
-    if(window.showSaveFilePicker){
-      const handle=await window.showSaveFilePicker({
-        suggestedName,
-        types:[{description,accept:{[mime]:[extension]}}]
-      });
-      const writable=await handle.createWritable();
-      await writable.write(text);
-      await writable.close();
-      return;
-    }
-    const blob=new Blob([text],{type:mime});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;a.download=suggestedName;document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }
-
-  window.fetch=async(...args)=>{
-    const response=await nativeFetch(...args);
-    try{
-      const target=String(args[0]&&args[0].url?args[0].url:args[0]);
-      if(target.includes('/api/studio2/render')&&response.ok){
-        const data=await response.clone().json();
-        window.__studio2LastRender=data;
-        saveSvg.disabled=!data.preview_svg;
-        saveGcode.disabled=!data.gcode;
-      }
-    }catch(_err){}
-    return response;
-  };
-
-  floatingGenerate.addEventListener('click',()=>mainGenerate&&mainGenerate.click());
-  saveSvg.addEventListener('click',async()=>{
-    const data=window.__studio2LastRender;if(!data||!data.preview_svg)return;
-    try{await saveText(data.preview_svg,baseName()+'.svg','image/svg+xml','SVG drawing','.svg');}catch(err){if(err&&err.name!=='AbortError')alert(String(err));}
-  });
-  saveGcode.addEventListener('click',async()=>{
-    const data=window.__studio2LastRender;if(!data||!data.gcode)return;
-    try{await saveText(data.gcode,baseName()+'.gcode','text/plain','G-code','.gcode');}catch(err){if(err&&err.name!=='AbortError')alert(String(err));}
-  });
-
-  setInterval(()=>{if(mainGenerate)floatingGenerate.disabled=mainGenerate.disabled;},150);
-})();
-</script>
-'''
-    studio2.STUDIO2_HTML = studio2.STUDIO2_HTML.replace("</body>", floating + "\n</body>")
-
-
-def apply_studio2_fixes(studio2: ModuleType) -> None:
-    global _APPLIED
-    if _APPLIED:
-        return
-    _patch_large_job_limits()
-    _patch_image_orientation(studio2)
-    _patch_studio_html(studio2)
-    _APPLIED = True

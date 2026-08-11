@@ -56,7 +56,6 @@ String jsonEscape(const String& value) {
 
 void sendJson(int status, const String& body) {
   server.sendHeader("Cache-Control", "no-store");
-  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(status, "application/json", body);
 }
 

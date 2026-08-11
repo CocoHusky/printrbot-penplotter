@@ -199,7 +199,7 @@ def studio2() -> str:
         f'style="position:fixed;top:8px;right:12px;z-index:10001;margin:0;padding:3px 7px;color:#666;background:rgba(255,255,255,.86);border:1px solid #ddd;border-radius:999px;font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;pointer-events:none">'
         f'Printrbot Pen Plotter v{STUDIO_BUILD["version"]} · commit {STUDIO_BUILD["commit"]}</div>'
     )
-    shared_nav = '<style>.app-tabs{display:flex;gap:6px;margin:0 0 16px;padding:5px;background:#e8e4dc;border-radius:12px;width:max-content}.app-tabs a{color:#59615d;text-decoration:none;padding:8px 13px;border-radius:8px;font-weight:700;font-size:12px}.app-tabs a.active{background:#20211f;color:#fff}</style><nav class="app-tabs" aria-label="Printrbot tools"><a href="/">Test</a><a class="active" href="/studio2">Art</a></nav>'
+    shared_nav = '<style>.app-tabs{display:flex;gap:6px;margin:0 0 16px;padding:5px;background:#e8e4dc;border-radius:12px;width:max-content}.app-tabs a{color:#59615d;text-decoration:none;padding:8px 13px;border-radius:8px;font-weight:700;font-size:12px}.app-tabs a.active{background:#20211f;color:#fff}</style><nav class="app-tabs" aria-label="Printrbot tools"><a href="/">Write</a><a class="active" href="/studio2">Art</a></nav>'
     html = html.replace('<h1>Printrbot Studio 2.0</h1>', shared_nav + '<h1>Printrbot Studio 2.0</h1>' + version_badge)
     html = html.replace(
         '<button id="advancedToggle" class="advanced-toggle" type="button">Advanced image & style controls ▾</button>',

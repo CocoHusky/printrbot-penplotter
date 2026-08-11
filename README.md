@@ -286,25 +286,11 @@ Release 0.6 details: [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md)
 printrbot-studio
 ```
 
-Open:
-
-```text
-http://127.0.0.1:8000/raster
-```
-
-The browser studio lets you:
-
-1. drag in an image or handwriting photograph;
-2. choose centerline or contour tracing;
-3. adjust threshold, inversion, blur, noise removal, and simplification;
-4. compare the original, cleaned mask, raw vector trace, and final machine preview;
-5. click paths to select them, Shift-click to select two, delete/reverse/split/join paths, and drag selected path endpoints;
-6. regenerate the final preview from those exact edited paths;
-7. download edited SVG, G-code, or a JSON sidecar containing the source SHA-256, trace settings, and geometry.
+Open `http://127.0.0.1:8000/`. The **Write** workspace creates centerline text; the **Art** workspace at `http://127.0.0.1:8000/studio2` processes images into plot-ready paths. Both use the same final placement and G-code safety contract.
 
 The Studio exposes **Home all axes before plot** and enables it by default. Turning it off is useful only for offline inspection or special non-hardware workflows; the hardware validators will refuse normal XY plotting without the guarded envelope.
 
-The original writing interface remains available at `http://127.0.0.1:8000/` in the same process.
+The retired `/raster` editing prototype is no longer served. Use Studio 2 for image processing so there is one supported image workflow.
 
 Release 0.5 details: [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md)
 
