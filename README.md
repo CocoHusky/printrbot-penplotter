@@ -10,6 +10,8 @@ Local-first software and firmware for turning text, SVGs, and images into review
 
 Licensed under the [Apache License 2.0](LICENSE).
 
+> **Status:** Active development. The main text, image, preview, G-code, and bridge workflows are usable, while the UI and firmware continue to evolve.
+
 ## Why this exists
 
 This project began by repurposing discarded Printrbot hardware instead of sending it to waste. The machine is repaired with replacement hardware and connected to a modern ESP32-C3 bridge. A proper level shifter protects the 3.3 V ESP32 UART from the Printrboard's 5 V serial signals, while the bridge provides a local Wi-Fi access point and optional same-network station mode. The image and text processing stay on the server or computer, where there is enough memory and screen space to preview the result; the ESP32 handles local communication, storage, validation, and acknowledged UART transport.
@@ -43,6 +45,22 @@ The preview and G-code are generated from the same final absolute polylines, inc
 
 <br clear="right">
 
+## See it in action
+
+The same workflow covers multilingual writing, image preparation, artistic styles, and final machine output.
+
+<p align="center">
+  <img src="docs/images/write-multilingual.png" alt="Write view with multilingual centerline text and spacing controls" width="49%">
+  <img src="docs/images/studio-grayscale.png" alt="Studio grayscale stage with original and processed image previews" width="49%">
+</p>
+
+<p align="center">
+  <img src="docs/images/studio-pointillism.png" alt="Studio pointillism style preview" width="49%">
+  <img src="docs/images/studio-machine-export.png" alt="Studio machine and export preview with pen settings" width="49%">
+</p>
+
+Write notes in supported languages, compare each image-processing stage, choose an art recipe, and inspect the machine-space result before exporting.
+
 ## Current capabilities
 
 ### Write
@@ -75,13 +93,13 @@ The preview and G-code are generated from the same final absolute polylines, inc
 ## How the pieces fit
 
 ```mermaid
-flowchart LR
-  A["Text, SVG, or image"] --> B["Python app: Write or Art"]
-  B --> C["Exact machine-space preview"]
-  C --> D["Validated Marlin G-code"]
-  D --> E["USB sender or ESP32-C3 Bridge"]
-  E --> F["Printrboard / Marlin"]
-  F --> G["Physical pen plot"]
+graph LR
+  A[Text or image] --> B[Python Studio]
+  B --> C[Machine preview]
+  C --> D[Validated G-code]
+  D --> E[USB or ESP32 bridge]
+  E --> F[Printrboard]
+  F --> G[Pen plot]
 ```
 
 The ESP32 is intentionally the transport and safety gateway. Text generation, image processing, path optimization, and preview rendering run in the Python application; Marlin remains responsible for real-time motion and stepper control.
