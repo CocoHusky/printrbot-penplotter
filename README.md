@@ -18,7 +18,7 @@ The project makes written communication more accessible. A typed message can bec
 
 ## Release 1.0 milestone
 
-This public milestone started with a roughly **$20 used printer** and a **three-day build window** for the software UART connection, local bridge, and plotting workflow.
+This public milestone started with a **$20 used printer** and a **three-day build window** for the software UART connection, local bridge, and plotting workflow.
 
 The goal is deliberately practical: see how far a small amount of hardware and focused software can go toward useful communication. Release 1.0 brings together:
 
