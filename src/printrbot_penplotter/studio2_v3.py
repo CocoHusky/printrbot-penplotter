@@ -292,6 +292,7 @@ window.fetch=async(...args)=>{const response=await __nativeFetch(...args);try{co
   stylePathSummary.className='style-path-summary';
   styleChoice.appendChild(stylePathSummary);
   ['[name="pen_tip_mm"]','[name="z_up_mm"]','[name="air_plot"]','[name="home_before_plot"]'].forEach(selector=>moveField(selector,'machine'));
+  moveGroup('contactCompensationControl','machine');
   moveGroup('finalSize','machine');
   ['#generate','#status','#selectedStyle'].forEach(selector=>moveField(selector,'machine'));
   const sliderDefaults={
@@ -556,6 +557,7 @@ async def render_studio2(request: Request) -> dict[str, object]:
             detail=_str(form, "detail", "high"),  # type: ignore[arg-type]
             background_mode=_str(form, "background_mode", "suppress"),  # type: ignore[arg-type]
             pen_tip_mm=_float(form, "pen_tip_mm", 0.5),
+            contact_compensation=_bool(form, "contact_compensation", True),
             z_up_mm=_float(form, "z_up_mm", 5.0),
             z_down_mm=_float(form, "z_down_mm", 0.0),
             air_plot=_bool(form, "air_plot", True),
@@ -630,6 +632,8 @@ async def render_studio2(request: Request) -> dict[str, object]:
             page=page,
         )
         pen = PenConfig(
+            pen_tip_mm=_float(form, "pen_tip_mm", 0.5),
+            contact_compensation=_bool(form, "contact_compensation", True),
             z_up_mm=_float(form, "z_up_mm", 5.0),
             z_down_mm=_float(form, "z_down_mm", 0.0),
             air_plot=_bool(form, "air_plot", True),
@@ -651,6 +655,8 @@ async def render_studio2(request: Request) -> dict[str, object]:
         metadata["requested_quality"] = requested_quality
         metadata["effective_quality"] = effective_quality
         metadata["auto_interactive_preview"] = mode == "auto" and requested_quality != effective_quality
+        metadata["contact_compensation"] = pen.contact_compensation
+        metadata["contact_compensation_radius_mm"] = round(pen.pen_tip_mm / 2.0 if pen.contact_compensation else 0.0, 4)
         metadata["estimated_print_time_seconds"] = round(final_motion.estimated_seconds, 2)
         metadata["estimated_print_time_minutes"] = round(final_motion.estimated_seconds / 60.0, 2)
         metadata["estimated_print_time"] = f"{int(final_motion.estimated_seconds // 60)}m {int(final_motion.estimated_seconds % 60):02d}s"

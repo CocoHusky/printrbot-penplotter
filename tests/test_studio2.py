@@ -44,6 +44,7 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Density scale" in text
     assert "Outline join distance (px)" in text
     assert "Pen lift height (mm)" in text
+    assert "Extend open stroke ends for pen ink contact" in text
     assert 'name="z_down_mm"' not in text
     assert "Max plotted lines (longest kept)" in text
     assert "Limits still apply to the selected recipe." in text
@@ -60,6 +61,7 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
             "detail": "medium",
             "background_mode": "suppress",
             "pen_tip_mm": "0.5",
+            "contact_compensation": "false",
             "z_up_mm": "2.5",
             "z_down_mm": "0.15",
             "plot_stroke_limit": "2",
@@ -92,6 +94,8 @@ def test_studio2_line_art_render_has_safe_home_envelope_and_stage_previews() -> 
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["metadata"]["studio_schema"] == "printrbot-studio2/v3"
+    assert body["metadata"]["contact_compensation"] is False
+    assert body["metadata"]["contact_compensation_radius_mm"] == 0.0
     assert body["metadata"]["home_before_plot"] is True
     assert body["metadata"]["z_up_mm"] == 2.5
     assert body["metadata"]["z_down_mm"] == 0.15

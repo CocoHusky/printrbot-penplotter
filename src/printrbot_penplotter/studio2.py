@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .auto_optimize import AutoOptimizeConfig, optimize_analysis
 from .gcode import polylines_to_gcode
-from .geometry import flip_y_in_page, place_on_page, preview_svg, validate_polylines
+from .geometry import compensate_pen_contact, flip_y_in_page, place_on_page, preview_svg, validate_polylines
 from .image_preprocess import ImagePreprocessConfig, ThresholdConfig, preprocess_image, threshold_image
 from .image_understanding import ImageUnderstandingConfig, ImageUnderstandingResult, analyze_gray, analyze_image
 from .line_art import LineArtConfig, STYLE_NAMES, render_line_art_from_analysis
@@ -412,6 +412,7 @@ def _render_pipeline(
     detail: str,
     background_mode: str,
     pen_tip_mm: float,
+    contact_compensation: bool,
     z_up_mm: float,
     z_down_mm: float,
     air_plot: bool,
@@ -617,7 +618,12 @@ def _render_pipeline(
         PhysicalPlotConfig(pen_tip_mm=pen_tip_mm, quality=quality, stroke_cap=plot_stroke_limit),  # type: ignore[arg-type]
         pen=pen,
     )
-    final = physical.polylines
+    # A ball-point begins and ends inking roughly half a tip width away from
+    # the carriage center.  This is intentionally optional: technical art can
+    # prefer mathematically exact endpoints, while text and hand-drawn art
+    # benefit from the small extension closing visible joins.
+    contact_radius = pen_tip_mm / 2.0 if contact_compensation else 0.0
+    final = compensate_pen_contact(physical.polylines, contact_radius)
     validate_polylines(final)
     timings["placement_and_physical_filter"] = time.perf_counter() - started
     started = time.perf_counter()
@@ -638,6 +644,8 @@ def _render_pipeline(
             "artistic_point_limit_effective": max_points,
             "plot_stroke_limit": plot_stroke_limit,
             "plot_strokes_dropped_for_cap": physical.metadata["stroke_cap_dropped"],
+            "contact_compensation": contact_compensation,
+            "contact_compensation_radius_mm": round(contact_radius, 4),
             "studio_edge_analysis_skipped": bool(metadata.get("edge_analysis_skipped", False)),
             "estimated_print_time_seconds": round(physical.after.estimated_seconds, 2),
             "estimated_print_time_minutes": round(physical.after.estimated_seconds / 60.0, 2),
@@ -664,6 +672,7 @@ async def render_studio2(
     detail: Literal["low", "medium", "high", "extreme"] = Form("high"),
     background_mode: Literal["none", "suppress", "remove"] = Form("suppress"),
     pen_tip_mm: float = Form(0.5),
+    contact_compensation: bool = Form(True),
     z_up_mm: float = Form(5.0),
     z_down_mm: float = Form(0.0),
     air_plot: bool = Form(True),
@@ -744,6 +753,7 @@ async def render_studio2(
                 detail=detail,
                 background_mode=background_mode,
                 pen_tip_mm=pen_tip_mm,
+                contact_compensation=contact_compensation,
                 z_up_mm=z_up_mm,
                 z_down_mm=z_down_mm,
                 air_plot=air_plot,
@@ -820,6 +830,7 @@ async def render_studio2(
             "air_plot": air_plot,
             "z_up_mm": z_up_mm,
             "z_down_mm": z_down_mm,
+            "contact_compensation": contact_compensation,
         }
     )
     return {
@@ -850,6 +861,7 @@ STUDIO2_HTML = r'''<!doctype html>
 <label>Detail</label><select name="detail"><option>low</option><option>medium</option><option selected>high</option><option>extreme</option></select>
 <label>Background</label><select name="background_mode"><option>none</option><option selected>suppress</option><option>remove</option></select>
 <label>Pen tip (mm)</label><input name="pen_tip_mm" type="number" value="0.5" min="0.05" max="5" step="0.05">
+<div id="contactCompensationControl"><label class="check"><input name="contact_compensation" type="checkbox" checked> Extend open stroke ends for pen ink contact</label><div class="hint">Adds half the pen-tip width to each end of an open stroke. Turn it off for exact technical endpoints.</div></div>
 <label>Pen lift height (mm)</label><input name="z_up_mm" type="number" value="5.0" min="0" max="20" step="0.1">
 <label class="check"><input name="air_plot" type="checkbox" checked> Air plot</label>
 <label class="check"><input name="home_before_plot" type="checkbox" checked> Home before plot</label>
