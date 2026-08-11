@@ -106,15 +106,18 @@ The ESP32 is intentionally the transport and safety gateway. Text generation, im
 
 ## Release history
 
-The repository keeps the step-by-step implementation record, while this README describes the currently supported product:
+The latest numbered release is 0.6.0. Changes after that release are on the
+main branch while the Studio, bridge UI, multilingual writing, and product
+documentation continue to develop.
 
-| Release | Focus |
-| --- | --- |
-| [0.2](docs/RELEASE_0.2.md) | Safe-machine foundation and physical validation |
-| [0.3](docs/RELEASE_0.3.md) | Native writing engine |
-| [0.4](docs/RELEASE_0.4.md) | ESP32 transport |
-| [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
-| [0.6](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
+| Release | Focus | Status |
+| --- | --- | --- |
+| [0.2](docs/RELEASE_0.2.md) | Safe-machine foundation and physical validation | Historical |
+| [0.3](docs/RELEASE_0.3.md) | Native writing engine | Historical |
+| [0.4](docs/RELEASE_0.4.md) | ESP32 transport | Historical |
+| [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio | Historical |
+| [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization | Current numbered release |
+| Next | Studio workflow, multilingual text, bridge refinements, and public product cleanup | In development |
 
 ## Safety first
 
@@ -497,7 +500,6 @@ The software cannot detect a loose pen, reversed motor, incorrect endstop direct
 
 ## Project documentation
 
-- [`AGENTS.md`](AGENTS.md) — non-negotiable architecture and development guardrails
 - [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md) — canonical hardware job envelope and validator contract
 - [`docs/RELEASE_0.2.md`](docs/RELEASE_0.2.md) — safe-machine foundation and remaining physical validation
 - [`docs/RELEASE_0.3.md`](docs/RELEASE_0.3.md) — native writing engine and current limitations
