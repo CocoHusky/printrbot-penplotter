@@ -43,6 +43,24 @@ The NFC tag is the front door to the local printer. Connect the phone to the sam
 
 From the phone, enter a message or choose an image, review the bed preview, validate the job, and press **Start**. NFC opens the interface; it never starts motion by itself.
 
+## Hardware in the loop
+
+The software is built around a restored Printrbot rather than a printer-shaped abstraction. These photos show the physical parts that connect the digital workflow to the mark on paper.
+
+<p align="center">
+  <img src="docs/images/hardware-printer.jpg" alt="Restored Printrbot pen plotter with paper clipped to its bed" width="43%">
+  <img src="docs/images/hardware-pen-holder.jpg" alt="Adjustable Printrbot pen holder drawing text and an image" width="43%">
+</p>
+
+The motion platform carries the paper, while the adjustable holder keeps the pen in contact as the writing surface varies. It accepts different tools and material heights without requiring a perfectly rigid Z surface; the operator still needs to verify the setup before plotting.
+
+<p align="center">
+  <img src="docs/images/nfc-tag-mounted.jpg" alt="Black NFC tag mounted on the side of the Printrbot" width="43%">
+  <img src="docs/images/nfc-tag-hardware.jpg" alt="NFC tag hardware with its antenna visible" width="43%">
+</p>
+
+The mounted NFC tag is the physical shortcut to the local bridge. Tap it with a phone on the same trusted network, open the browser workflow, and prepare the job without typing the device address. The tag only opens the interface; it does not bypass review, validation, or the operator's Start action.
+
 ## The workflow
 
 Each step has a separate purpose so the machine never receives an unexplained or unreviewed job.
@@ -213,7 +231,7 @@ The numbered software history ends at **0.6.0**. **Release 1.0** is the public t
 | [0.4](docs/RELEASE_0.4.md) | ESP32 local bridge |
 | [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
 | [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
-| 1.0 milestone | Public text, image, multilingual, phone, and bridge workflow | Active development |
+| 1.0 milestone | Public text, image, multilingual, phone, and bridge workflow; active development |
 
 ## Documentation
 
