@@ -4,8 +4,6 @@ Local software for turning typed language into tactile, pen-written communicatio
 
 > **Status:** Public demo release, active development. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; the UI and firmware are still evolving.
 
-> **Network notice:** The ESP32 bridge is intended for demo use on a trusted local network. It does not include user authentication, so do not expose it directly to the internet.
-
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="460">
 </p>
@@ -222,7 +220,9 @@ Use `--trace-mode centerline` for stroke-like drawings or photographed handwriti
 - Level shifter: mandatory translation between the Printrboard's 5 V UART and the ESP32's 3.3 V GPIO.
 - NFC tag: optional shortcut to the local bridge address.
 
-The bridge is a local transport and demo controller, not an internet-facing service. Authentication is not included; keep it on a trusted local network. OTA firmware updates are outside the current product scope.
+The bridge is a local transport and demo controller, not an internet-facing service. OTA firmware updates are outside the current product scope.
+
+> **Network notice:** The ESP32 bridge is intended for demo use on a trusted local network. It does not include user authentication, so do not expose it directly to the internet.
 
 Hardware wiring and sources: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 
