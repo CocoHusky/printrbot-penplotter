@@ -220,9 +220,7 @@ Use `--trace-mode centerline` for stroke-like drawings or photographed handwriti
 - Level shifter: mandatory translation between the Printrboard's 5 V UART and the ESP32's 3.3 V GPIO.
 - NFC tag: optional shortcut to the local bridge address.
 
-The bridge is a local transport and demo controller, not an internet-facing service. OTA firmware updates are outside the current product scope.
-
-> **Network notice:** The ESP32 bridge is intended for demo use on a trusted local network. It does not include user authentication, so do not expose it directly to the internet.
+The bridge is a local transport and demo controller. Its dashboard and control API use HTTP Basic authentication with a unique first-boot password. OTA firmware updates are outside the current product scope.
 
 Hardware wiring and sources: [`docs/HARDWARE.md`](docs/HARDWARE.md)
 

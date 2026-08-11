@@ -2,11 +2,13 @@
 #include <Adafruit_NeoPixel.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
+#include <esp_system.h>
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
+#include <cstdio>
 #include <string>
 
 #include "bridge_config.h"
@@ -34,6 +36,43 @@ String uploadError;
 std::size_t uploadBytes = 0;
 bool uploadDraftMode = false;
 std::uint32_t lastLedUpdateMs = 0;
+String httpUser = "admin";
+String httpPassword;
+
+String generateHttpPassword() {
+  String password;
+  password.reserve(32);
+  for (int i = 0; i < 4; ++i) {
+    const std::uint32_t value = esp_random();
+    char chunk[9];
+    std::snprintf(chunk, sizeof(chunk), "%08lx", static_cast<unsigned long>(value));
+    password += chunk;
+  }
+  return password;
+}
+
+void configureHttpAuthentication() {
+  httpUser = preferences.getString("http_user", "admin");
+  if (httpUser.isEmpty()) httpUser = "admin";
+  httpPassword = preferences.getString("http_pass", "");
+  if (httpPassword.length() < 16) {
+    httpPassword = generateHttpPassword();
+    preferences.putString("http_user", httpUser);
+    preferences.putString("http_pass", httpPassword);
+    Serial.println("Generated new bridge HTTP credentials.");
+    Serial.print("Username: ");
+    Serial.println(httpUser);
+    Serial.print("Password: ");
+    Serial.println(httpPassword);
+    Serial.println("Store this password securely; it is not shown by the web UI.");
+  }
+}
+
+bool requireHttpAuthentication() {
+  if (server.authenticate(httpUser.c_str(), httpPassword.c_str())) return true;
+  server.requestAuthentication(BASIC_AUTH, "Printrbot Bridge", "Authentication required");
+  return false;
+}
 
 String jsonEscape(const String& value) {
   String escaped;
@@ -316,26 +355,63 @@ void handleWifiSave() {
 
 void configureRoutes() {
   server.on("/", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
     server.sendHeader("Cache-Control", "no-store");
     server.send_P(200, "text/html", plotter::web::kIndexHtml);
   });
-  server.on("/generate_204", HTTP_GET, []() { server.send_P(200, "text/html", plotter::web::kIndexHtml); });
-  server.on("/hotspot-detect.html", HTTP_GET, []() { server.send_P(200, "text/html", plotter::web::kIndexHtml); });
-  server.on("/fwlink", HTTP_GET, []() { server.send_P(200, "text/html", plotter::web::kIndexHtml); });
-  server.on("/api/status", HTTP_GET, handleStatus);
-  server.on("/api/job", HTTP_POST, finishUploadRequest, handleFinalUploadChunk);
-  server.on("/api/job/draft", HTTP_POST, finishUploadRequest, handleDraftUploadChunk);
-  server.on("/api/job/start", HTTP_POST, []() { handleJobAction("start"); });
-  server.on("/api/job/pause", HTTP_POST, []() { handleJobAction("pause"); });
-  server.on("/api/job/resume", HTTP_POST, []() { handleJobAction("resume"); });
-  server.on("/api/job/cancel", HTTP_POST, []() { handleJobAction("cancel"); });
+  server.on("/generate_204", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    server.send_P(200, "text/html", plotter::web::kIndexHtml);
+  });
+  server.on("/hotspot-detect.html", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    server.send_P(200, "text/html", plotter::web::kIndexHtml);
+  });
+  server.on("/fwlink", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    server.send_P(200, "text/html", plotter::web::kIndexHtml);
+  });
+  server.on("/api/status", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    handleStatus();
+  });
+  server.on("/api/job", HTTP_POST,
+            []() { if (requireHttpAuthentication()) finishUploadRequest(); },
+            []() { if (requireHttpAuthentication()) handleFinalUploadChunk(); });
+  server.on("/api/job/draft", HTTP_POST,
+            []() { if (requireHttpAuthentication()) finishUploadRequest(); },
+            []() { if (requireHttpAuthentication()) handleDraftUploadChunk(); });
+  server.on("/api/job/start", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    handleJobAction("start");
+  });
+  server.on("/api/job/pause", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    handleJobAction("pause");
+  });
+  server.on("/api/job/resume", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    handleJobAction("resume");
+  });
+  server.on("/api/job/cancel", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    handleJobAction("cancel");
+  });
   server.on("/api/emergency", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
     jobRunner.emergencyStop();
     sendOk("M112 sent. Reset the Printrboard before continuing.");
   });
-  server.on("/api/printer/query", HTTP_POST, handlePrinterQuery);
-  server.on("/api/wifi", HTTP_POST, handleWifiSave);
+  server.on("/api/printer/query", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    handlePrinterQuery();
+  });
+  server.on("/api/wifi", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    handleWifiSave();
+  });
   server.onNotFound([]() {
+    if (!requireHttpAuthentication()) return;
     server.sendHeader("Location", "http://192.168.4.1/", true);
     server.send(302, "text/plain", "");
   });
@@ -347,12 +423,15 @@ void configureRoutes() {
 void setup() {
   delay(250);
 
+  Serial.begin(115200);
+
   statusPixel.begin();
   statusPixel.clear();
   statusPixel.show();
   setPixel(0, 30, 160);
 
   preferences.begin("plotter", false);
+  configureHttpAuthentication();
   if (!LittleFS.begin(true)) {
     setPixel(220, 0, 20);
   }

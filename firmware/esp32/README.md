@@ -22,6 +22,7 @@ It does **not** render fonts, trace images, or plan drawing geometry. Those jobs
 - Separate immediate `M112` emergency-stop endpoint.
 - Non-moving `M115`, `M119`, `M114`, and `M503` query endpoint.
 - Live browser status, progress, active command, and UART ring log.
+- HTTP Basic authentication on the dashboard and every control/API request, with a unique first-boot password stored in ESP32 Preferences.
 - Onboard RGB state indicator.
 - Native protocol tests and ESP32-C3 compilation in CI.
 
@@ -59,7 +60,9 @@ The Printrboard UART does not need to be connected for the first Wi-Fi test.
 2. Connect a phone or computer to `Printrbot-Bridge`.
 3. Use password `plotter123`.
 4. Open `http://192.168.4.1`.
-5. Confirm that the dashboard loads and the bridge reports `no response yet` for Marlin.
+5. Open the USB serial monitor at 115200 baud and copy the generated HTTP username/password from the startup log.
+6. Enter those credentials in the browser authentication prompt.
+7. Confirm that the dashboard loads and the bridge reports `no response yet` for Marlin.
 
 ## UART wiring
 
@@ -115,7 +118,7 @@ Purple     idle / waiting for Marlin
 
 ## Deployment boundary
 
-This is a local controller, not an internet-facing appliance. The access point has WPA2 credentials, but individual HTTP API requests are not authenticated. Keep it on a trusted local network and do not expose it through port forwarding, a public tunnel, or an untrusted LAN.
+The dashboard and control API require HTTP Basic authentication. The bridge generates a unique password on first boot, stores it in ESP32 Preferences, and prints it to the USB serial monitor. The access point still uses WPA2, and the bridge should remain on a trusted local network.
 
 Firmware updates are USB-only. OTA updates, signed firmware, credential rotation, and hardened provisioning are intentionally not claimed by this release.
 

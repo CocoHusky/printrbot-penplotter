@@ -114,7 +114,7 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <div><label>Password</label><input id="password" type="password" autocomplete="new-password"></div>
 </div>
 <button class="secondary" onclick="saveWifi()">Save and restart</button>
-<p class="small">The setup access point remains available. This local bridge has no request-level authentication; keep it on a trusted local network and never expose it to the public internet.</p>
+<p class="small">HTTP Basic authentication protects the dashboard and control API. The first-boot username and password are printed to the USB serial monitor.</p>
 </section>
 </div>
 </details>
