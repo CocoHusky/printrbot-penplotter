@@ -123,8 +123,8 @@ def _combine(*groups: Polylines) -> Polylines:
     return [line[:] for group in groups for line in group if len(line) >= 2]
 
 
-def _ordered_one_line(lines: Polylines) -> tuple[Polylines, int, float]:
-    """Build a deterministic linear-time-ish artistic chain."""
+def _ordered_one_line(lines: Polylines, *, max_bridge_px: float = 6.0) -> tuple[Polylines, int, float, int]:
+    """Route nearby strokes into long chains without crossing blank paper."""
     open_lines: Polylines = []
     closed_lines: Polylines = []
     for source in lines:
@@ -135,20 +135,61 @@ def _ordered_one_line(lines: Polylines) -> tuple[Polylines, int, float]:
         if line[-1] < line[0]:
             line.reverse()
         open_lines.append(line)
-    open_lines.sort(key=lambda line: (line[0], line[-1], len(line)))
     if not open_lines:
-        return closed_lines, 0, 0.0
-    chain = open_lines[0][:]
+        return closed_lines, 0, 0.0, 0
+    remaining = [line[:] for line in open_lines]
+    chains: Polylines = []
     bridges = 0
     bridge_length = 0.0
-    for line in open_lines[1:]:
-        gap = float(np.hypot(chain[-1][0] - line[0][0], chain[-1][1] - line[0][1]))
-        if chain[-1] != line[0]:
-            chain.append(line[0])
-            bridges += 1
-            bridge_length += gap
-        chain.extend(line[1:])
-    return [chain] + closed_lines, bridges, bridge_length
+    skipped = 0
+
+    # Dense raster traces can contain tens of thousands of fragments. Avoid
+    # an all-pairs search there; a stable spatially ordered pass still joins
+    # adjacent fragments when they are genuinely close and remains linear-ish.
+    if len(remaining) > 5_000:
+        remaining.sort(key=lambda line: (line[0], line[-1], len(line)))
+        chain = remaining.pop(0)
+        for candidate in remaining:
+            gap = float(np.hypot(chain[-1][0] - candidate[0][0], chain[-1][1] - candidate[0][1]))
+            if gap <= max_bridge_px:
+                chain.append(candidate[0])
+                chain.extend(candidate[1:])
+                bridges += 1
+                bridge_length += gap
+            else:
+                chains.append(chain)
+                skipped += 1
+                chain = candidate
+        chains.append(chain)
+        return chains + closed_lines, bridges, bridge_length, skipped
+
+    while remaining:
+        chain = remaining.pop(0)
+        while remaining:
+            best_index = -1
+            best_reverse = False
+            best_gap = float("inf")
+            for index, candidate in enumerate(remaining):
+                forward = float(np.hypot(chain[-1][0] - candidate[0][0], chain[-1][1] - candidate[0][1]))
+                reverse = float(np.hypot(chain[-1][0] - candidate[-1][0], chain[-1][1] - candidate[-1][1]))
+                if forward < best_gap:
+                    best_index, best_reverse, best_gap = index, False, forward
+                if reverse < best_gap:
+                    best_index, best_reverse, best_gap = index, True, reverse
+            if best_index < 0 or best_gap > max_bridge_px:
+                break
+            candidate = remaining.pop(best_index)
+            if best_reverse:
+                candidate.reverse()
+            if chain[-1] != candidate[0]:
+                chain.append(candidate[0])
+                bridges += 1
+                bridge_length += best_gap
+            chain.extend(candidate[1:])
+        chains.append(chain)
+        if remaining:
+            skipped += 1
+    return chains + closed_lines, bridges, bridge_length, skipped
 
 
 def _looks_like_line_drawing(analysis: ImageUnderstandingResult) -> bool:
@@ -218,8 +259,16 @@ def _recipe(analysis: ImageUnderstandingResult, config: LineArtConfig) -> tuple[
     if style == "continuous_contour":
         return _strokes(outer | strong, iterations), VectorCleanupConfig.for_quality("flowing"), meta
     if style == "one_line_art":
-        raw, bridges, length = _ordered_one_line(_strokes(outer | strong, iterations))
-        meta.update({"artistic_bridges": bridges, "artistic_bridge_length_px": round(length, 6)})
+        max_bridge = 6.0 if config.join_distance_px is None else min(config.join_distance_px, 6.0)
+        raw, bridges, length, skipped = _ordered_one_line(
+            _strokes(outer | strong, iterations), max_bridge_px=max_bridge
+        )
+        meta.update({
+            "artistic_bridges": bridges,
+            "artistic_bridge_length_px": round(length, 6),
+            "artistic_unconnected_chains": skipped,
+            "artistic_max_bridge_px": max_bridge,
+        })
         cleanup = VectorCleanupConfig(
             min_segment_px=0.25, min_stroke_length_px=0.8, simplify_tolerance_px=0.35,
             preserve_corner_deg=42.0, smoothing="chaikin", smooth_passes=1,

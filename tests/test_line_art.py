@@ -94,6 +94,8 @@ def test_one_line_art_records_intentional_bridges(tmp_path: Path) -> None:
     result = render_line_art_from_analysis(_analysis(path), LineArtConfig(style="one_line_art"))
     assert "artistic_bridges" in result.metadata
     assert result.metadata["artistic_bridges"] >= 0
+    assert result.metadata["artistic_max_bridge_px"] <= 6.0
+    assert result.metadata["artistic_unconnected_chains"] >= 0
 
 
 def test_pet_and_portrait_presets_do_not_claim_semantic_recognition(tmp_path: Path) -> None:
