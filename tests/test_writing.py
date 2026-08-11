@@ -127,6 +127,16 @@ def test_seeded_glyph_selection_is_reproducible() -> None:
     assert len(set(first.metadata["glyph_variants"])) > 1
 
 
+def test_human_preset_keeps_variation_controlled_for_readable_notes() -> None:
+    style = StyleConfig.for_preset("human")
+
+    assert style.variant_mode == "seeded"
+    assert style.rotation_jitter_deg <= 0.5
+    assert style.baseline_jitter_mm <= 0.15
+    assert style.x_jitter_mm <= 0.1
+    assert style.scale_jitter <= 0.01
+
+
 def test_cycle_mode_guarantees_visible_alternate_glyphs() -> None:
     style = StyleConfig.for_preset(
         "human",

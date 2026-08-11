@@ -273,7 +273,15 @@ class StyleConfig:
                 "stroke_font": "hand",
                 "variant_mode": "seeded",
                 "connect_letters": False,
-                "slant_deg": 3.0,
+                # Keep the hand-drawn character, but make long notes readable.
+                # The previous defaults combined strong per-glyph jitter with
+                # alternate glyphs and made letters look like disconnected marks.
+                "slant_deg": 2.0,
+                "rotation_jitter_deg": 0.35,
+                "baseline_jitter_mm": 0.12,
+                "x_jitter_mm": 0.06,
+                "scale_jitter": 0.01,
+                "letter_spacing_mm": 0.5,
             }
 
         values.update(overrides)
