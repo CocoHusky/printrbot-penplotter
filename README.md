@@ -5,7 +5,7 @@ Local software for turning typed language into tactile, pen-written communicatio
 > **Status:** Public demo release, active development. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; the UI and firmware are still evolving.
 
 <p align="center">
-  <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="460">
+  <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
 </p>
 
 ## Why it exists
@@ -36,7 +36,7 @@ This is a working public milestone, not a claim that the hardware is a finished 
 The NFC tag is the front door to the local printer. Connect the phone to the same trusted Wi-Fi network, tap the tag, and the browser opens `printrbot.local` without typing an address.
 
 <p align="center">
-  <img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="520">
+  <img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="440">
 </p>
 
 From the phone, enter a message or choose an image, review the bed preview, validate the job, and press **Start**. NFC opens the interface; it never starts motion by itself.
@@ -44,9 +44,9 @@ From the phone, enter a message or choose an image, review the bed preview, vali
 The phone workflow is intentionally staged:
 
 <p align="center">
-  <img src="docs/images/bridge-load-draft.png" alt="Phone view for loading a draft G-code job" width="30%">
-  <img src="docs/images/bridge-bed-review.png" alt="Phone view for reviewing the bed and print area" width="30%">
-  <img src="docs/images/bridge-validate-start.png" alt="Phone view for validating and starting a job" width="30%">
+  <img src="docs/images/bridge-load-draft.png" alt="Phone view for loading a draft G-code job" width="220">
+  <img src="docs/images/bridge-bed-review.png" alt="Phone view for reviewing the bed and print area" width="220">
+  <img src="docs/images/bridge-validate-start.png" alt="Phone view for validating and starting a job" width="220">
 </p>
 
 Load a draft, review its actual bed coordinates, then validate and start it. The screenshots show the same path a phone user follows; the bridge does not skip review or validation.
@@ -56,15 +56,15 @@ Load a draft, review its actual bed coordinates, then validate and start it. The
 The software is built around a restored Printrbot rather than a printer-shaped abstraction. These photos show the physical parts that connect the digital workflow to the mark on paper.
 
 <p align="center">
-  <img src="docs/images/hardware-esp32.jpg" alt="Printrbot control electronics and UART wiring" width="43%">
-  <img src="docs/images/hardware-pen-holder.jpg" alt="Adjustable Printrbot pen holder drawing text and an image" width="43%">
+  <img src="docs/images/hardware-esp32.jpg" alt="Printrbot control electronics and UART wiring" width="360">
+  <img src="docs/images/hardware-pen-holder.jpg" alt="Adjustable Printrbot pen holder drawing text and an image" width="360">
 </p>
 
 The control electronics and UART wiring connect the restored motion platform to the local bridge. The adjustable holder keeps the pen in contact as the writing surface varies. It accepts different tools and material heights without requiring a perfectly rigid Z surface; the operator still needs to verify the setup before plotting.
 
 <p align="center">
-  <img src="docs/images/nfc-tag-mounted.jpg" alt="Black NFC tag mounted on the side of the Printrbot" width="43%">
-  <img src="docs/images/nfc-tag-hardware.jpg" alt="NFC tag hardware with its antenna visible" width="43%">
+  <img src="docs/images/nfc-tag-mounted.jpg" alt="Black NFC tag mounted on the side of the Printrbot" width="360">
+  <img src="docs/images/nfc-tag-hardware.jpg" alt="NFC tag hardware with its antenna visible" width="360">
 </p>
 
 The mounted NFC tag is the physical shortcut to the local bridge. Tap it with a phone on the same trusted network, open the browser workflow, and prepare the job without typing the device address. The tag only opens the interface; it does not bypass review, validation, or the operator's Start action.
@@ -104,13 +104,13 @@ Send the reviewed job by direct USB or store it on the ESP32-C3 bridge for ackno
 The bridge accepts one job at a time and exposes progress, pause, orderly cancel, and emergency stop. It transports the job; it does not render images or generate handwriting.
 
 <p align="center">
-  <img src="docs/images/plotter-in-action.jpg" alt="Printrbot plotting a physical text and image note" width="820">
+  <img src="docs/images/plotter-in-action.jpg" alt="Printrbot plotting a physical text and image note" width="720">
 </p>
 
 ## Text to a pen-written note
 
 <p align="center">
-  <img src="docs/images/write-multilingual.png" alt="Multilingual centerline text with spacing controls" width="820">
+  <img src="docs/images/write-multilingual.png" alt="Multilingual centerline text with spacing controls" width="720">
 </p>
 
 The text path does not rasterize or outline a typeface:
@@ -130,7 +130,7 @@ Image processing is staged so every transformation can be inspected before it re
 ### 1. Grayscale
 
 <p align="center">
-  <img src="docs/images/studio-grayscale.png" alt="Original image beside its grayscale result" width="820">
+  <img src="docs/images/studio-grayscale.png" alt="Original image beside its grayscale result" width="720">
 </p>
 
 Color pixels are converted into brightness values. Exposure, contrast, gamma, channel weights, blur, and background handling can be adjusted here. The output is still a raster image; no pen paths have been created yet.
@@ -138,7 +138,7 @@ Color pixels are converted into brightness values. Exposure, contrast, gamma, ch
 ### 2. Black and white
 
 <p align="center">
-  <img src="docs/images/studio-black-white.png" alt="Grayscale input beside the black and white foreground mask" width="820">
+  <img src="docs/images/studio-black-white.png" alt="Grayscale input beside the black and white foreground mask" width="720">
 </p>
 
 The grayscale values are compared with a manual or automatic threshold to create a foreground mask. Cleanup can remove small disconnected components and inversion can swap foreground and background. This stage decides which regions are available to the later renderer.
@@ -146,7 +146,7 @@ The grayscale values are compared with a manual or automatic threshold to create
 ### 3. Style rendering
 
 <p align="center">
-  <img src="docs/images/studio-pointillism.png" alt="Pointillism style rendered as plot-ready marks" width="820">
+  <img src="docs/images/studio-pointillism.png" alt="Pointillism style rendered as plot-ready marks" width="720">
 </p>
 
 The selected style turns the processed raster into plot geometry. A silhouette or contour style follows boundaries; pen shading fills darker regions with controlled strokes or dots. Styles that work directly from the mask do not require edge extraction.
@@ -154,7 +154,7 @@ The selected style turns the processed raster into plot geometry. A silhouette o
 ### 4. Machine output
 
 <p align="center">
-  <img src="docs/images/studio-machine-export.png" alt="Final image paths beside the machine output preview" width="820">
+  <img src="docs/images/studio-machine-export.png" alt="Final image paths beside the machine output preview" width="720">
 </p>
 
 The final paths are scaled to the paper, checked against the bed, routed for pen travel, and shown in the machine preview. Only after this review are they exported as SVG and guarded Marlin G-code.
