@@ -34,6 +34,12 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Clean outline — recommended" in text
     assert "Continuous contour — fewer lifts" in text
     assert "Fast line art: longer, simpler contours only." in text
+    assert "fastShadingStyles" in text
+    assert "Parallel hatch — fastest fill" in text
+    assert "Crosshatch — recommended" in text
+    assert "Curved hatch — softer shading" in text
+    assert "Contour hatch — follows form" in text
+    assert "Reliable pen shading: four controlled fill recipes." in text
     assert "Home before plot" in text
     assert "Max artistic strokes" in text
     assert "Bypass soft artistic limit" in text
