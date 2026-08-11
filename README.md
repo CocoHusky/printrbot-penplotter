@@ -39,10 +39,19 @@ The NFC tag is the front door to the local printer. Connect the phone to the sam
 
 <p align="center">
   <img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="520">
-  <img src="docs/images/bridge-mobile-preview.png" alt="Printrbot bridge interface on a phone" width="520">
 </p>
 
 From the phone, enter a message or choose an image, review the bed preview, validate the job, and press **Start**. NFC opens the interface; it never starts motion by itself.
+
+The phone workflow is intentionally staged:
+
+<p align="center">
+  <img src="docs/images/bridge-load-draft.png" alt="Phone view for loading a draft G-code job" width="30%">
+  <img src="docs/images/bridge-bed-review.png" alt="Phone view for reviewing the bed and print area" width="30%">
+  <img src="docs/images/bridge-validate-start.png" alt="Phone view for validating and starting a job" width="30%">
+</p>
+
+Load a draft, review its actual bed coordinates, then validate and start it. The screenshots show the same path a phone user follows; the bridge does not skip review or validation.
 
 ## Hardware in the loop
 
