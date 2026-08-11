@@ -132,6 +132,7 @@ function gword(line,letter){const match=line.match(new RegExp('(?:^|\\s)'+letter
 function parseGcode(text,offsetX=0,offsetY=0){
  let x=0,y=0,z=5,absolute=true,penDown=false;const segments=[];let moves=0,drawMoves=0,travelMoves=0,outOfBed=0;
  for(const source of text.split(/\r?\n/)){
+  const comment=(source.match(/;.*$/)||[''])[0].toLowerCase();
   const line=source.replace(/\([^)]*\)/g,'').replace(/;.*$/,'').trim();if(!line)continue;
   const command=(line.match(/^([GMT])\s*(\d+)/i)||[]).slice(1).join('').toUpperCase();
   if(command==='G90'){absolute=true;continue} if(command==='G91'){absolute=false;continue}
@@ -140,7 +141,12 @@ function parseGcode(text,offsetX=0,offsetY=0){
   const oldX=x,oldY=y;const nextX=gword(line,'X'),nextY=gword(line,'Y'),nextZ=gword(line,'Z');
   if(nextZ!==null)z=absolute?nextZ:z+nextZ;
   if(nextX!==null)x=absolute?nextX:x+nextX;if(nextY!==null)y=absolute?nextY:y+nextY;
+  // Z is the authoritative state for generated jobs. Comments are a
+  // compatibility fallback for imported files that use a different safe-Z
+  // convention. This keeps G1 XY strokes from being misreported as travel.
   if(nextZ!==null)penDown=z<=0.5;
+  if(/pen\s+down/.test(comment))penDown=true;
+  if(/pen\s+up|air\s+plot/.test(comment))penDown=false;
   if(nextX===null&&nextY===null)continue;
   moves++;const ink=penDown&&command==='G1';if(ink)drawMoves++;else travelMoves++;
   const shifted={x1:oldX+offsetX,y1:oldY+offsetY,x2:x+offsetX,y2:y+offsetY};const outside=[shifted.x1,shifted.y1,shifted.x2,shifted.y2].some((v,i)=>i%2===0?(v<BED.xmin||v>BED.xmax):(v<BED.ymin||v>BED.ymax));if(outside)outOfBed++;
@@ -191,7 +197,7 @@ function renderGcodePreview(text){
  for(const index of selectedComponents){const component=components[index];if(!component||component.length<2)continue;const box=componentBounds(component);svg.push('<rect x="'+box.minX.toFixed(3)+'" y="'+syy(box.maxY).toFixed(3)+'" width="'+Math.max(0.4,box.maxX-box.minX).toFixed(3)+'" height="'+Math.max(0.4,box.maxY-box.minY).toFixed(3)+'" fill="none" stroke="#7b61ff" stroke-width="0.6" stroke-dasharray="1 1"/>')}
  for(const s of result.segments){if(s.homeTravel)continue;const color=s.ink?'#168b5a':'#8daecc';const dash=s.ink?'':' stroke-dasharray="1.4 1.2"';svg.push('<path d="M '+s.x1.toFixed(3)+' '+syy(s.y1).toFixed(3)+' L '+s.x2.toFixed(3)+' '+syy(s.y2).toFixed(3)+'" fill="none" stroke="'+color+'" stroke-width="'+(s.ink?'0.55':'0.25')+'"'+dash+' stroke-linecap="round"/>')}
  svg.push('</svg>');$('gcodePreview').innerHTML=svg.join('');
- const bounds=inkSegments.length?'Print X '+minX.toFixed(1)+'–'+maxX.toFixed(1)+' · Y '+syy(maxY).toFixed(1)+'–'+syy(minY).toFixed(1):'Print extents —';$('gcodeStats').innerHTML='<span class="preview-stat">Moves '+result.moves+'</span><span class="preview-stat">Ink moves '+result.drawMoves+'</span><span class="preview-stat">Travel moves '+result.travelMoves+'</span><span class="preview-stat">'+bounds+'</span>'+(result.outOfBed?'<span class="preview-stat preview-warning">Outside bed '+result.outOfBed+'</span>':'<span class="preview-stat">All moves inside bed</span>');
+ const bounds=inkSegments.length?'Print X '+minX.toFixed(1)+'–'+maxX.toFixed(1)+' · Y '+syy(maxY).toFixed(1)+'–'+syy(minY).toFixed(1):'Print extents —';const inkWarning=result.moves&&result.drawMoves===0?' · No pen-down moves detected (air plot or missing Z-down commands)':'';$('gcodeStats').innerHTML='<span class="preview-stat">Moves '+result.moves+'</span><span class="preview-stat">Ink moves '+result.drawMoves+'</span><span class="preview-stat">Travel moves '+result.travelMoves+'</span><span class="preview-stat">'+bounds+'</span>'+(result.outOfBed?'<span class="preview-stat preview-warning">Outside bed '+result.outOfBed+'</span>':'<span class="preview-stat">All moves inside bed</span>')+(inkWarning?'<span class="preview-stat preview-warning">'+inkWarning+'</span>':'');
  $('gcodeMeta').textContent=text.trim()?'Parsed from the current G-code input.':'Paste or choose G-code to inspect its actual XY moves before storing it.';
 }
 let previewTimer=null;function schedulePreview(){clearTimeout(previewTimer);previewTimer=setTimeout(()=>renderGcodePreview($('jobText').value),80)}
