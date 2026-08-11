@@ -39,6 +39,7 @@ The NFC tag is the front door to the local printer. Connect the phone to the sam
 
 <p align="center">
   <img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="520">
+  <img src="docs/images/bridge-mobile-preview.png" alt="Printrbot bridge interface on a phone" width="520">
 </p>
 
 From the phone, enter a message or choose an image, review the bed preview, validate the job, and press **Start**. NFC opens the interface; it never starts motion by itself.
@@ -48,11 +49,11 @@ From the phone, enter a message or choose an image, review the bed preview, vali
 The software is built around a restored Printrbot rather than a printer-shaped abstraction. These photos show the physical parts that connect the digital workflow to the mark on paper.
 
 <p align="center">
-  <img src="docs/images/hardware-printer.jpg" alt="Restored Printrbot pen plotter with paper clipped to its bed" width="43%">
+  <img src="docs/images/hardware-esp32.jpg" alt="Printrbot control electronics and UART wiring" width="43%">
   <img src="docs/images/hardware-pen-holder.jpg" alt="Adjustable Printrbot pen holder drawing text and an image" width="43%">
 </p>
 
-The motion platform carries the paper, while the adjustable holder keeps the pen in contact as the writing surface varies. It accepts different tools and material heights without requiring a perfectly rigid Z surface; the operator still needs to verify the setup before plotting.
+The control electronics and UART wiring connect the restored motion platform to the local bridge. The adjustable holder keeps the pen in contact as the writing surface varies. It accepts different tools and material heights without requiring a perfectly rigid Z surface; the operator still needs to verify the setup before plotting.
 
 <p align="center">
   <img src="docs/images/nfc-tag-mounted.jpg" alt="Black NFC tag mounted on the side of the Printrbot" width="43%">
@@ -94,6 +95,10 @@ Validation checks coordinates, page limits, geometry size, safe Z motion, homing
 Send the reviewed job by direct USB or store it on the ESP32-C3 bridge for acknowledged forwarding to Marlin.
 
 The bridge accepts one job at a time and exposes progress, pause, orderly cancel, and emergency stop. It transports the job; it does not render images or generate handwriting.
+
+<p align="center">
+  <img src="docs/images/plotter-in-action.jpg" alt="Printrbot plotting a physical text and image note" width="820">
+</p>
 
 ## Text to a pen-written note
 
