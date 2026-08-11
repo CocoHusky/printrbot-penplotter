@@ -20,8 +20,10 @@ Use the pull request template and include:
 
 Before opening a pull request:
 
-- Build or run the project if applicable.
-- Check formatting if the project has a formatter.
+- Install the development dependencies: `python -m pip install -e '.[dev]'`.
+- Run `python -m pytest -q` and `python -m compileall -q src tests`.
+- For ESP32 changes, run `pio test -d firmware/esp32 -e native` and
+  `pio run -d firmware/esp32 -e esp32-c3-devkitc-02`.
 - Update README or docs when behavior changes.
 
 ## Commit style

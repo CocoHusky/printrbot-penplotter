@@ -1,5 +1,8 @@
 # ESP32 Local Bridge
 
+> Historical release note. Consult `firmware/esp32/README.md` and
+> `docs/ESP32_API.md` for supported bridge behavior.
+
 The ESP32-C3 bridge moves reviewed G-code between the Python application and the Printrboard. It is a transport and job-control layer only: it does not render text, trace images, create paths, or replace Marlin's motion planner.
 
 ## Supported workflow

@@ -1,4 +1,7 @@
-# Step 2 — Image preprocessing engine
+# Historical Step 2 — Image preprocessing engine
+
+> Historical design note. The supported image workflow is Studio 2; this file
+> records the original preprocessing design and is not a separate user flow.
 
 Step 2 adds deterministic image normalization upstream of tracing. It does not add photo-sketch styles, edge understanding, hatching, or new machine motion; those remain later roadmap steps.
 

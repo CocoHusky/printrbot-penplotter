@@ -1,4 +1,7 @@
-# Release 0.3 — Native Writing Engine
+# Historical Release 0.3 Notes — Native Writing Engine
+
+> Historical implementation note. Current writing behavior is documented in
+> the root README and `docs/STROKE_FONT_FORMAT.md`.
 
 Release 0.3 replaces outline-only text plotting with a centerline writing system designed for real pens. The release focuses on single-line glyphs, deterministic alternates, basic cursive joining, wrapping, and travel-aware stroke ordering.
 

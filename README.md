@@ -292,8 +292,6 @@ The Studio exposes **Home all axes before plot** and enables it by default. Turn
 
 The retired `/raster` editing prototype is no longer served. Use Studio 2 for image processing so there is one supported image workflow.
 
-Release 0.5 details: [`docs/RELEASE_0.5.md`](docs/RELEASE_0.5.md)
-
 ## Generate an air-plot calibration
 
 ```bash

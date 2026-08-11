@@ -1,4 +1,7 @@
-# Step 4 — High-quality vectorization and path cleanup
+# Historical Step 4 — High-quality vectorization and path cleanup
+
+> Historical design note. The supported image workflow is Studio 2; this file
+> records the original cleanup design and is not a separate user flow.
 
 Step 4 adds deterministic cleanup between raw raster tracing and machine placement. It improves jagged pixel-derived paths while preserving the project's single-geometry-source rule. It does not add drawing styles, hatching, semantic recognition, route optimization, or machine commands.
 

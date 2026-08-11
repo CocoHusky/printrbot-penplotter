@@ -1,4 +1,7 @@
-# Release 0.2 — Safe Machine Foundation
+# Historical Release 0.2 Notes — Safe Machine Foundation
+
+> Historical planning and validation note. Consult `docs/JOB_SAFETY.md`, the
+> current README, and the firmware documentation for supported behavior.
 
 Release 0.2 establishes a trustworthy coordinate system and a controlled path from generated geometry to first physical motion. It must be completed before adding advanced handwriting, image tracing, or production ESP32 job control.
 

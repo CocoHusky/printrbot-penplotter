@@ -1,4 +1,8 @@
-# Release 0.5 — Image & Handwriting Studio
+# Historical Release 0.5 Notes — Retired Raster Studio
+
+> This is a historical implementation note, not current product documentation.
+> Its `/raster` workflow and manual editor were retired in favor of Studio 2 at
+> `/studio2`. Current behavior is documented in the root README.
 
 Release 0.5 adds raster input and a browser correction workflow to the same geometry pipeline already used by text and SVG. A scanned note, photographed handwriting sample, sketch, logo, or simple image can be thresholded, cleaned, traced into polylines, manually corrected, previewed in exact machine coordinates, and converted to guarded Marlin G-code.
 

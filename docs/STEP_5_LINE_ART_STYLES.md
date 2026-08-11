@@ -1,4 +1,7 @@
-# Step 5 — Deterministic Line-Art Styles
+# Historical Step 5 — Deterministic Line-Art Styles
+
+> Historical design note. The supported image workflow is Studio 2; this file
+> records the original style-planning material and is not a separate user flow.
 
 Step 5 adds the first artistic rendering layer for raster images. It consumes the deterministic grayscale/feature outputs from Steps 2 and 3, converts those features to shared polyline geometry, and applies the Step 4 vector-cleanup layer before machine placement.
 

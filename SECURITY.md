@@ -32,4 +32,5 @@ If a secret is committed, rotate or revoke it immediately and remove it from Git
 
 ## Supported versions
 
-For template-generated projects, define supported versions after the project has releases.
+Security fixes are maintained on the latest published source version. At the
+time of writing, that is `0.6.0` on the `main` branch.

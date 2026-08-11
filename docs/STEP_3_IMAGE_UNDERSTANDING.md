@@ -1,4 +1,7 @@
-# Step 3 — Image understanding
+# Historical Step 3 — Image understanding
+
+> Historical design note. The supported image workflow is Studio 2; this file
+> records the original analysis design and is not a separate user flow.
 
 Step 3 adds deterministic feature analysis between Step 2 normalization and later vector/style generation. It does **not** change machine motion, G-code, the Step 1 safety contract, or the existing Release 0.5 centerline/contour tracer.
 
