@@ -14,7 +14,6 @@ The preview and G-code are always generated from the same final absolute polylin
 - Simple lowercase cursive joins.
 - Physical cap height, tracking, word spacing, slant, and wrapping in millimeters.
 - Custom JSON stroke-font packs.
-- Conventional TTF/OTF outline rendering when double-line outlined lettering is desired.
 - SVG path import.
 - Raster image and handwriting tracing from PNG, JPEG, WebP, TIFF, and BMP files.
 - Explicit centerline and contour trace modes.
@@ -85,7 +84,7 @@ Sharp corners can request a separate slower drawing feed using `--corner-feed` a
 
 Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
-### Release 0.4 ESP32 transport
+### ESP32 local bridge
 
 - PlatformIO firmware for the ESP32-C3-DevKitC-02.
 - Setup Wi-Fi access point and optional home-network connection.
@@ -95,11 +94,11 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 - One active hardware job at a time.
 - Ready, running, paused, cancelling, cancelled, completed, failed, and emergency states.
 - Acknowledgement-based progress and UART activity log.
-- Browser upload, start, pause, resume, orderly cancel, emergency stop, and non-moving queries.
+- Browser draft editing, bed preview, whole-drawing placement, final validation, start, pause, resume, orderly cancel, emergency stop, and non-moving queries.
 - Python `printrbot-bridge` client for scripted upload and control.
 - Native firmware protocol tests and reproducible ESP32 build artifacts in CI.
 
-Release 0.2 physical machine validation is still required before a real pen-down drawing. Release 0.4 firmware is a development bridge and does not yet provide authenticated HTTP sessions.
+**Deployment status:** rendering, G-code validation, native bridge protocol tests, and the ESP32-C3 build are automated. Treat the bridge as a **local, trusted-network controller**, not an internet-facing service: HTTP requests are not authenticated and OTA updates are not provided. Before a pen-down job on any newly configured machine, run preflight and an air plot, then verify homing direction, paper placement, and Z lift physically.
 
 ## Install the Python application
 
@@ -165,17 +164,6 @@ printrbot-plotter text "ROBOT 06" \
   --preset robot \
   --font-size 16
 ```
-
-## Use the outline compatibility engine
-
-```bash
-printrbot-plotter text "Outlined title" \
-  --engine outline \
-  --font-family "DejaVu Sans" \
-  --font-size 18
-```
-
-A custom TTF/OTF can be supplied with `--font-path`. Outline fonts trace glyph edges and are intentionally different from the single-line stroke engine.
 
 ## Inspect or load stroke fonts
 
@@ -399,6 +387,8 @@ Page:     http://192.168.4.1
 Firmware guide: [`firmware/esp32/README.md`](firmware/esp32/README.md)
 
 HTTP API: [`docs/ESP32_API.md`](docs/ESP32_API.md)
+
+The ESP32 uses USB flashing. There is intentionally no OTA update path in this local-controller build.
 
 ## Use the Python ESP32 client
 

@@ -1,6 +1,6 @@
 # ESP32 Bridge HTTP API
 
-**Development API version:** Release 0.4 first increment
+**API version:** local bridge 0.4.1
 
 The bridge serves JSON endpoints from both its setup access point and, when configured, its station-mode address. The setup address is normally `http://192.168.4.1` and mDNS is `http://printrbot.local` where supported.
 
@@ -8,7 +8,7 @@ This API controls real hardware. It is intentionally narrow: the bridge accepts 
 
 ## Authentication status
 
-The development access point uses WPA2 credentials, but individual HTTP requests are not authenticated in this increment. Do not expose the bridge to the public internet or an untrusted LAN.
+The access point uses WPA2 credentials, but individual HTTP requests are not authenticated. Keep the bridge on a trusted local network; do not expose it to the public internet, a public tunnel, or an untrusted LAN. Firmware updates are USB-only; OTA is not implemented.
 
 ## `GET /api/status`
 
@@ -18,7 +18,7 @@ Example:
 
 ```json
 {
-  "firmware": "Printrbot Wi-Fi Bridge 0.4.0-dev",
+  "firmware": "Printrbot Wi-Fi Bridge 0.4.1-local",
   "uptime_ms": 132922,
   "wifi_mode": "setup access point",
   "ip": "192.168.4.1",
@@ -201,9 +201,10 @@ Typical HTTP status codes:
 A desktop or mobile client should always:
 
 1. generate and preview final paths outside the ESP32;
-2. upload the reviewed G-code;
-3. wait for `ready`;
-4. start explicitly;
-5. poll `/api/status`;
-6. distinguish orderly cancellation from emergency stop;
-7. treat `failed` and `emergency` as requiring operator inspection.
+2. load the G-code as an editable draft through the browser or upload it directly;
+3. review placement and save any edits;
+4. validate and store the final job, then wait for `ready`;
+5. start explicitly;
+6. poll `/api/status`;
+7. distinguish orderly cancellation from emergency stop;
+8. treat `failed` and `emergency` as requiring operator inspection and, after `M112`, a Printrboard reset.

@@ -4,7 +4,7 @@ This firmware turns the ESP32-C3-DevKitC-02 into a small Wi-Fi host for the Prin
 
 It does **not** render fonts, trace images, or plan drawing geometry. Those jobs remain in the Python application, where preview and G-code share the same final machine-space paths.
 
-## Current Release 0.4 features
+## Current local-bridge features
 
 - Setup access point at `192.168.4.1`.
 - Optional station-mode connection saved in ESP32 Preferences.
@@ -94,7 +94,7 @@ These tests verify that normal X/Y/Z plotter commands are accepted while heater,
 ## Browser workflow
 
 1. Generate and inspect SVG/G-code using the Python application.
-2. Prefer an air-plot file until Release 0.2 physical validation is complete.
+2. Run an air plot whenever the machine, paper origin, pen, or Z height has changed.
 3. Upload the reviewed `.gcode` file.
 4. Wait for the `ready` state.
 5. Start the job.
@@ -113,9 +113,11 @@ Red        failed or emergency stopped
 Purple     idle / waiting for Marlin
 ```
 
-## Development security limitation
+## Deployment boundary
 
-This first transport increment has an access-point password but does not yet authenticate individual HTTP API requests. Do not connect it to an untrusted or publicly reachable network. API authentication, signed firmware updates, and hardened provisioning remain Release 0.4 follow-up work.
+This is a local controller, not an internet-facing appliance. The access point has WPA2 credentials, but individual HTTP API requests are not authenticated. Keep it on a trusted local network and do not expose it through port forwarding, a public tunnel, or an untrusted LAN.
+
+Firmware updates are USB-only. OTA updates, signed firmware, credential rotation, and hardened provisioning are intentionally not claimed by this release.
 
 ## Source references
 

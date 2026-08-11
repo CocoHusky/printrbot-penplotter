@@ -6,7 +6,7 @@
 namespace plotter::config {
 
 inline constexpr char kFirmwareName[] = "Printrbot Wi-Fi Bridge";
-inline constexpr char kFirmwareVersion[] = "0.4.0-dev";
+inline constexpr char kFirmwareVersion[] = "0.4.1-local";
 
 inline constexpr int kPrinterUartIndex = 1;
 inline constexpr int kPrinterRxPin = 6;
