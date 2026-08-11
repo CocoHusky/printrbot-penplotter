@@ -18,6 +18,16 @@ A Printrboard remains responsible for real-time motion, while a Python applicati
 
 The project makes written communication more accessible. A typed message can become a physical pen-written note in English, Chinese, Japanese, and other languages when the matching centerline font pack is installed. The same pipeline can prepare images and line art. It does not physically erase ink from paper; removing existing marks still requires a separate erasing tool.
 
+## Connect from a phone
+
+The NFC tag is the front door to the local printer. Connect the phone to the same trusted Wi-Fi network, tap the tag, and the browser opens `printrbot.local` without typing an address.
+
+<p align="center">
+  <img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="520">
+</p>
+
+From the phone, enter a message or choose an image, review the bed preview, validate the job, and press **Start**. NFC opens the interface; it never starts motion by itself.
+
 ## The workflow
 
 Each step has a separate purpose so the machine never receives an unexplained or unreviewed job.
@@ -52,32 +62,57 @@ Send the reviewed job by direct USB or store it on the ESP32-C3 bridge for ackno
 
 The bridge accepts one job at a time and exposes progress, pause, orderly cancel, and emergency stop. It transports the job; it does not render images or generate handwriting.
 
-## See it in action
+## Text to a pen-written note
 
 <p align="center">
-  <img src="docs/images/write-multilingual.png" alt="Multilingual centerline text with spacing controls" width="49%">
-  <img src="docs/images/studio-grayscale.png" alt="Studio grayscale stage with source and processed previews" width="49%">
+  <img src="docs/images/write-multilingual.png" alt="Multilingual centerline text with spacing controls" width="820">
 </p>
+
+The text path does not rasterize or outline a typeface:
+
+1. The application reads the typed characters in order.
+2. A centerline font supplies one or more pen strokes for each character.
+3. Font size, spacing, wrapping, slant, and language-specific font coverage are applied in millimeters.
+4. The strokes become ordered XY polylines, with pen-up travel between independent marks.
+5. The exact polylines are previewed and converted to validated G-code.
+
+This is why robot lettering, hand-style lettering, and multilingual writing can share the same machine pipeline: they all end as pen paths.
+
+## Image to a pen plot
+
+Image processing is staged so every transformation can be inspected before it reaches the plotter.
+
+### 1. Grayscale
+
 <p align="center">
-  <img src="docs/images/studio-pointillism.png" alt="Studio pointillism preview" width="49%">
-  <img src="docs/images/studio-machine-export.png" alt="Studio machine and export preview" width="49%">
+  <img src="docs/images/studio-grayscale.png" alt="Original image beside its grayscale result" width="820">
 </p>
 
-The local controller also supports NFC access: tap a configured tag to open `printrbot.local` on a phone or tablet connected to the same trusted network.
+Color pixels are converted into brightness values. Exposure, contrast, gamma, channel weights, blur, and background handling can be adjusted here. The output is still a raster image; no pen paths have been created yet.
+
+### 2. Black and white
 
 <p align="center">
-  <img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="520">
+  <img src="docs/images/studio-black-white.png" alt="Grayscale input beside the black and white foreground mask" width="820">
 </p>
 
-### Tap to print from a phone
+The grayscale values are compared with a manual or automatic threshold to create a foreground mask. Cleanup can remove small disconnected components and inversion can swap foreground and background. This stage decides which regions are available to the later renderer.
 
-1. Connect the phone to the same trusted Wi-Fi network as the bridge.
-2. Tap the NFC tag on the printer.
-3. Enter a note, choose an image, or load a reviewed G-code draft.
-4. Check the bed preview, placement, pen settings, and estimated job details.
-5. Validate and store the final job, then press **Start**.
+### 3. Style rendering
 
-The NFC tag opens the local page; it does not start motion by itself. The explicit review and **Start** action are intentional safety steps.
+<p align="center">
+  <img src="docs/images/studio-pointillism.png" alt="Pointillism style rendered as plot-ready marks" width="820">
+</p>
+
+The selected style turns the processed raster into plot geometry. A silhouette or contour style follows boundaries; pen shading fills darker regions with controlled strokes or dots. Styles that work directly from the mask do not require edge extraction.
+
+### 4. Machine output
+
+<p align="center">
+  <img src="docs/images/studio-machine-export.png" alt="Final image paths beside the machine output preview" width="820">
+</p>
+
+The final paths are scaled to the paper, checked against the bed, routed for pen travel, and shown in the machine preview. Only after this review are they exported as SVG and guarded Marlin G-code.
 
 ## Quick start
 
