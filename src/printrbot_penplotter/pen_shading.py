@@ -61,6 +61,7 @@ class PenShadingConfig:
     angle_offset_deg: float = 0.0
     density_scale: float = 1.0
     outline_join_distance_px: float = 0.0
+    hatch_gap_tolerance_px: float = 0.0
 
     def validate(self) -> None:
         if self.style not in SHADING_STYLE_NAMES:
@@ -83,6 +84,8 @@ class PenShadingConfig:
             raise ValueError("density_scale must be between 0.25 and 4.")
         if not math.isfinite(self.outline_join_distance_px) or not 0 <= self.outline_join_distance_px <= 20:
             raise ValueError("outline_join_distance_px must be between 0 and 20 pixels.")
+        if not math.isfinite(self.hatch_gap_tolerance_px) or not 0 <= self.hatch_gap_tolerance_px <= 4:
+            raise ValueError("hatch_gap_tolerance_px must be between 0 and 4 pixels.")
 
 
 @dataclass(frozen=True)
@@ -144,8 +147,15 @@ def _clip_parametric_lines(
     min_length: float,
     wave_amplitude: float = 0.0,
     wave_period: float = 24.0,
+    gap_tolerance: float = 0.0,
 ) -> Polylines:
-    """Clip a deterministic family of parallel (optionally curved) lines to a mask."""
+    """Clip parallel lines, optionally bridging only tiny mask gaps.
+
+    A textured mask can split one visually continuous hatch into many tiny
+    strokes.  Those fragments cause needless Z lifts.  ``gap_tolerance`` is
+    deliberately small and only applies along the same scan line; it is not a
+    general-purpose contour join and therefore cannot join unrelated marks.
+    """
     if not np.any(mask):
         return []
     theta = math.radians(angle_deg)
@@ -164,6 +174,12 @@ def _clip_parametric_lines(
     s = s_start
     while s <= s_stop + 1e-9:
         run: Polyline = []
+        gap = 0
+
+        def flush() -> None:
+            if len(run) >= 2 and _length(run) >= min_length:
+                lines.append([run[0], run[-1]] if wave_amplitude == 0 else run[:])
+
         t = t_start
         while t <= t_stop + 1e-9:
             offset = wave_amplitude * math.sin((2.0 * math.pi * t / max(wave_period, 1.0)) + s * 0.071)
@@ -172,13 +188,16 @@ def _clip_parametric_lines(
             if _inside(mask, x, y):
                 if not run or _distance(run[-1], (x, y)) >= 1.0:
                     run.append((x, y))
+                gap = 0
             else:
-                if len(run) >= 2 and _length(run) >= min_length:
-                    lines.append([run[0], run[-1]] if wave_amplitude == 0 else run)
-                run = []
+                if run and gap_tolerance > 0 and gap < math.floor(gap_tolerance):
+                    gap += 1
+                else:
+                    flush()
+                    run = []
+                    gap = 0
             t += 1.0
-        if len(run) >= 2 and _length(run) >= min_length:
-            lines.append([run[0], run[-1]] if wave_amplitude == 0 else run)
+        flush()
         s += spacing
     return lines
 
@@ -207,6 +226,7 @@ def _hatch_layers(
                 min_length=config.min_stroke_length_px,
                 wave_amplitude=(0.75 if curved else 0.0),
                 wave_period=max(12.0, config.hatch_spacing_px * 5.0),
+                gap_tolerance=config.hatch_gap_tolerance_px,
             )
         )
     return lines
@@ -377,13 +397,13 @@ def _recipe(analysis: ImageUnderstandingResult, config: PenShadingConfig) -> tup
         return _outline(analysis, config, "comic_ink") + shading, meta
     elif style == "scratchboard":
         bright_mask = analysis.foreground_mask.astype(bool) & (_darkness(analysis.gray) <= 0.42)
-        shading = _clip_parametric_lines(bright_mask, angle_deg=32.0, spacing=config.hatch_spacing_px, min_length=config.min_stroke_length_px)
+        shading = _clip_parametric_lines(bright_mask, angle_deg=32.0, spacing=config.hatch_spacing_px, min_length=config.min_stroke_length_px, gap_tolerance=config.hatch_gap_tolerance_px)
         if not shading:
             # Dark foreground selection can leave too little bright inverse-tone
             # area on high-key subjects. Keep the style usable with a conservative
             # tonal fallback instead of returning an empty drawing.
             bright_mask = analysis.gray <= np.percentile(analysis.gray, 82)
-            shading = _clip_parametric_lines(bright_mask, angle_deg=32.0, spacing=config.hatch_spacing_px, min_length=config.min_stroke_length_px)
+            shading = _clip_parametric_lines(bright_mask, angle_deg=32.0, spacing=config.hatch_spacing_px, min_length=config.min_stroke_length_px, gap_tolerance=config.hatch_gap_tolerance_px)
             meta["inverse_tone_fallback"] = True
         meta["inverse_tone_shading"] = True
         return _outline(analysis, config, "clean_outline") + shading, meta
@@ -432,6 +452,7 @@ def render_pen_shading_from_analysis(
         "angle_offset_deg": config.angle_offset_deg,
         "density_scale": config.density_scale,
         "outline_join_distance_px": config.outline_join_distance_px,
+        "hatch_gap_tolerance_px": config.hatch_gap_tolerance_px,
         "stroke_direction_policy": "dominant-axis-consistent",
     })
     metadata.update(extra)

@@ -609,6 +609,7 @@ async def render_studio2(request: Request) -> dict[str, object]:
             shading_angle_offset_deg=_float(form, "shading_angle_offset_deg", 0.0),
             shading_density_scale=_float(form, "shading_density_scale", 1.0),
             shading_outline_join_distance_px=_float(form, "shading_outline_join_distance_px", 0.0),
+            shading_hatch_gap_tolerance_px=_float(form, "shading_hatch_gap_tolerance_px", 0.0),
         )
 
         finalization_started = time.perf_counter()

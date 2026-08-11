@@ -11,6 +11,7 @@ from printrbot_penplotter.image_understanding import ImageUnderstandingConfig, a
 from printrbot_penplotter.pen_shading import (
     SHADING_STYLE_NAMES,
     PenShadingConfig,
+    _clip_parametric_lines,
     render_pen_shading,
     render_pen_shading_from_analysis,
 )
@@ -157,3 +158,22 @@ def test_geometry_limits_enforced(tmp_path: Path) -> None:
             _analysis(path),
             PenShadingConfig(style="dense_crosshatch", hatch_spacing_px=4.0, max_output_strokes=1),
         )
+
+
+def test_hatch_gap_tolerance_reduces_pecking_without_joining_distant_marks() -> None:
+    mask = np.zeros((24, 48), dtype=bool)
+    mask[10, 2:16] = True
+    mask[10, 18:36] = True
+    mask[10, 42:46] = True
+
+    separate = _clip_parametric_lines(
+        mask, angle_deg=0.0, spacing=5.0, min_length=1.0, gap_tolerance=0.0
+    )
+    bridged = _clip_parametric_lines(
+        mask, angle_deg=0.0, spacing=5.0, min_length=1.0, gap_tolerance=2.0
+    )
+
+    assert len(separate) == 3
+    assert len(bridged) == 2
+    assert bridged[0][0] == separate[0][0]
+    assert bridged[0][-1] == separate[1][-1]

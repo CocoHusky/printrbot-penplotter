@@ -459,6 +459,7 @@ def _render_pipeline(
     shading_angle_offset_deg: float,
     shading_density_scale: float,
     shading_outline_join_distance_px: float,
+    shading_hatch_gap_tolerance_px: float,
 ) -> tuple[str, str, list[list[tuple[float, float]]], dict[str, object], int, int, dict[str, str]]:
     if mode == "line_art" and style not in STYLE_NAMES:
         raise ValueError(f"Style '{style}' is not valid for the Line art pipeline.")
@@ -580,6 +581,7 @@ def _render_pipeline(
                 angle_offset_deg=shading_angle_offset_deg,
                 density_scale=shading_density_scale,
                 outline_join_distance_px=shading_outline_join_distance_px,
+                hatch_gap_tolerance_px=shading_hatch_gap_tolerance_px,
             ),
         )
         raw = artistic.polylines
@@ -703,6 +705,7 @@ async def render_studio2(
     shading_angle_offset_deg: float = Form(0.0),
     shading_density_scale: float = Form(1.0),
     shading_outline_join_distance_px: float = Form(0.0),
+    shading_hatch_gap_tolerance_px: float = Form(0.0),
 ) -> dict[str, object]:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if not data:
@@ -779,6 +782,7 @@ async def render_studio2(
                 shading_angle_offset_deg=shading_angle_offset_deg,
                 shading_density_scale=shading_density_scale,
                 shading_outline_join_distance_px=shading_outline_join_distance_px,
+                shading_hatch_gap_tolerance_px=shading_hatch_gap_tolerance_px,
             )
     except (ValueError, RuntimeError, FileNotFoundError) as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -869,6 +873,7 @@ STUDIO2_HTML = r'''<!doctype html>
 <div class="row"><div><label>Minimum shading stroke (px)</label><input name="shading_min_stroke_px" type="number" min="0" step="0.25" value="1.25"></div><div><label>Variation seed</label><input name="shading_seed" type="number" step="1" value="0"></div></div>
 <div class="row"><div><label>Angle offset (degrees)</label><input name="shading_angle_offset_deg" type="number" min="-180" max="180" step="1" value="0"></div><div><label>Density scale</label><input name="shading_density_scale" type="number" min="0.25" max="4" step="0.05" value="1"></div></div>
 <label>Outline join distance (px)</label><input name="shading_outline_join_distance_px" type="number" min="0" max="20" step="0.1" value="0"><div class="hint">Zero is the fast default for dense texture outlines.</div>
+<label>Bridge tiny hatch gaps (px)</label><input name="shading_hatch_gap_tolerance_px" type="number" min="0" max="4" step="0.5" value="0"><div class="hint">Use 1–2 px to turn fragmented hatch marks into longer strokes. It may draw across tiny white pinholes; leave at 0 when boundaries must stay exact.</div>
 </div>
 <div id="geometryLimits" class="group"><h3>Artistic geometry limit</h3>
 <div class="row"><div><label>Max artistic strokes</label><input id="strokeLimit" name="artistic_stroke_limit" type="number" min="1" max="200000" value="20000"></div><div><label>Max artistic points</label><input id="pointLimit" name="artistic_point_limit" type="number" min="2" max="20000000" value="2000000"></div></div>
