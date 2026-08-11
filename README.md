@@ -67,6 +67,16 @@ The local controller also supports NFC access: tap a configured tag to open `pri
   <img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="520">
 </p>
 
+### Tap to print from a phone
+
+1. Connect the phone to the same trusted Wi-Fi network as the bridge.
+2. Tap the NFC tag on the printer.
+3. Enter a note, choose an image, or load a reviewed G-code draft.
+4. Check the bed preview, placement, pen settings, and estimated job details.
+5. Validate and store the final job, then press **Start**.
+
+The NFC tag opens the local page; it does not start motion by itself. The explicit review and **Start** action are intentional safety steps.
+
 ## Quick start
 
 ### Install the Python application
