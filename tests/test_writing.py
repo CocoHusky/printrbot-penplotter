@@ -165,6 +165,25 @@ def test_word_wrap_uses_physical_millimeter_width() -> None:
     assert job.metadata["width_mm"] <= 33.1
 
 
+def test_card_note_defaults_wrap_without_shrinking_character_height() -> None:
+    text = (
+        "Happy 60th Birthday, Dad. You fathered 4 kids and 3 dogs. "
+        "At work you did the impossible — building next-generation silicon wafers and chips. "
+        "Thank you for being our dad. We are proud of you and glad you are in our lives. Love, "
+        "Your son and family"
+    )
+    job = render_text_job(
+        text,
+        style=StyleConfig.for_preset("clean", font_size_mm=6, wrap_width_mm=120),
+        page=PageConfig(width_mm=152.4, height_mm=152.4, margin_mm=8),
+        layout=LayoutConfig(fit_mode="none", horizontal_align="left"),
+    )
+
+    assert job.metadata["lines"] > 1
+    assert job.metadata["requested_font_size_mm"] == 6
+    assert job.metadata["width_mm"] <= 120.1
+
+
 def test_custom_json_stroke_font_loads_and_renders() -> None:
     fixture = Path(__file__).parent / "fixtures" / "minimal-stroke-font.json"
     font = load_stroke_font(fixture)
