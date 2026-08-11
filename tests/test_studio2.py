@@ -29,7 +29,11 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Tonal bands" in text
     assert "Grayscale source" in text
     assert "Auto chooses after analysis" in text
-    assert "lineStyles" in text and "shadingStyles" in text
+    assert "fastLineStyles" in text and "shadingStyles" in text
+    assert "Minimal outline — fastest" in text
+    assert "Clean outline — recommended" in text
+    assert "Continuous contour — fewer lifts" in text
+    assert "Fast line art: longer, simpler contours only." in text
     assert "Home before plot" in text
     assert "Max artistic strokes" in text
     assert "Bypass soft artistic limit" in text
@@ -47,6 +51,9 @@ def test_studio2_page_exposes_advanced_controls_pipeline_locks_and_sizing() -> N
     assert "Extend open stroke ends for pen ink contact" in text
     assert 'name="z_down_mm"' not in text
     assert "Max plotted lines (longest kept)" in text
+    assert 'name="style_min_stroke_length_px" type="number" min="0" max="1000" step="0.25" value="8"' in text
+    assert 'name="style_max_kept_strokes" type="number" min="0" max="200000" step="1" value="250"' in text
+    assert 'name="one_line_bridge_distance_px" type="number" min="0" max="20" step="0.5" value="0"' in text
     assert "Limits still apply to the selected recipe." in text
 
 
