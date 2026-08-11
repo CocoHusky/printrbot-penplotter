@@ -18,6 +18,21 @@ A Printrboard remains responsible for real-time motion, while a Python applicati
 
 The project makes written communication more accessible. A typed message can become a physical pen-written note in English, Chinese, Japanese, and other languages when the matching centerline font pack is installed. The same pipeline can prepare images and line art. It does not physically erase ink from paper; removing existing marks still requires a separate erasing tool.
 
+## Release 1.0 milestone
+
+This public milestone started with a roughly **$20 used printer** and a **three-day build window** for the software UART connection, local bridge, and plotting workflow.
+
+The goal is deliberately practical: see how far a small amount of hardware and focused software can go toward useful communication. Release 1.0 brings together:
+
+- useful images and text on paper;
+- English, Chinese, Japanese, and other installed language font packs;
+- hand-written-feel centerline lettering;
+- clean robotic single-line lettering;
+- image-derived line art and shading; and
+- a local phone workflow for preparing and printing a message.
+
+This is a working public milestone, not a claim that the hardware is a finished commercial product. The project remains in active development, and every new machine setup still needs an air plot and physical safety check.
+
 ## Connect from a phone
 
 The NFC tag is the front door to the local printer. Connect the phone to the same trusted Wi-Fi network, tap the tag, and the browser opens `printrbot.local` without typing an address.
@@ -189,7 +204,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-The latest numbered release is **0.6.0**. Work after 0.6 is currently unreleased on `main`.
+The numbered software history ends at **0.6.0**. **Release 1.0** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together; it is still active development rather than a hardened commercial release.
 
 | Release | Purpose |
 | --- | --- |
@@ -198,6 +213,7 @@ The latest numbered release is **0.6.0**. Work after 0.6 is currently unreleased
 | [0.4](docs/RELEASE_0.4.md) | ESP32 local bridge |
 | [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
 | [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
+| 1.0 milestone | Public text, image, multilingual, phone, and bridge workflow | Active development |
 
 ## Documentation
 
