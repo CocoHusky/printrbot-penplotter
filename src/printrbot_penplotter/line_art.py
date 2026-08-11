@@ -151,6 +151,22 @@ def _ordered_one_line(lines: Polylines) -> tuple[Polylines, int, float]:
     return [chain] + closed_lines, bridges, bridge_length
 
 
+def _looks_like_line_drawing(analysis: ImageUnderstandingResult) -> bool:
+    """Detect sparse ink on a light background before adding derived edges.
+
+    A photograph needs edges extracted from tone regions.  A scanned/inked
+    illustration already contains the marks we want, so extracting another
+    edge on both sides of each mark creates doubled contours and a busy plot.
+    This deliberately conservative test only changes the sparse, high-key
+    case and leaves filled subjects and photographs on the existing path.
+    """
+    gray = analysis.gray.astype(np.float32)
+    light_background = float(np.mean(gray >= 235.0)) >= 0.68
+    sparse_ink = float(np.mean(analysis.foreground_mask)) <= 0.28
+    has_edges = float(np.mean(analysis.selected_edges)) >= 0.008
+    return light_background and sparse_ink and has_edges
+
+
 def _recipe(analysis: ImageUnderstandingResult, config: LineArtConfig) -> tuple[Polylines, VectorCleanupConfig, dict[str, object]]:
     style = config.style
     iterations = config.max_skeleton_iterations
@@ -162,6 +178,31 @@ def _recipe(analysis: ImageUnderstandingResult, config: LineArtConfig) -> tuple[
     tones = _tone_boundaries(analysis.tone_labels)
     dark_boundary = _boundary(analysis.gray <= config.tone_threshold)
     meta: dict[str, object] = {}
+    source_is_line_drawing = _looks_like_line_drawing(analysis)
+    meta["source_is_line_drawing"] = source_is_line_drawing
+
+    # For an already-inked illustration, the threshold mask is the artwork.
+    # Skeletonizing it once preserves the original centerline and avoids the
+    # doubled contours produced when Canny edges are layered on top of it.
+    if source_is_line_drawing and style in {
+        "minimal_outline", "clean_outline", "continuous_contour",
+        "refined_pen_sketch", "pet_portrait", "portrait", "comic_ink",
+    }:
+        cleanup = VectorCleanupConfig(
+            # Screenshot/scanner antialiasing breaks long ink marks into
+            # tiny islands.  Removing those islands is what keeps a nest,
+            # branch, or pen illustration from turning into visual noise.
+            min_segment_px=0.35,
+            min_stroke_length_px=3.5,
+            min_closed_area_px2=1.0,
+            simplify_tolerance_px=0.70,
+            preserve_corner_deg=48.0,
+            duplicate_tolerance_px=0.35,
+            join_distance_px=1.5,
+            join_angle_deg=32.0,
+        )
+        meta["line_drawing_trace"] = "foreground_centerline"
+        return _strokes(fg, iterations), cleanup, meta
 
     if style == "silhouette":
         return _outlines(fg), VectorCleanupConfig.for_quality("smooth"), meta

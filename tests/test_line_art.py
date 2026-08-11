@@ -22,6 +22,15 @@ def _fixture(path: Path) -> None:
     image.save(path)
 
 
+def _line_drawing_fixture(path: Path) -> None:
+    image = Image.new("L", (96, 72), 255)
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((12, 8, 82, 62), outline=0, width=2)
+    draw.line((18, 48, 38, 30, 56, 48, 78, 24), fill=0, width=2)
+    draw.arc((30, 20, 64, 54), 205, 335, fill=0, width=2)
+    image.save(path)
+
+
 def _analysis(path: Path):
     return analyze_image(
         path,
@@ -134,6 +143,22 @@ def test_style_controls_are_applied_and_recorded(tmp_path: Path) -> None:
     assert result.metadata["style_dilation_passes"] == 2
     assert result.metadata["style_simplify_tolerance_px"] == 0.8
     assert result.metadata["style_smooth_passes"] == 1
+
+
+def test_sparse_ink_uses_one_centerline_trace_instead_of_doubled_edges(tmp_path: Path) -> None:
+    path = tmp_path / "ink.png"
+    _line_drawing_fixture(path)
+    result = render_line_art(
+        path,
+        LineArtConfig(style="clean_outline", max_skeleton_iterations=64),
+        preprocess=ImagePreprocessConfig(auto_levels=True),
+        understanding=ImageUnderstandingConfig(
+            edge_method="multiscale_canny", detail_level="low", min_region_px=3
+        ),
+    )
+    assert result.metadata["source_is_line_drawing"] is True
+    assert result.metadata["line_drawing_trace"] == "foreground_centerline"
+    assert result.metadata["output_style_strokes"] > 0
 
 
 def test_styles_preserve_finite_geometry(tmp_path: Path) -> None:

@@ -68,11 +68,16 @@ class AutoOptimizeResult:
 
 def _image_metrics(a: ImageUnderstandingResult) -> dict[str, float]:
     gray = a.gray.astype(np.float64)
+    light_background = float(np.mean(a.gray >= 235.0))
+    foreground_fraction = float(np.mean(a.foreground_mask))
     return {
         "brightness": float(gray.mean() / 255.0),
         "contrast": float(gray.std() / 255.0),
         "edge_density": float(np.mean(a.selected_edges)),
-        "foreground_fraction": float(np.mean(a.foreground_mask)),
+        "foreground_fraction": foreground_fraction,
+        "line_drawing_likelihood": float(
+            light_background >= 0.68 and foreground_fraction <= 0.28 and np.mean(a.selected_edges) >= 0.008
+        ),
         "dark_fraction": float(np.mean(gray < 128)),
         "region_density": min(1.0, len(a.regions) / 200.0),
     }
@@ -105,6 +110,7 @@ def _heuristic_score(metrics: dict[str, float], kind: str, style: str, quality: 
     contrast = metrics["contrast"]
     dark = metrics["dark_fraction"]
     foreground = metrics["foreground_fraction"]
+    line_drawing = metrics["line_drawing_likelihood"] >= 0.5
     region = metrics["region_density"]
     tonal = min(1.0, contrast + dark)
 
@@ -130,6 +136,11 @@ def _heuristic_score(metrics: dict[str, float], kind: str, style: str, quality: 
             score += 0.10
     else:
         score += max(0.0, 0.035 - edge) * 2.0
+        if line_drawing:
+            # Prefer the single centerline pass for scanned/inked artwork;
+            # detail-heavy recipes re-extract both sides of the same mark.
+            score += 0.12 if style == "refined_pen_sketch" else 0.0
+            score -= 0.10 if style == "clean_outline" else 0.0
 
     if style == "minimal_outline":
         score += abs(edge - 0.22) * 0.9
