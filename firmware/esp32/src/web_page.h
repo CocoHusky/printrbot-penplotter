@@ -56,8 +56,8 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <div class="section-kicker">Step 1</div><h2>Load a draft G-code</h2>
 <input id="jobFile" type="file" accept=".gcode,.gc,.txt,text/plain">
 <textarea id="jobText" placeholder="Or paste reviewed G-code here"></textarea>
-<button onclick="uploadDraft()">Upload draft G-code</button>
-<p class="small">This loads a draft for review. Nothing is plotted until the final job is generated and validated.</p>
+<button onclick="uploadDraft()">Save draft G-code</button>
+<p class="small">Choosing a file loads it into the editor. Edit the G-code above, save the draft, review the preview, then validate the final job.</p>
 </section>
 
 <section class="card full">
@@ -208,9 +208,12 @@ async function request(url,options={}){const r=await fetch(url,options);const t=
 function formBody(values){const p=new URLSearchParams();Object.entries(values).forEach(([k,v])=>p.set(k,v));return p}
 async function uploadDraft(){
  try{
-  const fd=new FormData();const file=$('jobFile').files[0];
-  if(file)fd.append('job',file,file.name);else{const text=$('jobText').value;if(!text.trim())throw new Error('Choose a file or paste G-code.');fd.append('job',new Blob([text],{type:'text/plain'}),'pasted.gcode')}
-  $('message').textContent='Uploading draft…';await request('/api/job/draft',{method:'POST',body:fd});finalGenerated=false;$('message').textContent='Draft uploaded. Review it, generate the final G-code, then start the plot.';await poll();
+  const text=$('jobText').value;const file=$('jobFile').files[0];
+  if(!text.trim()&&!file)throw new Error('Choose a file or paste G-code.');
+  const fd=new FormData();
+  // The editor is authoritative: a selected file is only the initial load.
+  fd.append('job',new Blob([text],{type:'text/plain'}),file?file.name:'draft.gcode');
+  $('message').textContent='Saving edited draft…';await request('/api/job/draft',{method:'POST',body:fd});finalGenerated=false;$('message').textContent='Draft saved. Review the preview, then validate the final job.';await poll();
  }catch(e){$('message').textContent=e.message}
 }
 async function validateFinalJob(){
