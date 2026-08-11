@@ -136,7 +136,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
 <div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Typed centerline</option><option value="robot">Robot centerline</option><option value="human">Handwritten centerline</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Typed centerline</strong><small>Single-stroke print lettering</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot centerline</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten centerline</strong><small>Natural pen trajectory</small></button></div><div class="hint" id="languageHint">Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.</div></div>
 <div class="row">
-  <div><label for="fontSize">Character height (mm)</label><div class="range-field"><input id="fontSizeRange" type="range" min="1" max="40" step="0.5" value="6" aria-label="Character height slider"><input id="fontSize" type="number" min="1" max="40" step="0.5" value="6" aria-label="Character height in millimeters"></div><p class="control-note">This is the physical cap height of each character. It does not scale the whole note. Card-sized writing is usually 4–8 mm.</p></div>
+  <div><label for="fontSize">Font size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div><p class="control-note">Uses familiar print sizes such as 8 pt, 12 pt, and 18 pt. The selected point size is converted to physical plotter scale; it controls each character, not the whole note.</p></div>
 </div>
 <div class="row">
   <div id="typefaceField"><label for="font">Centerline alphabet</label><select id="font"><option value="robot">Robot single-line</option><option value="hand">Hand single-line</option></select></div>
@@ -210,7 +210,7 @@ function payload(){ return {
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
  font_family:hasCjk(byId('text').value)?'Hiragino Sans GB':'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='standard'?byId('font').value:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:null,
- seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value),
+ seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
  line_spacing:Number(byId('lineSpacing').value),
  wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,
  word_spacing_em:Number(byId('wordSpacing').value), letter_spacing_mm:Number(byId('letterSpacing').value),
