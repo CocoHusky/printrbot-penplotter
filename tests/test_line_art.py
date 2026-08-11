@@ -8,7 +8,13 @@ import pytest
 
 from printrbot_penplotter.image_preprocess import ImagePreprocessConfig
 from printrbot_penplotter.image_understanding import ImageUnderstandingConfig, analyze_image
-from printrbot_penplotter.line_art import STYLE_NAMES, LineArtConfig, render_line_art, render_line_art_from_analysis
+from printrbot_penplotter.line_art import (
+    STYLE_NAMES,
+    LineArtConfig,
+    _select_useful_strokes,
+    render_line_art,
+    render_line_art_from_analysis,
+)
 
 
 def _fixture(path: Path) -> None:
@@ -96,6 +102,20 @@ def test_one_line_art_records_intentional_bridges(tmp_path: Path) -> None:
     assert result.metadata["artistic_bridges"] >= 0
     assert result.metadata["artistic_max_bridge_px"] <= 6.0
     assert result.metadata["artistic_unconnected_chains"] >= 0
+
+
+def test_line_art_can_drop_short_traces_and_keep_longest() -> None:
+    lines = [
+        [(0.0, 0.0), (1.0, 0.0)],
+        [(0.0, 2.0), (8.0, 2.0)],
+        [(0.0, 4.0), (5.0, 4.0)],
+    ]
+    selected, removed_short, cap_dropped = _select_useful_strokes(
+        lines, min_length_px=2.0, max_strokes=1
+    )
+    assert selected == [[(0.0, 2.0), (8.0, 2.0)]]
+    assert removed_short == 1
+    assert cap_dropped == 1
 
 
 def test_pet_and_portrait_presets_do_not_claim_semantic_recognition(tmp_path: Path) -> None:

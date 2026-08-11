@@ -43,6 +43,9 @@ class LineArtConfig:
     simplify_tolerance_px: float | None = None
     smooth_passes: int | None = None
     join_distance_px: float | None = None
+    min_stroke_length_px: float = 0.0
+    max_kept_strokes: int = 0
+    one_line_bridge_distance_px: float = 6.0
 
     def validate(self) -> None:
         if self.style not in STYLE_NAMES:
@@ -66,6 +69,12 @@ class LineArtConfig:
             raise ValueError("smooth_passes must be between 0 and 8.")
         if self.join_distance_px is not None and (not np.isfinite(self.join_distance_px) or not 0 <= self.join_distance_px <= 20):
             raise ValueError("join_distance_px must be between 0 and 20.")
+        if not np.isfinite(self.min_stroke_length_px) or self.min_stroke_length_px < 0:
+            raise ValueError("min_stroke_length_px must be non-negative.")
+        if not isinstance(self.max_kept_strokes, int) or self.max_kept_strokes < 0:
+            raise ValueError("max_kept_strokes must be a non-negative integer.")
+        if not np.isfinite(self.one_line_bridge_distance_px) or not 0 <= self.one_line_bridge_distance_px <= 20:
+            raise ValueError("one_line_bridge_distance_px must be between 0 and 20.")
 
 
 @dataclass(frozen=True)
@@ -121,6 +130,27 @@ def _outlines(mask: np.ndarray) -> Polylines:
 
 def _combine(*groups: Polylines) -> Polylines:
     return [line[:] for group in groups for line in group if len(line) >= 2]
+
+
+def _polyline_length(line: list[tuple[float, float]]) -> float:
+    return sum(float(np.hypot(b[0] - a[0], b[1] - a[1])) for a, b in zip(line, line[1:]))
+
+
+def _select_useful_strokes(
+    lines: Polylines,
+    *,
+    min_length_px: float,
+    max_strokes: int,
+) -> tuple[Polylines, int, int]:
+    """Drop tiny traces and optionally keep the longest useful contours."""
+    candidates = [line[:] for line in lines if len(line) >= 2 and _polyline_length(line) >= min_length_px]
+    removed_short = len(lines) - len(candidates)
+    if max_strokes and len(candidates) > max_strokes:
+        ranked = sorted(enumerate(candidates), key=lambda item: (-_polyline_length(item[1]), item[0]))
+        keep_indices = {index for index, _ in ranked[:max_strokes]}
+        candidates = [line for index, line in enumerate(candidates) if index in keep_indices]
+        return candidates, removed_short, len(ranked) - max_strokes
+    return candidates, removed_short, 0
 
 
 def _ordered_one_line(lines: Polylines, *, max_bridge_px: float = 6.0) -> tuple[Polylines, int, float, int]:
@@ -259,7 +289,7 @@ def _recipe(analysis: ImageUnderstandingResult, config: LineArtConfig) -> tuple[
     if style == "continuous_contour":
         return _strokes(outer | strong, iterations), VectorCleanupConfig.for_quality("flowing"), meta
     if style == "one_line_art":
-        max_bridge = 6.0 if config.join_distance_px is None else min(config.join_distance_px, 6.0)
+        max_bridge = config.one_line_bridge_distance_px
         raw, bridges, length, skipped = _ordered_one_line(
             _strokes(outer | strong, iterations), max_bridge_px=max_bridge
         )
@@ -270,8 +300,8 @@ def _recipe(analysis: ImageUnderstandingResult, config: LineArtConfig) -> tuple[
             "artistic_max_bridge_px": max_bridge,
         })
         cleanup = VectorCleanupConfig(
-            min_segment_px=0.25, min_stroke_length_px=0.8, simplify_tolerance_px=0.35,
-            preserve_corner_deg=42.0, smoothing="chaikin", smooth_passes=1,
+            min_segment_px=0.25, min_stroke_length_px=0.8, simplify_tolerance_px=0.65,
+            preserve_corner_deg=55.0, smoothing="chaikin", smooth_passes=1,
             smooth_strength=0.22, duplicate_tolerance_px=0.3,
         )
         return raw, cleanup, meta
@@ -317,6 +347,15 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
     config = config or LineArtConfig()
     config.validate()
     raw, cleanup_config, extra = _recipe(analysis, config)
+    raw, removed_short, cap_dropped = _select_useful_strokes(
+        raw,
+        min_length_px=config.min_stroke_length_px,
+        max_strokes=config.max_kept_strokes,
+    )
+    extra.update({
+        "line_art_removed_short_strokes": removed_short,
+        "line_art_rank_cap_dropped": cap_dropped,
+    })
     if config.simplify_tolerance_px is not None:
         cleanup_config = replace(cleanup_config, simplify_tolerance_px=config.simplify_tolerance_px)
     if config.smooth_passes is not None:
@@ -352,6 +391,9 @@ def render_line_art_from_analysis(analysis: ImageUnderstandingResult, config: Li
         "style_simplify_tolerance_px": config.simplify_tolerance_px,
         "style_smooth_passes": config.smooth_passes,
         "style_join_distance_px": config.join_distance_px,
+        "style_min_stroke_length_px": config.min_stroke_length_px,
+        "style_max_kept_strokes": config.max_kept_strokes,
+        "one_line_bridge_distance_px": config.one_line_bridge_distance_px,
         "cleanup": cleaned.metadata,
     })
     metadata.update(extra)

@@ -307,6 +307,9 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
             simplify_tolerance = _stage_optional_number(form, "style_simplify_tolerance_px")
             smooth_passes = _stage_optional_number(form, "style_smooth_passes", integer=True)
             join_distance = _stage_optional_number(form, "style_join_distance_px")
+            min_stroke_length = _stage_form_float(form, "style_min_stroke_length_px", 3.5)
+            max_kept_strokes = _stage_form_int(form, "style_max_kept_strokes", 0)
+            bridge_distance = _stage_form_float(form, "one_line_bridge_distance_px", 6.0)
             if quality == "quick":
                 simplify_tolerance = 0.8 if simplify_tolerance is None else simplify_tolerance
                 smooth_passes = 0 if smooth_passes is None else smooth_passes
@@ -325,6 +328,9 @@ def render_studio2_stage(source: Path, *, stage: str, form: object) -> dict[str,
                     simplify_tolerance_px=simplify_tolerance,
                     smooth_passes=smooth_passes,
                     join_distance_px=join_distance,
+                    min_stroke_length_px=min_stroke_length,
+                    max_kept_strokes=max_kept_strokes,
+                    one_line_bridge_distance_px=bridge_distance,
                 ),
             )
             raw = artistic.polylines
@@ -455,6 +461,9 @@ def _render_pipeline(
     style_simplify_tolerance_px: float | None,
     style_smooth_passes: int | None,
     style_join_distance_px: float | None,
+    style_min_stroke_length_px: float,
+    style_max_kept_strokes: int,
+    one_line_bridge_distance_px: float,
     shading_seed: int,
     shading_angle_offset_deg: float,
     shading_density_scale: float,
@@ -557,6 +566,9 @@ def _render_pipeline(
                 simplify_tolerance_px=style_simplify_tolerance_px,
                 smooth_passes=style_smooth_passes,
                 join_distance_px=style_join_distance_px,
+                min_stroke_length_px=style_min_stroke_length_px,
+                max_kept_strokes=style_max_kept_strokes,
+                one_line_bridge_distance_px=one_line_bridge_distance_px,
             ),  # type: ignore[arg-type]
         )
         raw = artistic.polylines
@@ -701,6 +713,9 @@ async def render_studio2(
     style_simplify_tolerance_px: float = Form(-1.0),
     style_smooth_passes: int = Form(-1),
     style_join_distance_px: float = Form(-1.0),
+    style_min_stroke_length_px: float = Form(3.5),
+    style_max_kept_strokes: int = Form(0),
+    one_line_bridge_distance_px: float = Form(6.0),
     shading_seed: int = Form(0),
     shading_angle_offset_deg: float = Form(0.0),
     shading_density_scale: float = Form(1.0),
@@ -778,6 +793,9 @@ async def render_studio2(
                 style_simplify_tolerance_px=(None if style_simplify_tolerance_px < 0 else style_simplify_tolerance_px),
                 style_smooth_passes=(None if style_smooth_passes < 0 else style_smooth_passes),
                 style_join_distance_px=(None if style_join_distance_px < 0 else style_join_distance_px),
+                style_min_stroke_length_px=style_min_stroke_length_px,
+                style_max_kept_strokes=style_max_kept_strokes,
+                one_line_bridge_distance_px=one_line_bridge_distance_px,
                 shading_seed=shading_seed,
                 shading_angle_offset_deg=shading_angle_offset_deg,
                 shading_density_scale=shading_density_scale,
@@ -864,6 +882,8 @@ STUDIO2_HTML = r'''<!doctype html>
 <div class="row"><div><label>Edge threshold</label><input name="style_edge_threshold" type="number" min="0" max="1" step="0.01" value="0.58"></div><div><label>Strong edge threshold</label><input name="style_strong_edge_threshold" type="number" min="0" max="1" step="0.01" value="0.72"></div></div>
 <div class="row"><div><label>Style tone cutoff</label><input name="style_tone_threshold" type="number" min="0" max="255" value="170"></div><div><label>Simplify tolerance (px)</label><input name="style_simplify_tolerance_px" type="number" min="0" max="20" step="0.05" placeholder="Style default"></div></div>
 <div class="row"><div><label>Smoothing passes (blank = default)</label><input name="style_smooth_passes" type="number" min="0" max="8" placeholder="Style default"></div><div><label>Join distance (px)</label><input name="style_join_distance_px" type="number" min="0" max="20" step="0.1" placeholder="Style default"></div></div>
+<div class="row"><div><label>Minimum contour length (px)</label><input name="style_min_stroke_length_px" type="number" min="0" max="1000" step="0.25" value="3.5"></div><div><label>Keep longest contours (0 = all)</label><input name="style_max_kept_strokes" type="number" min="0" max="200000" step="1" value="0"></div></div>
+<label>One-line bridge distance (px)</label><input name="one_line_bridge_distance_px" type="number" min="0" max="20" step="0.5" value="6"><div class="hint">Only nearby endpoints are connected. Use 0 for no pen-down bridges; larger values can scratch across blank paper.</div>
 <div class="hint">These controls apply to every line-art style; the selected style determines which masks use them.</div>
 </div>
 <div id="shadingAdvanced" class="group hidden"><h3>Pen shading style controls</h3>
