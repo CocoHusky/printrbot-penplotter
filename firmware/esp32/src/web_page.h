@@ -23,13 +23,13 @@ input,textarea{background:#09121c;color:#edf5fc}textarea{min-height:150px;resize
 button{background:#256ca3;color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.pause{background:#8a631b}.cancel{background:#82404a}.danger{background:#aa2638}.secondary{background:#34495c}
 progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-radius:10px;padding:10px;min-height:230px;max-height:340px;overflow:auto;white-space:pre-wrap;font:12px ui-monospace,SFMono-Regular,monospace;color:#a9d3ef}
 .small{font-size:13px;color:#8da3b6}.full{grid-column:1/-1}.gcode-preview{background:#071019;border:1px solid #26394b;border-radius:12px;padding:10px;min-height:300px;display:grid;place-items:center;cursor:grab;touch-action:none}.gcode-preview.dragging{cursor:grabbing}.gcode-preview svg{width:100%;height:auto;max-height:620px}.preview-stats{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.preview-stat{background:#1b2b3b;border-radius:8px;padding:7px 9px;color:#c6d8e8}.preview-warning{color:#ffb4bd;font-weight:700}.preview-key{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}.preview-key span{display:inline-flex;align-items:center;gap:5px}.swatch{width:22px;height:3px;display:inline-block}.swatch.ink{background:#65e9a5}.swatch.travel{height:0;border-top:2px dashed #8daecc}.offset-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.offset-grid label{display:block;margin-bottom:4px}@media(max-width:760px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.offset-grid{grid-template-columns:1fr}}
-.component-editor{display:grid;grid-template-columns:minmax(180px,0.8fr) minmax(260px,1.2fr);gap:10px;margin:12px 0}.component-editor select{min-height:130px;background:#09121c;color:#edf5fc}.component-editor textarea{min-height:90px}.component-editor .buttons{margin-top:8px}.hidden-offset{display:none}@media(max-width:760px){.component-editor{grid-template-columns:1fr}.status-summary{grid-template-columns:repeat(2,1fr)}}
+.hidden-offset{display:none}@media(max-width:760px){.status-summary{grid-template-columns:repeat(2,1fr)}}
 .workflow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0;color:#9fb2c3}.workflow-step{border:1px solid #385069;border-radius:999px;padding:6px 10px}.workflow-arrow{color:#65e9a5}
 </style>
 </head>
 <body><main>
 <h1>Printrbot Bridge</h1>
-<p class="workflow-note">Prepare a plot in four steps: load the draft, edit its modules, generate the final job, then plot it.</p>
+<p class="workflow-note">Prepare a plot in three steps: load the draft, review it, then generate and plot the validated job.</p>
 <div class="grid">
 <section class="card">
 <div class="section-kicker">Live status</div><h2>Printer status</h2>
@@ -57,15 +57,7 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <input id="jobFile" type="file" accept=".gcode,.gc,.txt,text/plain">
 <textarea id="jobText" placeholder="Or paste reviewed G-code here"></textarea>
 <button onclick="uploadDraft()">Upload draft G-code</button>
-<p class="small">This creates an editable draft. Add more files or pasted modules in Step 2; nothing is plotted until the final job is generated and validated.</p>
-</section>
-
-<section class="card full">
-<div class="section-kicker">Step 2</div><h2>Edit G-code modules</h2>
-<p class="small">Pen-down strokes appear as modules. Select one or more modules, move or rotate them, duplicate/delete them, or add another G-code draft.</p>
-<div class="component-editor"><div><label for="componentSelect">Modules in this draft</label><select id="componentSelect" multiple></select><div class="buttons"><button class="secondary" onclick="selectAllComponents()">Select all</button><button class="secondary" onclick="deleteSelectedComponents()">Delete selected</button></div></div><div><div class="offset-grid"><div><label for="componentDx">Move X (mm)</label><input id="componentDx" type="number" step="0.1" value="0"></div><div><label for="componentDy">Move Y (mm)</label><input id="componentDy" type="number" step="0.1" value="0"></div><div><label for="componentRotation">Rotate (degrees)</label><input id="componentRotation" type="number" step="1" value="0"></div></div><div class="buttons"><button class="secondary" onclick="transformSelectedComponents()">Move / rotate selected</button><button class="secondary" onclick="duplicateSelectedComponents()">Duplicate selected</button><button class="secondary" onclick="undoEditor()">Undo</button><button class="secondary" onclick="redoEditor()">Redo</button></div><label for="componentGcode">Add G-code module</label><textarea id="componentGcode" placeholder="Paste G0/G1 pen strokes here"></textarea><button class="secondary" onclick="addGcodeComponents()">Add module to draft</button></div></div>
-<p class="small">Drag the drawing in the preview to reposition the whole draft. Exact module positioning is available above.</p>
-<div class="hidden-offset"><input id="offsetX" type="number" value="0"><input id="offsetY" type="number" value="0"></div>
+<p class="small">This loads a draft for review. Nothing is plotted until the final job is generated and validated.</p>
 </section>
 
 <section class="card full">
@@ -75,14 +67,15 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <div id="gcodePreview" class="gcode-preview"><div class="small">No G-code loaded.</div></div>
 <div class="preview-key"><span><i class="swatch ink"></i>Pen-down drawing</span><span><i class="swatch travel"></i>Pen-up travel</span><span>Bed: 152.4 × 152.4 mm</span></div>
 <p class="small">The preview uses the machine bed, 10 mm grid, travel paths, and a red print-area box. The home travel line is hidden for clarity.</p>
+<div class="hidden-offset"><input id="offsetX" type="number" value="0"><input id="offsetY" type="number" value="0"></div>
 </section>
 
 <section class="card full">
-<div class="section-kicker">Step 3</div><h2>Generate, validate, and plot</h2>
+<div class="section-kicker">Step 2</div><h2>Generate, validate, and plot</h2>
 <div class="offset-grid"><div><label for="drawSpeed">Drawing speed (mm/min)</label><input id="drawSpeed" type="number" min="60" max="7500" step="50" value="1200"></div><div><label for="travelSpeed">Travel speed (mm/min)</label><input id="travelSpeed" type="number" min="60" max="7500" step="50" value="3000"></div><div><label for="zSpeed">Pen lift speed (mm/min)</label><input id="zSpeed" type="number" min="30" max="300" step="10" value="300"></div></div>
 <p class="small">Lower drawing speed helps ink transfer. Travel speed controls pen-up moves; pen lift speed controls Z motion. Values are clamped to the bridge safety limits before validation.</p>
 <button onclick="generateAndValidateFinal()">Generate and validate final G-code</button>
-<p class="small">This replaces the old separate generate and validate actions. Once validation succeeds, Start becomes the next action.</p>
+<p class="small">Generating validates the complete draft. Once validation succeeds, Start becomes the next action.</p>
 <div class="buttons">
 <button id="start" onclick="action('start')">Start</button>
 <button id="pause" class="pause" onclick="action('pause')">Pause</button>
@@ -181,7 +174,7 @@ function selectAllComponents(){selectedComponents=components.map((_,index)=>inde
 function componentBounds(component){const xs=component.map(point=>point[0]),ys=component.map(point=>point[1]);return {minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys)}}
 function updateJobFromComponents(){const clamp=(value,min,max,fallback)=>Math.max(min,Math.min(max,Number(value)||fallback));const drawFeed=clamp($('drawSpeed').value,60,7500,1200),travelFeed=clamp($('travelSpeed').value,60,7500,3000),zFeed=clamp($('zSpeed').value,30,300,300);$('drawSpeed').value=drawFeed;$('travelSpeed').value=travelFeed;$('zSpeed').value=zFeed;const lines=['G21','G90','M400','G28 ; home X/Y/Z before plot','M400','G0 Z5 F'+zFeed.toFixed(0)];components.forEach((component,index)=>{lines.push('; editable component '+(index+1));lines.push('G0 X'+component[0][0].toFixed(3)+' Y'+(BED.ymax-component[0][1]).toFixed(3)+' F'+travelFeed.toFixed(0));lines.push('G0 Z0 F'+zFeed.toFixed(0));component.slice(1).forEach(point=>lines.push('G1 X'+point[0].toFixed(3)+' Y'+(BED.ymax-point[1]).toFixed(3)+' F'+drawFeed.toFixed(0)));lines.push('G0 Z5 F'+zFeed.toFixed(0))});lines.push('; final pen up','G0 Z5 F'+zFeed.toFixed(0),'M400','G28 X Y ; re-home X/Y with pen safely raised','M400');$('jobText').value=lines.join('\n');$('jobFile').value='';finalGenerated=false;refreshComponentList();renderGcodePreview($('jobText').value);$('message').textContent='Draft preview updated. Generate the final G-code when your edits are complete.'}
 function generateFinalGcode(){if(!components.length){$('message').textContent='No components are loaded. Upload or add draft G-code first.';return}updateJobFromComponents();finalGenerated=true;$('message').textContent='Final G-code generated. Review the preview, then validate and store it.'}
-async function generateAndValidateFinal(){if(!components.length){$('message').textContent='No components are loaded. Upload or add draft G-code first.';return}updateJobFromComponents();finalGenerated=true;await validateFinalJob()}
+async function generateAndValidateFinal(){if(!$('jobText').value.trim()){$('message').textContent='Load or paste a G-code draft first.';return}finalGenerated=true;await validateFinalJob()}
 function transformSelectedComponents(){readSelectedComponents();if(!selectedComponents.length){$('message').textContent='Select one or more components first.';return}const dx=Number($('componentDx').value)||0,dy=Number($('componentDy').value)||0,rotation=Number($('componentRotation').value)||0;if(!dx&&!dy&&!rotation){$('message').textContent='Enter a move or rotation first.';return}snapshotEditor();const radians=rotation*Math.PI/180;components=components.map((component,index)=>{if(!selectedComponents.includes(index))return component;const box=componentBounds(component),cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;return component.map(([x,y])=>{const relX=x-cx,relY=y-cy;return [cx+relX*Math.cos(radians)-relY*Math.sin(radians)+dx,cy+relX*Math.sin(radians)+relY*Math.cos(radians)+dy]})});updateJobFromComponents()}
 function deleteSelectedComponents(){readSelectedComponents();if(!selectedComponents.length){$('message').textContent='Select one or more components first.';return}snapshotEditor();components=components.filter((_,index)=>!selectedComponents.includes(index));selectedComponents=[];updateJobFromComponents()}
 function duplicateSelectedComponents(){readSelectedComponents();if(!selectedComponents.length){$('message').textContent='Select one or more components first.';return}snapshotEditor();const copies=selectedComponents.map(index=>components[index].map(([x,y])=>[x+5,y+5]));components=components.concat(copies);selectedComponents=components.map((_,index)=>index).slice(-copies.length);updateJobFromComponents()}
@@ -201,7 +194,7 @@ function renderGcodePreview(text){
  $('gcodeMeta').textContent=text.trim()?'Parsed from the current G-code input.':'Paste or choose G-code to inspect its actual XY moves before storing it.';
 }
 let previewTimer=null;function schedulePreview(){clearTimeout(previewTimer);previewTimer=setTimeout(()=>renderGcodePreview($('jobText').value),80)}
-$('jobText').addEventListener('input',()=>{loadEditorFromText($('jobText').value);schedulePreview()});$('componentSelect').addEventListener('change',()=>{readSelectedComponents();renderGcodePreview($('jobText').value)});$('jobFile').addEventListener('change',async()=>{const file=$('jobFile').files[0];if(!file)return;const text=await file.text();$('jobText').value=text;loadEditorFromText(text);renderGcodePreview(text)});
+$('jobText').addEventListener('input',()=>{loadEditorFromText($('jobText').value);schedulePreview()});$('jobFile').addEventListener('change',async()=>{const file=$('jobFile').files[0];if(!file)return;const text=await file.text();$('jobText').value=text;loadEditorFromText(text);renderGcodePreview(text)});
 let dragState=null;
 function dragStart(event){if(!$('jobText').value.trim())return;const rect=$('gcodePreview').getBoundingClientRect();dragState={startX:event.clientX,startY:event.clientY,baseX:Number($('offsetX').value)||0,baseY:Number($('offsetY').value)||0,width:rect.width,height:rect.height};$('gcodePreview').classList.add('dragging');if($('gcodePreview').setPointerCapture)$('gcodePreview').setPointerCapture(event.pointerId);event.preventDefault()}
 function dragMove(event){if(!dragState)return;const dx=(event.clientX-dragState.startX)/dragState.width*BED.xmax,screenDy=(event.clientY-dragState.startY)/dragState.height*BED.ymax;$('offsetX').value=(dragState.baseX+dx).toFixed(1);$('offsetY').value=(dragState.baseY+screenDy).toFixed(1);const outline=document.getElementById('printExtents');if(outline)outline.setAttribute('transform','translate('+dx.toFixed(3)+' '+screenDy.toFixed(3)+')');event.preventDefault()}
@@ -217,7 +210,7 @@ async function uploadDraft(){
  try{
   const fd=new FormData();const file=$('jobFile').files[0];
   if(file)fd.append('job',file,file.name);else{const text=$('jobText').value;if(!text.trim())throw new Error('Choose a file or paste G-code.');fd.append('job',new Blob([text],{type:'text/plain'}),'pasted.gcode')}
-  $('message').textContent='Uploading draft…';await request('/api/job/draft',{method:'POST',body:fd});finalGenerated=false;$('message').textContent='Draft uploaded. Edit components, generate final G-code, then validate it.';await poll();
+  $('message').textContent='Uploading draft…';await request('/api/job/draft',{method:'POST',body:fd});finalGenerated=false;$('message').textContent='Draft uploaded. Review it, generate the final G-code, then start the plot.';await poll();
  }catch(e){$('message').textContent=e.message}
 }
 async function validateFinalJob(){
