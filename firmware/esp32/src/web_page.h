@@ -23,7 +23,7 @@ input,textarea{background:#09121c;color:#edf5fc}textarea{min-height:150px;resize
 button{background:#256ca3;color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.pause{background:#8a631b}.cancel{background:#82404a}.danger{background:#aa2638}.secondary{background:#34495c}
 progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-radius:10px;padding:10px;min-height:230px;max-height:340px;overflow:auto;white-space:pre-wrap;font:12px ui-monospace,SFMono-Regular,monospace;color:#a9d3ef}
 .small{font-size:13px;color:#8da3b6}.full{grid-column:1/-1}.gcode-preview{background:#071019;border:1px solid #26394b;border-radius:12px;padding:10px;min-height:300px;display:grid;place-items:center;cursor:grab;touch-action:none}.gcode-preview.dragging{cursor:grabbing}.gcode-preview svg{width:100%;height:auto;max-height:620px}.preview-stats{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.preview-stat{background:#1b2b3b;border-radius:8px;padding:7px 9px;color:#c6d8e8}.preview-warning{color:#ffb4bd;font-weight:700}.preview-key{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}.preview-key span{display:inline-flex;align-items:center;gap:5px}.swatch{width:22px;height:3px;display:inline-block}.swatch.ink{background:#65e9a5}.swatch.travel{height:0;border-top:2px dashed #8daecc}.offset-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.offset-grid label{display:block;margin-bottom:4px}@media(max-width:760px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.offset-grid{grid-template-columns:1fr}}
-.hidden-offset{display:none}@media(max-width:760px){.status-summary{grid-template-columns:repeat(2,1fr)}}
+.placement-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}@media(max-width:760px){.status-summary{grid-template-columns:repeat(2,1fr)}.placement-actions{grid-template-columns:1fr}}
 .workflow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0;color:#9fb2c3}.workflow-step{border:1px solid #385069;border-radius:999px;padding:6px 10px}.workflow-arrow{color:#65e9a5}
 </style>
 </head>
@@ -67,7 +67,9 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 <div id="gcodePreview" class="gcode-preview"><div class="small">No G-code loaded.</div></div>
 <div class="preview-key"><span><i class="swatch ink"></i>Pen-down drawing</span><span><i class="swatch travel"></i>Pen-up travel</span><span>Bed: 152.4 × 152.4 mm</span></div>
 <p class="small">The preview uses the machine bed, 10 mm grid, travel paths, and a red print-area box. The home travel line is hidden for clarity.</p>
-<div class="hidden-offset"><input id="offsetX" type="number" value="0"><input id="offsetY" type="number" value="0"></div>
+<div class="offset-grid"><div><label for="offsetX">Move whole drawing X (mm)</label><input id="offsetX" type="number" step="0.1" value="0"></div><div><label for="offsetY">Move whole drawing Y (mm)</label><input id="offsetY" type="number" step="0.1" value="0"></div></div>
+<div class="placement-actions"><button class="secondary" onclick="applyOffset()">Apply exact placement</button><button class="secondary" onclick="resetOffset()">Reset move fields</button></div>
+<p class="small">Drag the red print-area box to move the entire drawing, or enter an exact X/Y move above. Releasing a drag applies the move to this one G-code draft.</p>
 </section>
 
 <section class="card full">
@@ -120,7 +122,7 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 </main>
 <script>
 const $=id=>document.getElementById(id);let latest={};
-const BED={xmin:0,xmax:152.4,ymin:0,ymax:152.4,margin:8};let components=[],selectedComponents=[],editorUndo=[],editorRedo=[],finalGenerated=false;
+const BED={xmin:0,xmax:152.4,ymin:0,ymax:152.4,margin:8};
 function gword(line,letter){const match=line.match(new RegExp('(?:^|\\s)'+letter+'\\s*([-+]?\\d*\\.?\\d+)','i'));return match?Number(match[1]):null}
 function parseGcode(text,offsetX=0,offsetY=0){
  let x=0,y=0,z=5,absolute=true,penDown=false;const segments=[];let moves=0,drawMoves=0,travelMoves=0,outOfBed=0;
@@ -148,38 +150,7 @@ function parseGcode(text,offsetX=0,offsetY=0){
  }
  return {segments,moves,drawMoves,travelMoves,outOfBed};
 }
-function parseEditableComponents(text){
- let x=0,y=0,z=5,absolute=true,penDown=false,current=null;const result=[];
- const finish=()=>{if(current&&current.length>1)result.push(current);current=null};
- for(const source of text.split(/\r?\n/)){
-  const line=source.replace(/\([^)]*\)/g,'').replace(/;.*$/,'').trim();if(!line)continue;
-  const command=(line.match(/^([GMT])\s*(\d+)/i)||[]).slice(1).join('').toUpperCase();
-  if(command==='G90'){absolute=true;continue}if(command==='G91'){absolute=false;continue}
-  if(command==='G28'){finish();x=0;y=0;z=5;penDown=false;continue}
-  if(command!=='G0'&&command!=='G1')continue;
-  const oldX=x,oldY=y,nextX=gword(line,'X'),nextY=gword(line,'Y'),nextZ=gword(line,'Z');
-  if(nextZ!==null){const nextPen= (absolute?nextZ:z+nextZ)<=0.5;if(penDown&&!nextPen)finish();z=absolute?nextZ:z+nextZ;penDown=nextPen}
-  if(nextX!==null)x=absolute?nextX:x+nextX;if(nextY!==null)y=absolute?nextY:y+nextY;
-  if(command==='G1'&&penDown&&(nextX!==null||nextY!==null)){if(!current)current=[[oldX,BED.ymax-oldY]];const point=[x,BED.ymax-y],last=current[current.length-1];if(last[0]!==point[0]||last[1]!==point[1])current.push(point)}
- }
- finish();return result;
-}
-function refreshComponentList(){const select=$('componentSelect');if(!select)return;select.innerHTML='';components.forEach((component,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent='Component '+(index+1)+' · '+component.length+' points';option.selected=selectedComponents.includes(index);select.appendChild(option)})}
-function readSelectedComponents(){selectedComponents=Array.from($('componentSelect').options).filter(option=>option.selected).map(option=>Number(option.value))}
-function snapshotEditor(){editorUndo.push(JSON.stringify(components));if(editorUndo.length>30)editorUndo.shift();editorRedo=[]}
-function restoreEditor(serialized){components=JSON.parse(serialized);selectedComponents=[];updateJobFromComponents()}
-function undoEditor(){if(!editorUndo.length){$('message').textContent='Nothing to undo.';return}editorRedo.push(JSON.stringify(components));restoreEditor(editorUndo.pop())}
-function redoEditor(){if(!editorRedo.length){$('message').textContent='Nothing to redo.';return}editorUndo.push(JSON.stringify(components));restoreEditor(editorRedo.pop())}
-function selectAllComponents(){selectedComponents=components.map((_,index)=>index);refreshComponentList();renderGcodePreview($('jobText').value)}
-function componentBounds(component){const xs=component.map(point=>point[0]),ys=component.map(point=>point[1]);return {minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys)}}
-function updateJobFromComponents(){const clamp=(value,min,max,fallback)=>Math.max(min,Math.min(max,Number(value)||fallback));const drawFeed=clamp($('drawSpeed').value,60,7500,1200),travelFeed=clamp($('travelSpeed').value,60,7500,3000),zFeed=clamp($('zSpeed').value,30,300,300);$('drawSpeed').value=drawFeed;$('travelSpeed').value=travelFeed;$('zSpeed').value=zFeed;const lines=['G21','G90','M400','G28 ; home X/Y/Z before plot','M400','G0 Z5 F'+zFeed.toFixed(0)];components.forEach((component,index)=>{lines.push('; editable component '+(index+1));lines.push('G0 X'+component[0][0].toFixed(3)+' Y'+(BED.ymax-component[0][1]).toFixed(3)+' F'+travelFeed.toFixed(0));lines.push('G0 Z0 F'+zFeed.toFixed(0));component.slice(1).forEach(point=>lines.push('G1 X'+point[0].toFixed(3)+' Y'+(BED.ymax-point[1]).toFixed(3)+' F'+drawFeed.toFixed(0)));lines.push('G0 Z5 F'+zFeed.toFixed(0))});lines.push('; final pen up','G0 Z5 F'+zFeed.toFixed(0),'M400','G28 X Y ; re-home X/Y with pen safely raised','M400');$('jobText').value=lines.join('\n');$('jobFile').value='';finalGenerated=false;refreshComponentList();renderGcodePreview($('jobText').value);$('message').textContent='Draft preview updated. Generate the final G-code when your edits are complete.'}
-function generateFinalGcode(){if(!components.length){$('message').textContent='No components are loaded. Upload or add draft G-code first.';return}updateJobFromComponents();finalGenerated=true;$('message').textContent='Final G-code generated. Review the preview, then validate and store it.'}
 async function generateAndValidateFinal(){await validateFinalJob()}
-function transformSelectedComponents(){readSelectedComponents();if(!selectedComponents.length){$('message').textContent='Select one or more components first.';return}const dx=Number($('componentDx').value)||0,dy=Number($('componentDy').value)||0,rotation=Number($('componentRotation').value)||0;if(!dx&&!dy&&!rotation){$('message').textContent='Enter a move or rotation first.';return}snapshotEditor();const radians=rotation*Math.PI/180;components=components.map((component,index)=>{if(!selectedComponents.includes(index))return component;const box=componentBounds(component),cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;return component.map(([x,y])=>{const relX=x-cx,relY=y-cy;return [cx+relX*Math.cos(radians)-relY*Math.sin(radians)+dx,cy+relX*Math.sin(radians)+relY*Math.cos(radians)+dy]})});updateJobFromComponents()}
-function deleteSelectedComponents(){readSelectedComponents();if(!selectedComponents.length){$('message').textContent='Select one or more components first.';return}snapshotEditor();components=components.filter((_,index)=>!selectedComponents.includes(index));selectedComponents=[];updateJobFromComponents()}
-function duplicateSelectedComponents(){readSelectedComponents();if(!selectedComponents.length){$('message').textContent='Select one or more components first.';return}snapshotEditor();const copies=selectedComponents.map(index=>components[index].map(([x,y])=>[x+5,y+5]));components=components.concat(copies);selectedComponents=components.map((_,index)=>index).slice(-copies.length);updateJobFromComponents()}
-function addGcodeComponents(){const added=parseEditableComponents($('componentGcode').value);if(!added.length){$('message').textContent='No pen-down G-code components found.';return}snapshotEditor();const start=components.length;components=components.concat(added);selectedComponents=added.map((_,index)=>start+index);$('componentGcode').value='';updateJobFromComponents()}
-function loadEditorFromText(text){components=parseEditableComponents(text);selectedComponents=[];editorUndo=[];editorRedo=[];finalGenerated=false;refreshComponentList()}
 function renderGcodePreview(text){
  const offsetX=Number($('offsetX').value)||0,offsetY=Number($('offsetY').value)||0;const result=parseGcode(text,offsetX,-offsetY);const syy=y=>BED.ymax-y;
  const inkSegments=result.segments.filter(s=>s.ink);let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const s of inkSegments){minX=Math.min(minX,s.x1,s.x2);maxX=Math.max(maxX,s.x1,s.x2);minY=Math.min(minY,s.y1,s.y2);maxY=Math.max(maxY,s.y1,s.y2)}
@@ -187,23 +158,22 @@ function renderGcodePreview(text){
  for(let userY=0;userY<=150;userY+=10){const displayY=userY;svg.push('<path d="M '+userY+' 0 V 152.4 M 0 '+displayY+' H 152.4" fill="none" stroke="#d5e0e8" stroke-width="0.18"/>');svg.push('<path d="M '+userY+' -3 V 0" fill="none" stroke="#536b7d" stroke-width="0.35"/>');svg.push('<path d="M '+userY+' 152.4 V 155.4" fill="none" stroke="#536b7d" stroke-width="0.35"/>');svg.push('<path d="M -3 '+displayY+' H 0" fill="none" stroke="#536b7d" stroke-width="0.35"/>');svg.push('<path d="M 152.4 '+displayY+' H 155.4" fill="none" stroke="#536b7d" stroke-width="0.35"/>');svg.push('<text x="'+(userY-1.7)+'" y="-6" text-anchor="middle" fill="#536b7d" font-size="2.5">'+userY+'</text>');svg.push('<text x="-5" y="'+(displayY+0.9)+'" text-anchor="end" fill="#536b7d" font-size="2.5">'+userY+'</text>')}
  svg.push('<text x="0" y="-12" fill="#536b7d" font-size="3.2" font-weight="700">HOME / X0 Y0</text>','<text x="152.4" y="-12" text-anchor="end" fill="#536b7d" font-size="3.2" font-weight="700">X152.4 Y0</text>','<text x="0" y="163" fill="#536b7d" font-size="3.2" font-weight="700">X0 Y152.4</text>','<text x="152.4" y="163" text-anchor="end" fill="#536b7d" font-size="3.2" font-weight="700">X152.4 Y152.4</text>','<text x="76.2" y="-12" text-anchor="middle" fill="#536b7d" font-size="2.8">X (mm)</text>','<text x="-14" y="76.2" text-anchor="middle" fill="#536b7d" font-size="2.8" transform="rotate(-90 -14 76.2)">Y (mm)</text>');
  if(inkSegments.length){const boxY=syy(maxY),boxHeight=Math.max(0.4,maxY-minY),boxWidth=Math.max(0.4,maxX-minX);svg.push('<rect id="printExtents" x="'+minX.toFixed(3)+'" y="'+boxY.toFixed(3)+'" width="'+boxWidth.toFixed(3)+'" height="'+boxHeight.toFixed(3)+'" fill="none" stroke="#e05b62" stroke-width="0.45" stroke-dasharray="2 1.5"/>')}
- for(const index of selectedComponents){const component=components[index];if(!component||component.length<2)continue;const box=componentBounds(component);svg.push('<rect x="'+box.minX.toFixed(3)+'" y="'+syy(box.maxY).toFixed(3)+'" width="'+Math.max(0.4,box.maxX-box.minX).toFixed(3)+'" height="'+Math.max(0.4,box.maxY-box.minY).toFixed(3)+'" fill="none" stroke="#7b61ff" stroke-width="0.6" stroke-dasharray="1 1"/>')}
  for(const s of result.segments){if(s.homeTravel)continue;const color=s.ink?'#168b5a':'#8daecc';const dash=s.ink?'':' stroke-dasharray="1.4 1.2"';svg.push('<path d="M '+s.x1.toFixed(3)+' '+syy(s.y1).toFixed(3)+' L '+s.x2.toFixed(3)+' '+syy(s.y2).toFixed(3)+'" fill="none" stroke="'+color+'" stroke-width="'+(s.ink?'0.55':'0.25')+'"'+dash+' stroke-linecap="round"/>')}
  svg.push('</svg>');$('gcodePreview').innerHTML=svg.join('');
  const bounds=inkSegments.length?'Print X '+minX.toFixed(1)+'–'+maxX.toFixed(1)+' · Y '+syy(maxY).toFixed(1)+'–'+syy(minY).toFixed(1):'Print extents —';const inkWarning=result.moves&&result.drawMoves===0?' · No pen-down moves detected (air plot or missing Z-down commands)':'';$('gcodeStats').innerHTML='<span class="preview-stat">Moves '+result.moves+'</span><span class="preview-stat">Ink moves '+result.drawMoves+'</span><span class="preview-stat">Travel moves '+result.travelMoves+'</span><span class="preview-stat">'+bounds+'</span>'+(result.outOfBed?'<span class="preview-stat preview-warning">Outside bed '+result.outOfBed+'</span>':'<span class="preview-stat">All moves inside bed</span>')+(inkWarning?'<span class="preview-stat preview-warning">'+inkWarning+'</span>':'');
  $('gcodeMeta').textContent=text.trim()?'Parsed from the current G-code input.':'Paste or choose G-code to inspect its actual XY moves before storing it.';
 }
 let previewTimer=null;function schedulePreview(){clearTimeout(previewTimer);previewTimer=setTimeout(()=>renderGcodePreview($('jobText').value),80)}
-$('jobText').addEventListener('input',()=>{loadEditorFromText($('jobText').value);schedulePreview()});$('jobFile').addEventListener('change',async()=>{const file=$('jobFile').files[0];if(!file)return;const text=await file.text();$('jobText').value=text;loadEditorFromText(text);renderGcodePreview(text)});
+$('jobText').addEventListener('input',schedulePreview);$('jobFile').addEventListener('change',async()=>{const file=$('jobFile').files[0];if(!file)return;const text=await file.text();$('jobText').value=text;renderGcodePreview(text)});
 let dragState=null;
 function dragStart(event){if(!$('jobText').value.trim())return;const rect=$('gcodePreview').getBoundingClientRect();dragState={startX:event.clientX,startY:event.clientY,baseX:Number($('offsetX').value)||0,baseY:Number($('offsetY').value)||0,width:rect.width,height:rect.height};$('gcodePreview').classList.add('dragging');if($('gcodePreview').setPointerCapture)$('gcodePreview').setPointerCapture(event.pointerId);event.preventDefault()}
 function dragMove(event){if(!dragState)return;const dx=(event.clientX-dragState.startX)/dragState.width*BED.xmax,screenDy=(event.clientY-dragState.startY)/dragState.height*BED.ymax;$('offsetX').value=(dragState.baseX+dx).toFixed(1);$('offsetY').value=(dragState.baseY+screenDy).toFixed(1);const outline=document.getElementById('printExtents');if(outline)outline.setAttribute('transform','translate('+dx.toFixed(3)+' '+screenDy.toFixed(3)+')');event.preventDefault()}
 function dragEnd(){if(!dragState)return;const moved=(Number($('offsetX').value)||0)!==dragState.baseX||(Number($('offsetY').value)||0)!==dragState.baseY;dragState=null;$('gcodePreview').classList.remove('dragging');if(moved)applyOffset();else renderGcodePreview($('jobText').value)}
 $('gcodePreview').addEventListener('pointerdown',dragStart);$('gcodePreview').addEventListener('pointermove',dragMove);$('gcodePreview').addEventListener('pointerup',dragEnd);$('gcodePreview').addEventListener('pointercancel',dragEnd);
 function resetOffset(){$('offsetX').value=0;$('offsetY').value=0;renderGcodePreview($('jobText').value)}
-function applyOffset(){const dx=Number($('offsetX').value)||0,dy=Number($('offsetY').value)||0;if(!dx&&!dy){$('message').textContent='No offset entered.';return}if(/^\s*G91\b/im.test($('jobText').value)){$('message').textContent='Offset requires absolute G-code (G90).';return}$('jobText').value=$('jobText').value.split(/\r?\n/).map(source=>{const line=source.replace(/;.*$/,'');if(!/^\s*G[01]\b/i.test(line))return source;return source.replace(/([XY])\s*([-+]?\d*\.?\d+)/ig,(match,axis,value)=>axis.toUpperCase()+' '+(Number(value)+(axis.toUpperCase()==='X'?dx:-dy)).toFixed(3))}).join('\n');$('offsetX').value=0;$('offsetY').value=0;$('jobFile').value='';loadEditorFromText($('jobText').value);renderGcodePreview($('jobText').value);$('message').textContent='Offset applied to the G-code text. Validate and store it when ready.'}
+function applyOffset(){const dx=Number($('offsetX').value)||0,dy=Number($('offsetY').value)||0;if(!dx&&!dy){$('message').textContent='No offset entered.';return}if(/^\s*G91\b/im.test($('jobText').value)){$('message').textContent='Offset requires absolute G-code (G90).';return}$('jobText').value=$('jobText').value.split(/\r?\n/).map(source=>{const line=source.replace(/;.*$/,'');if(!/^\s*G[01]\b/i.test(line))return source;return source.replace(/([XY])\s*([-+]?\d*\.?\d+)/ig,(match,axis,value)=>axis.toUpperCase()+' '+(Number(value)+(axis.toUpperCase()==='X'?dx:-dy)).toFixed(3))}).join('\n');$('offsetX').value=0;$('offsetY').value=0;$('jobFile').value='';renderGcodePreview($('jobText').value);$('message').textContent='Offset applied to the G-code text. Validate and store it when ready.'}
 $('offsetX').addEventListener('input',schedulePreview);$('offsetY').addEventListener('input',schedulePreview);
-loadEditorFromText('');renderGcodePreview('');
+renderGcodePreview('');
 async function request(url,options={}){const r=await fetch(url,options);const t=await r.text();let d={};try{d=JSON.parse(t)}catch{d={message:t}}if(!r.ok)throw new Error(d.error||d.message||('HTTP '+r.status));return d}
 function formBody(values){const p=new URLSearchParams();Object.entries(values).forEach(([k,v])=>p.set(k,v));return p}
 async function uploadDraft(){
@@ -213,7 +183,7 @@ async function uploadDraft(){
   const fd=new FormData();
   // The editor is authoritative: a selected file is only the initial load.
   fd.append('job',new Blob([text],{type:'text/plain'}),file?file.name:'draft.gcode');
-  $('message').textContent='Saving edited draft…';await request('/api/job/draft',{method:'POST',body:fd});finalGenerated=false;$('message').textContent='Draft saved. Review the preview, then validate the final job.';await poll();
+  $('message').textContent='Saving edited draft…';await request('/api/job/draft',{method:'POST',body:fd});$('message').textContent='Draft saved. Review the preview, then validate the final job.';await poll();
  }catch(e){$('message').textContent=e.message}
 }
 async function validateFinalJob(){
