@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 from urllib.request import Request
@@ -49,6 +50,23 @@ def test_status_uses_expected_endpoint() -> None:
     assert result["firmware"] == "bridge"
     assert transport.requests[0].full_url == "http://bridge.local/api/status"
     assert transport.requests[0].method == "GET"
+
+
+def test_credentials_are_added_to_every_request() -> None:
+    transport = FakeTransport()
+    client = Esp32BridgeClient(
+        "http://bridge.local",
+        transport=transport,
+        username="admin",
+        password="secret",
+    )
+    client.status()
+    client.query("M119")
+    expected = "Basic " + base64.b64encode(b"admin:secret").decode("ascii")
+    assert [request.headers["Authorization"] for request in transport.requests] == [
+        expected,
+        expected,
+    ]
 
 
 def test_upload_builds_multipart_job_request(tmp_path: Path) -> None:

@@ -8,7 +8,25 @@ This API controls real hardware. It is intentionally narrow: the bridge accepts 
 
 ## Authentication status
 
-The access point uses WPA2 credentials, but individual HTTP requests are not authenticated. Keep the bridge on a trusted local network; do not expose it to the public internet, a public tunnel, or an untrusted LAN. Firmware updates are USB-only; OTA is not implemented.
+Every dashboard and API request uses HTTP Basic authentication. On first boot,
+the bridge generates a unique password, stores it in ESP32 Preferences, and
+prints the username and password to the USB serial monitor at 115200 baud.
+
+HTTP Basic authentication is not encryption. Use it with the bridge's WPA2
+access point or a trusted local network; do not port-forward the bridge or put
+it behind a public tunnel. Firmware updates are USB-only; OTA is not
+implemented.
+
+For the Python client, provide the printed credentials through environment
+variables:
+
+```bash
+export PRINTRBOT_BRIDGE_USER=admin
+export PRINTRBOT_BRIDGE_PASSWORD='paste-the-serial-password-here'
+printrbot-bridge --url http://192.168.4.1 status
+```
+
+The command-line client also accepts `--username` and `--password` options.
 
 ## `GET /api/status`
 
@@ -61,7 +79,8 @@ emergency
 Uploads a multipart form file named `job`.
 
 ```bash
-curl -F 'job=@out/plot.gcode' http://192.168.4.1/api/job
+curl -u admin:'paste-the-serial-password-here' \
+  -F 'job=@out/plot.gcode' http://192.168.4.1/api/job
 ```
 
 The bridge streams the upload into LittleFS and then validates every executable line before returning success.
@@ -90,7 +109,8 @@ Safety scanning rejects:
 Starts the validated stored job from its first command.
 
 ```bash
-curl -X POST http://192.168.4.1/api/job/start
+curl -u admin:'paste-the-serial-password-here' \
+  -X POST http://192.168.4.1/api/job/start
 ```
 
 The job runner sends exactly one command, waits for a Marlin `ok`, records progress, and only then sends the next command.

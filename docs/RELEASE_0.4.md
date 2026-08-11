@@ -35,9 +35,11 @@ The bridge injects a full `G28`/`M400` pre-job sequence before every stored job.
 - Verify homing direction, limits, paper placement, and pen-up height on the physical machine before a pen-down job.
 - Keep the bridge on a trusted local network.
 
-## Deliberate non-features
+## Security boundaries
 
-- No request-level HTTP authentication.
+- HTTP Basic authentication protects the dashboard and every API request. The
+  first-boot password is generated on-device, stored in Preferences, and
+  printed to the USB serial monitor.
 - No public-internet deployment support.
 - No OTA or signed firmware updates; updates are installed over USB.
 - No automatic resume after reset, power loss, or emergency stop.

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import mimetypes
+import os
 import secrets
 import sys
 from collections.abc import Callable
@@ -32,10 +34,16 @@ class Esp32BridgeClient:
         *,
         timeout_s: float = 15.0,
         transport: Transport | None = None,
+        username: str | None = None,
+        password: str | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
         self._transport = transport
+        self._authorization = None
+        if username is not None and password is not None:
+            credentials = f"{username}:{password}".encode("utf-8")
+            self._authorization = "Basic " + base64.b64encode(credentials).decode("ascii")
 
     def _send(
         self,
@@ -45,10 +53,15 @@ class Esp32BridgeClient:
         body: bytes | None = None,
         headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
+        request_headers = dict(headers or {})
+        if self._authorization is not None and not any(
+            key.lower() == "authorization" for key in request_headers
+        ):
+            request_headers["Authorization"] = self._authorization
         request = Request(
             self.base_url + path,
             data=body,
-            headers=headers or {},
+            headers=request_headers,
             method=method,
         )
         try:
@@ -146,6 +159,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="printrbot-bridge")
     parser.add_argument("--url", default="http://192.168.4.1")
     parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument(
+        "--username",
+        default=os.environ.get("PRINTRBOT_BRIDGE_USER", "admin"),
+        help="HTTP Basic auth username (default: PRINTRBOT_BRIDGE_USER or admin)",
+    )
+    parser.add_argument(
+        "--password",
+        default=os.environ.get("PRINTRBOT_BRIDGE_PASSWORD"),
+        help="HTTP Basic auth password (default: PRINTRBOT_BRIDGE_PASSWORD)",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("status")
@@ -166,7 +189,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    client = Esp32BridgeClient(args.url, timeout_s=args.timeout)
+    client = Esp32BridgeClient(
+        args.url,
+        timeout_s=args.timeout,
+        username=args.username if args.password is not None else None,
+        password=args.password,
+    )
 
     try:
         if args.command == "status":
