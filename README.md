@@ -4,6 +4,8 @@ Printrbot Pen Plotter converts typed text, photographed or scanned handwriting, 
 
 The preview and G-code are always generated from the same final absolute polylines, including any explicitly enabled Release 0.6 motion transforms.
 
+Licensed under the [Apache License 2.0](LICENSE).
+
 ## Current capabilities
 
 ### Writing and geometry

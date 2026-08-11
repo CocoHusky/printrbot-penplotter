@@ -7,6 +7,7 @@ name = "printrbot-penplotter"
 version = "0.6.0"
 description = "Turn text, handwriting, raster images, and vector art into optimized physically placed Marlin pen-plotter jobs."
 readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
