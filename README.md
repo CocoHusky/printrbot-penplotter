@@ -10,6 +10,14 @@ Local-first software and firmware for turning text, SVGs, and images into review
 
 Licensed under the [Apache License 2.0](LICENSE).
 
+## Why this exists
+
+This project began by repurposing discarded Printrbot hardware instead of sending it to waste. The machine is repaired with replacement hardware and connected to a modern ESP32-C3 bridge. A proper level shifter protects the 3.3 V ESP32 UART from the Printrboard's 5 V serial signals, while the bridge provides a local Wi-Fi access point and optional same-network station mode. The image and text processing stay on the server or computer, where there is enough memory and screen space to preview the result; the ESP32 handles local communication, storage, validation, and acknowledged UART transport.
+
+The practical reason is communication. Handwriting quality should not decide whether family members can exchange messages. The same plotter can produce readable English, Chinese, Japanese, and other languages when a matching centerline font pack is installed, so a typed message can become a physical note even when handwriting is not reliable.
+
+The system is intended to support both sides of a paper workflow: add a new message or image to a page, and digitally remove or mask unwanted text and marks from a source before creating the replacement plot. The current Printrbot tool is a pen plotter, not a physical eraser, so removing ink from paper still requires a separate erasing tool and is not yet claimed as a machine capability.
+
 ## What it can do
 
 | Plot real text and artwork | Reach the local controller with NFC |
@@ -40,6 +48,7 @@ The preview and G-code are generated from the same final absolute polylines, inc
 ### Write
 
 - Single-line centerline `hand` and `robot` stroke fonts, plus custom JSON stroke-font packs.
+- Multilingual output through installed centerline font packs, including CJK fonts when available; the system plots supplied glyph trajectories and does not perform OCR or translation.
 - Physical cap height, tracking, word spacing, slant, wrapping, and deterministic seeded glyph variation.
 - Simple lowercase cursive joins and imported SVG paths.
 
