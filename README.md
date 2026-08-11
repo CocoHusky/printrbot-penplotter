@@ -1,6 +1,6 @@
 # Printrbot Pen Plotter
 
-Local software for turning typed text, SVGs, and images into reviewed pen plots on repurposed Printrbot hardware.
+Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
 > **Status:** Public demo release, active development. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; the UI and firmware are still evolving.
 
@@ -12,9 +12,11 @@ Local software for turning typed text, SVGs, and images into reviewed pen plots 
 
 ## Why it exists
 
-This project gives discarded or incomplete plotter hardware a practical second life. A Printrboard remains responsible for real-time motion, while a Python application handles text and image processing, previews, layout, and G-code. An ESP32-C3 bridge provides local Wi-Fi access and acknowledged UART transport through the required 3.3 V/5 V level shifter.
+This project gives discarded or incomplete plotter hardware a practical second life while helping people communicate across languages. The goal is a note that feels made by a person: a real pen moves across real paper, leaving a physical line and texture instead of only producing a digital message or a flat print.
 
-The project also makes written communication more accessible. A typed message can become a physical note in English, Chinese, Japanese, and other languages when the matching centerline font pack is installed. The same pipeline can prepare images and line art. It does not physically erase ink from paper; removing existing marks still requires a separate erasing tool.
+A Printrboard remains responsible for real-time motion, while a Python application handles text and image processing, previews, layout, and G-code. An ESP32-C3 bridge provides local Wi-Fi access and acknowledged UART transport through the required 3.3 V/5 V level shifter.
+
+The project makes written communication more accessible. A typed message can become a physical pen-written note in English, Chinese, Japanese, and other languages when the matching centerline font pack is installed. The same pipeline can prepare images and line art. It does not physically erase ink from paper; removing existing marks still requires a separate erasing tool.
 
 ## The workflow
 
