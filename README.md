@@ -1,106 +1,102 @@
 # Printrbot Pen Plotter
 
-Printrbot Pen Plotter converts typed text, photographed or scanned handwriting, raster images, and vector artwork into reproducible physical marker drawings. The software generates centerline handwriting, seeded glyph variations, connected cursive-style writing, geometric robot lettering, raster centerlines or contours, optimized plot routes, exact machine-space previews, and guarded Marlin G-code. Jobs can be sent directly over USB or uploaded to an ESP32-C3 Wi-Fi bridge.
+Local-first software and firmware for turning text, SVGs, and images into reviewed, physical pen plots on a Printrbot. It produces centerline geometry, previews the exact machine-space result, generates guarded Marlin G-code, and can send reviewed jobs by USB or through an ESP32-C3 bridge.
 
-The preview and G-code are always generated from the same final absolute polylines, including any explicitly enabled Release 0.6 motion transforms.
+<p align="center">
+  <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="460">
+</p>
+
+> **Write → make art → review the bed preview → validate → plot.**
 
 Licensed under the [Apache License 2.0](LICENSE).
 
+## What it can do
+
+| Plot real text and artwork | Reach the local controller with NFC |
+| --- | --- |
+| <img src="docs/images/plotter-in-action.jpg" alt="Pen plotter drawing Chinese text and line art" width="420"> | <img src="docs/images/nfc-tag.jpg" alt="NFC tag mounted beside the pen plotter" width="420"> |
+| Centerline text, robot lettering, imported SVG, and image-derived paths. | A mounted NFC tag opens the local interface without typing an address. |
+
+The pictured compliant pen holder is designed to tolerate pen and surface-height variation of up to roughly 3 mm. Always prove a new pen or material setup with an air plot.
+
+### Local access without typing an address
+
+<img src="docs/images/nfc-quick-access.png" alt="NFC notification opening printrbot.local in Safari" width="560">
+
+An NFC tag can open the local bridge directly at `printrbot.local` on a phone or tablet connected to the same trusted network.
+
+### Review before a pen touches the paper
+
+<img src="docs/images/bridge-mobile-preview.png" alt="Mobile bridge view with an XY bed preview and pen-up travel legend" width="380" align="right">
+
+The local Bridge shows a 10 mm bed grid, print extents, pen-down lines, and pen-up travel before the final job is stored. It supports drawing, travel, and pen-lift speed settings; validates the complete final G-code; and then exposes Start, Pause, Resume, orderly cancel, and emergency stop.
+
+The preview and G-code are generated from the same final absolute polylines, including any explicitly enabled motion transforms. The Bridge is intentionally a **trusted local-network controller**: it does not provide authentication or OTA updates.
+
+<br clear="right">
+
 ## Current capabilities
 
-### Writing and geometry
+### Write
 
-- Native single-line `hand` and `robot` stroke fonts.
-- Uppercase, lowercase, digits, and common punctuation.
-- Deterministic alternate glyphs using a saved random seed.
-- Simple lowercase cursive joins.
-- Physical cap height, tracking, word spacing, slant, and wrapping in millimeters.
-- Custom JSON stroke-font packs.
-- SVG path import.
-- Raster image and handwriting tracing from PNG, JPEG, WebP, TIFF, and BMP files.
-- Explicit centerline and contour trace modes.
-- Deterministic Otsu or manual thresholding, inversion, blur, size limiting, and small-component cleanup.
-- Browser drag-and-drop raster workflow with original, cleaned-mask, editable-trace, and final-machine views.
-- In-browser path deletion, reversal, midpoint splitting, two-stroke joining, endpoint dragging, and undo.
-- Editable SVG, G-code, and reproducible raster-job JSON downloads.
-- Explicit machine limits, paper origin, margins, scale, and placement.
-- Authored, nearest-endpoint, and two-opt route modes.
-- Optional stroke reversal, endpoint joining, RDP simplification, resampling, and smoothing.
-- Corner-aware drawing feed requests.
-- Before/after motion metrics for distance, travel, pen lifts, points, and idealized duration.
-- Exact SVG preview showing paper, ink strokes, and dashed pen-up travel.
-- Bounds-checked heaterless Marlin G-code.
+- Single-line centerline `hand` and `robot` stroke fonts, plus custom JSON stroke-font packs.
+- Physical cap height, tracking, word spacing, slant, wrapping, and deterministic seeded glyph variation.
+- Simple lowercase cursive joins and imported SVG paths.
 
-### Release 0.5 — Image & Handwriting Studio
+### Make art
 
-- EXIF-aware image loading and transparent-background handling.
-- Bounded preprocessing so large phone photos are downsampled before tracing.
-- `centerline` tracing using skeletonization and graph paths for stroke-like input.
-- `contour` tracing for filled shapes, logos, and silhouettes.
-- `printrbot-plotter image` for general raster artwork.
-- `printrbot-plotter handwriting` for centerline tracing of photographed or scanned writing.
-- Trace metadata recording threshold, cleanup, resize, skeleton, stroke, and point counts.
-- `--trace-svg` for exporting a plain editable SVG that can be corrected and re-imported.
-- `printrbot-studio` browser application with drag-and-drop input and live preprocessing controls.
-- Four-stage inspection: original image → cleaned binary mask → editable raw trace → exact machine preview.
-- Manual geometry correction remains upstream of machine preview and G-code, preserving one geometry source of truth.
-- Every browser job includes source SHA-256, trace settings, raw geometry, and final machine geometry in a downloadable JSON sidecar.
+- PNG, JPEG, WebP, TIFF, and BMP input, with bounded preprocessing for large phone photos.
+- Guided Studio stages for grayscale, black & white, optional edge extraction, selected art style, machine placement, and export.
+- Centerline tracing for stroke-like input and contour tracing for filled shapes, logos, and silhouettes.
+- Otsu/manual thresholding, inversion, blur, size limiting, and small-component cleanup.
 
-Release 0.5 traces visible handwriting marks; it does not perform OCR, infer characters, or retype notes.
+### Place, optimize, and plot
 
-### Release 0.6 — Motion Quality & Plot Optimization
+- Explicit machine limits, paper origin, margins, scale, placement, air plot, and Z-lift control.
+- Authored, nearest-endpoint, and two-opt routing; optional stroke reversal, endpoint joining, RDP simplification, resampling, and smoothing.
+- Exact SVG preview with paper, ink strokes, and dashed pen-up travel; metrics for distance, travel, pen lifts, points, and idealized duration.
+- Heaterless, bounds-checked Marlin G-code and a canonical `G21 → G90 → G28 → pen up` start envelope with final pen-up and `G28 X Y`.
 
-Release 0.6 acts on already-created, machine-placed polylines. It does not generate artwork and it does not replace Marlin's real-time motion planner.
+### Run locally or through the bridge
 
-Available route modes:
+- Direct USB preflight and acknowledged Marlin command streaming.
+- ESP32-C3 bridge with local Wi-Fi/AP access, LittleFS job storage, full-file validation, browser bed preview, and one active job at a time.
+- Hardware states for ready, running, paused, cancelling, cancelled, completed, failed, and emergency; separate orderly cancellation and immediate emergency stop.
 
-- `authored` — preserve incoming stroke order; this is the default and the normal choice for text/cursive.
-- `nearest` — greedily choose the closest remaining stroke endpoint, with optional reversal.
-- `two_opt` — start from nearest routing and deterministically improve pen-up travel with two-opt refinement.
+## How the pieces fit
 
-Optional shape-quality controls are all disabled by default:
+```mermaid
+flowchart LR
+  A["Text, SVG, or image"] --> B["Python app: Write or Art"]
+  B --> C["Exact machine-space preview"]
+  C --> D["Validated Marlin G-code"]
+  D --> E["USB sender or ESP32-C3 Bridge"]
+  E --> F["Printrboard / Marlin"]
+  F --> G["Physical pen plot"]
+```
 
-- near-endpoint joining;
-- millimeter Ramer-Douglas-Peucker simplification;
-- fixed-spacing resampling;
-- conservative endpoint-preserving smoothing.
+The ESP32 is intentionally the transport and safety gateway. Text generation, image processing, path optimization, and preview rendering run in the Python application; Marlin remains responsible for real-time motion and stepper control.
 
-Every normal rendered job now reports before/after draw distance, pen-up travel, stroke/point count, pen lifts, estimated duration, and travel savings. The estimate is planning information only; real runtime still depends on Marlin acceleration, junction behavior, transport pacing, and physical mechanics.
+## Release history
 
-Sharp corners can request a separate slower drawing feed using `--corner-feed` and `--corner-angle`. Marlin still performs acceleration and step timing.
+The repository keeps the step-by-step implementation record, while this README describes the currently supported product:
 
-### Safety and calibration
+| Release | Focus |
+| --- | --- |
+| [0.2](docs/RELEASE_0.2.md) | Safe-machine foundation and physical validation |
+| [0.3](docs/RELEASE_0.3.md) | Native writing engine |
+| [0.4](docs/RELEASE_0.4.md) | ESP32 transport |
+| [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
+| [0.6](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
 
-- Non-moving `M115`, `M119`, `M114`, and `M503` preflight.
-- Known-size square/cross/octagon calibration pattern.
-- Calibration deliberately bypasses Release 0.6 route/smoothing transforms.
-- Air-plot mode that never emits a pen-down move.
-- Finite-coordinate, machine-bound, paper-bound, Z-bound, point-count, and command-count validation.
-- Canonical hardware job envelope: `G21 → G90 → G28 → pen up` before XY plotting, then final pen up and `G28 X Y` at the end.
-- Direct USB and host-side Wi-Fi uploads perform complete-job validation before hardware receives the file.
-- ESP32 firmware validates the complete stored file again before a job can become runnable.
-- USB serial sending one command at a time with Marlin `ok` acknowledgement.
-- Heater, extrusion, tool-change, and `E`-axis commands blocked from normal jobs.
-- Separate orderly cancellation and immediate emergency stop behavior.
-- Dedicated Safety Contract CI runs the full Python suite on Python 3.11/3.13, safety smoke tests, ESP32 native protocol tests, and the ESP32-C3 firmware build.
+## Safety first
+
+- Run non-moving preflight (`M115`, `M119`, `M114`, `M503`) and an air plot before the first pen-down plot on any machine configuration.
+- Every hardware-bound XY job is validated for finite coordinates, configured bounds, safe Z motion, point/command count, homing/start/end envelope, and prohibited heater, extrusion, tool-change, and `E`-axis commands.
+- The Python sender validates before upload; the ESP32 validates its complete stored job again before it can run.
+- Safety checks cannot detect a loose pen, reversed motor, wrong endstop direction, shifted paper, obstructions, wiring/power faults, or unwanted image-trace artifacts. Review the preview and observe the first run.
 
 Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
-
-### ESP32 local bridge
-
-- PlatformIO firmware for the ESP32-C3-DevKitC-02.
-- Setup Wi-Fi access point and optional home-network connection.
-- GPIO6 RX / GPIO7 TX Marlin UART at 115200 baud.
-- G-code upload to ESP32 LittleFS.
-- Full-file safety validation before a job becomes runnable.
-- One active hardware job at a time.
-- Ready, running, paused, cancelling, cancelled, completed, failed, and emergency states.
-- Acknowledgement-based progress and UART activity log.
-- Browser draft editing, bed preview, whole-drawing placement, final validation, start, pause, resume, orderly cancel, emergency stop, and non-moving queries.
-- Python `printrbot-bridge` client for scripted upload and control.
-- Native firmware protocol tests and reproducible ESP32 build artifacts in CI.
-
-**Deployment status:** rendering, G-code validation, native bridge protocol tests, and the ESP32-C3 build are automated. Treat the bridge as a **local, trusted-network controller**, not an internet-facing service: HTTP requests are not authenticated and OTA updates are not provided. Before a pen-down job on any newly configured machine, run preflight and an air plot, then verify homing direction, paper placement, and Z lift physically.
 
 ## Install the Python application
 
@@ -292,7 +288,7 @@ Open `http://127.0.0.1:8000/`. The **Write** workspace creates centerline text; 
 
 The Studio exposes **Home all axes before plot** and enables it by default. Turning it off is useful only for offline inspection or special non-hardware workflows; the hardware validators will refuse normal XY plotting without the guarded envelope.
 
-The retired `/raster` editing prototype is no longer served. Use Studio 2 for image processing so there is one supported image workflow.
+Studio 2 is the supported image workflow.
 
 ## Generate an air-plot calibration
 
@@ -405,7 +401,7 @@ printrbot-bridge --url http://printrbot.local status
 Python application
   text / stroke fonts / SVG / raster tracing
   variation and wrapping
-  manual raster correction
+  image-processing controls
   machine-space layout
   motion routing / optional path cleanup
   exact post-motion preview
