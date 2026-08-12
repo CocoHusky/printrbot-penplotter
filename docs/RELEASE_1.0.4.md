@@ -3,9 +3,9 @@
 Release 1.0.4 makes the handwriting workflow clearer and prevents stale or
 misoriented output from being mistaken for a parameter failure.
 
-- Graves is enabled by default in handwriting mode when the neural worker is
-  installed; the controls are labeled as a handwriting model rather than an
-  unexplained experimental gate.
+- Selecting handwriting chooses Graves automatically when the neural worker is
+  installed; there is no redundant checkbox gate. The controls are labeled as
+  a handwriting model rather than an unexplained experimental switch.
 - Style, sampling bias, variation seed, and slant remain editable and are
   passed through to generation or post-processing as appropriate.
 - Changing any lettering, layout, spacing, page, plot, or handwriting control
@@ -17,5 +17,3 @@ misoriented output from being mistaken for a parameter failure.
 - Robot mode continues to hide and ignore neural handwriting controls.
 
 Graves is stochastic trajectory generation, not a guaranteed legible font.
-The authored Hershey Script centerline remains available by turning off the
-neural handwriting checkbox.
