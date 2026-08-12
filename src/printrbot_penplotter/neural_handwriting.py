@@ -42,6 +42,9 @@ class NeuralWritingConfig:
     bias: float = 0.75
     seed: int = 7
     slant_deg: float = 0.0
+    font_size_mm: float = 6.0
+    line_spacing: float = 1.0
+    wrap_width_mm: float | None = 120.0
     timeout_seconds: float = 90.0
 
     def validate(self) -> None:
@@ -51,6 +54,10 @@ class NeuralWritingConfig:
             raise ValueError("Neural bias must be between 0 and 1.")
         if not -45 <= self.slant_deg <= 45:
             raise ValueError("Neural slant must be between -45 and 45 degrees.")
+        if self.font_size_mm <= 0 or self.line_spacing <= 0:
+            raise ValueError("Neural font size and line spacing must be positive.")
+        if self.wrap_width_mm is not None and self.wrap_width_mm <= 0:
+            raise ValueError("Neural wrap width must be positive.")
         if self.timeout_seconds <= 0:
             raise ValueError("Neural timeout must be positive.")
 
@@ -111,6 +118,9 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
                     "bias": config.bias,
                     "seed": config.seed,
                     "slant_deg": config.slant_deg,
+                    "font_size_mm": config.font_size_mm,
+                    "line_spacing": config.line_spacing,
+                    "wrap_width_mm": config.wrap_width_mm,
                 }
             ),
             capture_output=True,

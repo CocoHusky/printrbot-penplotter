@@ -12,6 +12,7 @@ import json
 import os
 import random
 import sys
+import textwrap
 from pathlib import Path
 
 # The published Graves checkpoint uses TensorFlow 1-era RNNCell APIs.  Keep
@@ -37,6 +38,9 @@ def main() -> int:
     style = int(request.get("style", 9))
     bias = float(request.get("bias", 0.75))
     seed = int(request.get("seed", 7))
+    font_size_mm = float(request.get("font_size_mm", 6.0))
+    line_spacing = float(request.get("line_spacing", 1.0))
+    wrap_width_mm = request.get("wrap_width_mm", 120.0)
     if not text.strip():
         print("text is empty", file=sys.stderr)
         return 2
@@ -51,8 +55,27 @@ def main() -> int:
         pass
     hand = Hand()
     strokes: list[list[list[float]]] = []
-    for line in text.splitlines() or [text]:
+    if wrap_width_mm is None:
+        max_chars = 75
+    else:
+        max_chars = max(12, min(75, int(float(wrap_width_mm) / max(font_size_mm, 1.0) * 2.5)))
+    lines: list[str] = []
+    for paragraph in text.splitlines() or [text]:
+        if not paragraph.strip():
+            lines.append("")
+        else:
+            lines.extend(
+                textwrap.wrap(
+                    paragraph,
+                    width=max_chars,
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
+            )
+    baseline_y = 0.0
+    for line in lines:
         if not line:
+            baseline_y -= font_size_mm * line_spacing * 1.5
             continue
         samples = hand._sample([line], biases=[bias], styles=[style])
         offsets = samples[0]
@@ -64,6 +87,11 @@ def main() -> int:
         coords = offsets_to_coords(offsets)
         coords = denoise(coords)
         coords[:, :2] = align(coords[:, :2])
+        line_min_y = float(np.min(coords[:, 1]))
+        line_max_y = float(np.max(coords[:, 1]))
+        line_height = max(line_max_y - line_min_y, 1.0)
+        coords[:, 1] += baseline_y - line_min_y
+        baseline_y -= line_height * line_spacing * 1.35
         # The reference renderer plots these coordinates directly in a
         # Cartesian graph. The shared client will flip only when a worker
         # explicitly declares image coordinates.

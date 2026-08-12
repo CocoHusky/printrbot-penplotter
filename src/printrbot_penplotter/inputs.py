@@ -170,6 +170,9 @@ def text_to_polylines_with_metadata(
                 bias=style.neural_bias,
                 seed=style.seed,
                 slant_deg=style.slant_deg,
+                font_size_mm=style.font_size_mm,
+                line_spacing=style.line_spacing,
+                wrap_width_mm=style.wrap_width_mm,
             ),
         )
     has_cjk = any(
