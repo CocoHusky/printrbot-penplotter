@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .font_library import font_library_entries
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
 from .pipeline import render_calibration_job, render_text_job
 from .sender import MarlinSender
@@ -24,6 +25,7 @@ class RenderRequest(BaseModel):
     preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
     engine: Literal["stroke"] = "stroke"
     writing_backend: Literal["stroke", "neural"] = "stroke"
+    experimental_outline_centerline: bool = False
     neural_style: int = Field(default=9, ge=0, le=12)
     neural_bias: float = Field(default=0.75, ge=0, le=1)
     font_family: str = "DejaVu Sans"
@@ -152,6 +154,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <summary><span class="step-kicker">STEP 2</span><strong>Choose the lettering</strong></summary>
 <div><label for="preset">Lettering type</label><select id="preset"><option value="robot">Single-line robot</option><option value="human">Single-line handwriting</option></select><div class="hint" id="languageHint">Only authored stroke fonts are available. Every mark is drawn once; outline fonts are not used.</div></div>
 <div id="strokeFontControls"><label for="strokeFont">Stroke font</label><select id="strokeFont"><option value="robot">Robot</option></select><div class="hint">These are vector centerline fonts. The pen traces each stroke once.</div></div>
+<details class="control-group" id="experimentalControls"><summary>Experimental: convert outline fonts</summary><div class="check"><input id="experimentalOutline" type="checkbox"><label for="experimentalOutline" style="margin:0">Override with an installed outline font</label></div><p class="control-note">Exposes fonts such as Arial and Courier. This converts their outlines into plot paths; it is experimental and may produce doubled edges or imperfect joins.</p><div id="experimentalFontControls" style="display:none"><label for="font">Installed outline font</label><select id="font"><option value="DejaVu Sans">Loading…</option></select></div></details>
 <div class="compact-row">
   <div class="control-group"><label for="fontSize">Size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div></div>
 </div>
@@ -211,6 +214,7 @@ function hasCjk(text){ return /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\u
 function syncTypefaceForText(){
  byId('languageHint').textContent=hasCjk(byId('text').value)?'CJK detected. A compatible installed font is converted to centerlines; no outline fallback is used.':'Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.';
 }
+function syncExperimental(){ const enabled=byId('experimentalOutline').checked; byId('experimentalFontControls').style.display=enabled?'block':'none'; byId('strokeFontControls').style.display=enabled?'none':'block'; }
 function applyPreset(){
  const value=byId('preset').value;
  if(value==='standard') { byId('neuralStyle').value=9; setControl('slant',0); setControl('letterSpacing',0); byId('handwritingControls').open=false; }
@@ -218,13 +222,15 @@ function applyPreset(){
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
  byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Neural handwriting is unavailable. Configure the model to use this mode; no fallback will be used.'):'Built-in authored stroke font; installed outline fonts are not used.';
  byId('strokeFontControls').style.display=value==='human'?'none':'block';
+ syncExperimental();
  byId('renderButton').disabled=value==='human'&&!neuralAvailable;
  syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:'', font_path:null, stroke_font:byId('strokeFont').value,
+ font_family:byId('experimentalOutline').checked?byId('font').value:'', font_path:null, stroke_font:byId('strokeFont').value,
+ experimental_outline_centerline:byId('experimentalOutline').checked,
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
  line_spacing:Number(byId('lineSpacing').value),
@@ -272,6 +278,11 @@ fetch('/api/fonts').then(response=>response.json()).then(data=>{
  const select=byId('strokeFont'); select.innerHTML='';
  (data.fonts||[]).forEach(font=>{ const option=document.createElement('option'); option.value=font.name; option.textContent=font.name; option.title=font.description; select.appendChild(option); });
 }).catch(()=>{});
+byId('experimentalOutline').addEventListener('change',syncExperimental);
+fetch('/api/font-library').then(response=>response.json()).then(data=>{
+ const select=byId('font'); select.innerHTML='';
+ (data.fonts||[]).forEach(font=>{ const option=document.createElement('option'); option.value=font.name; option.textContent=font.name; option.title=font.description; select.appendChild(option); });
+}).catch(()=>{});
 applyPreset();
 </script>
 </main></body></html>"""
@@ -307,6 +318,7 @@ def _render(request: RenderRequest):
         request.preset,
         engine=request.engine,
         writing_backend=request.writing_backend,
+        experimental_outline_centerline=request.experimental_outline_centerline,
         neural_style=request.neural_style,
         neural_bias=request.neural_bias,
         font_family=request.font_family,
@@ -358,6 +370,12 @@ def fonts() -> dict[str, object]:
             for name in available_stroke_fonts()
         ]
     }
+
+
+@app.get("/api/font-library")
+def font_library() -> dict[str, object]:
+    """List installed outline fonts for the explicit experimental override."""
+    return {"fonts": font_library_entries()}
 
 
 @app.get("/api/handwriting/status")

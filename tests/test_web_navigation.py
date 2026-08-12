@@ -34,6 +34,8 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "Handwriting adjustments" in text
     assert "Every mode draws centerlines only" in text
     assert "outline fonts are not used" in text
+    assert "Experimental: convert outline fonts" in text
+    assert "Override with an installed outline font" in text
     assert "Size (pt)" in text
     assert 'class="compact-row"' in text
     assert "Generate 10 mm air calibration" not in text
