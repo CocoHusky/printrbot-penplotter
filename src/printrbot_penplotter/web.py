@@ -50,7 +50,9 @@ class RenderRequest(BaseModel):
     page_origin_x_mm: float = 0.0
     page_origin_y_mm: float = 0.0
     margin_mm: float = Field(default=8.0, ge=0, le=100)
-    fit_mode: Literal["none", "downscale", "fit"] = "none"
+    # The writing UI should always produce a reviewable preview.  Users can
+    # change the page and scale afterward; overflow must not block generation.
+    fit_mode: Literal["none", "downscale", "fit"] = "downscale"
     horizontal_align: Literal["left", "center", "right"] = "center"
     vertical_align: Literal["bottom", "center", "top"] = "center"
     offset_x_mm: float = 0.0
@@ -152,7 +154,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <details class="control-group">
 <summary>Page and machine placement</summary>
 <div class="row">
-  <div><label for="fitMode">Fit behavior</label><select id="fitMode"><option value="none" selected>Exact size or explain overflow</option><option value="downscale">Preserve size; shrink only</option><option value="fit">Fill page</option></select></div>
+  <div><label for="fitMode">Fit behavior</label><select id="fitMode"><option value="none">Exact size or explain overflow</option><option value="downscale" selected>Preserve size; shrink only</option><option value="fit">Fill page</option></select><p class="control-note">Generate first even when the note is larger than the page. Adjust page size, font size, or fit behavior afterward.</p></div>
   <div><label for="align">Horizontal alignment</label><select id="align"><option>center</option><option>left</option><option>right</option></select></div>
 </div>
 <div class="row">
