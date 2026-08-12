@@ -9,6 +9,7 @@ still making common Word-style typefaces available on each user's computer.
 from __future__ import annotations
 
 from pathlib import Path
+import string
 
 
 COMMON_FONT_FAMILIES = (
@@ -65,6 +66,15 @@ FONT_ALIASES = {
     "Hiragino Sans GB": "/System/Library/Fonts/Hiragino Sans GB.ttc",
 }
 
+# The typeface picker is for notes, not every symbol font installed on macOS.
+# Keep the characters most likely to occur in a note so a selected family
+# cannot fail later on ordinary punctuation or numbers.
+NOTE_CHARACTERS = frozenset(
+    string.ascii_letters
+    + string.digits
+    + " .,!?;:'\"()-—’"
+)
+
 
 def resolve_font_family(family: str) -> str | None:
     """Return an installed font path for ``family`` without fallback."""
@@ -81,18 +91,30 @@ def resolve_font_family(family: str) -> str | None:
     return path if Path(path).is_file() else None
 
 
+def supports_note_characters(font_path: str) -> bool:
+    """Return whether a font can draw the normal characters used in notes."""
+
+    from matplotlib.ft2font import FT2Font
+
+    try:
+        charmap = FT2Font(font_path).get_charmap()
+    except Exception:
+        return False
+    return all(ord(character) in charmap for character in NOTE_CHARACTERS)
+
+
 def installed_font_families() -> tuple[str, ...]:
     """Return unique family names known to the local Matplotlib font index."""
 
-    from matplotlib import font_manager
-
-    families = {entry.name for entry in font_manager.fontManager.ttflist if entry.name}
-    # Put familiar choices first, then expose the rest for users with larger
-    # language/font installations.  The UI can therefore support more than a
-    # hard-coded handful without shipping font files in the repository.
-    preferred = [family for family in COMMON_FONT_FAMILIES if resolve_font_family(family)]
-    remaining = sorted(families - set(preferred), key=str.casefold)
-    return tuple(preferred + remaining)
+    # Only expose curated, note-friendly families. The previous long tail of
+    # every installed family included symbol fonts such as Noto Sans Linear B,
+    # which cannot draw ordinary punctuation and digits.
+    return tuple(
+        family
+        for family in COMMON_FONT_FAMILIES
+        if (path := resolve_font_family(family)) is not None
+        and supports_note_characters(path)
+    )
 
 
 def font_library_entries() -> list[dict[str, str]]:
