@@ -1,10 +1,10 @@
-"""Runtime integration fixes for Studio 2.
+"""Runtime integration fixes for the image workspace.
 
 This module keeps Studio-specific behavior cohesive without weakening the shared
 machine safety contract. It fixes three integration issues:
 
 1. Studio expert geometry limits must propagate through vector cleanup and
-   shading outlines instead of being stopped by legacy 20k defaults.
+   shading outlines instead of being stopped by obsolete 20k defaults.
 2. Raster/style geometry uses image coordinates (Y down), while machine space
    uses Cartesian coordinates (Y up). Studio mirrors image geometry once before
    page placement so the physical plot and exact preview match the source image.
@@ -22,7 +22,7 @@ from .models import Polylines
 from .vector_cleanup import VectorCleanupConfig
 
 def _patch_large_job_limits() -> None:
-    """Make legacy cleanup defaults act as hard guards inside Studio style rendering."""
+    """Make obsolete cleanup defaults respect the current hard guards."""
 
     original_cleanup = fast_cleanup.cleanup_polylines_fast
 
@@ -57,10 +57,10 @@ def _patch_large_job_limits() -> None:
     pen_shading._outline = studio_outline
 
 
-def _patch_image_orientation(studio2: ModuleType) -> None:
+def _patch_image_orientation(image_engine: ModuleType) -> None:
     """Convert image-space Y-down geometry to machine-space Y-up exactly once."""
 
-    original_place = studio2.place_on_page
+    original_place = image_engine.place_on_page
 
     def place_image_geometry(polylines, page, layout=None, machine=None):
         drawable = [line for line in polylines if len(line) >= 2]
@@ -73,4 +73,4 @@ def _patch_image_orientation(studio2: ModuleType) -> None:
         upright = [[(x, axis - y) for x, y in line] for line in polylines]
         return original_place(upright, page, layout, machine)
 
-    studio2.place_on_page = place_image_geometry
+    image_engine.place_on_page = place_image_geometry

@@ -218,6 +218,15 @@ void handleUploadChunk() {
     uploadError = "";
     uploadBytes = 0;
 
+    if (!uploadDraftMode && server.hasArg("safe_z_up_mm")) {
+      const float requestedSafeZ = server.arg("safe_z_up_mm").toFloat();
+      if (!jobRunner.setSafeZUpMm(requestedSafeZ)) {
+        uploadFailed = true;
+        uploadError = "Pen lift height must be at least 5 mm and within the Z limit.";
+        return;
+      }
+    }
+
     if (jobRunner.busy()) {
       uploadFailed = true;
       uploadError = "Cannot replace a job while hardware motion is active.";

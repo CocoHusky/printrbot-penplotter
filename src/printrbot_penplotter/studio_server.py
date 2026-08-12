@@ -6,26 +6,25 @@ from pathlib import Path
 
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from . import studio2 as studio2_module
+from . import image_engine
 from .geometry import MAX_POINTS, MAX_STROKES
-from . import studio2_fixes, studio2_v3
+from . import image_workspace, image_workspace_fixes
 from .web import app
 
-# Preserve the Studio-only large-job cleanup propagation. Studio 2.1 owns the
-# final orientation transform and persistent action bar itself, so do not apply
-# the older HTML/orientation monkey patches here.
-studio2_fixes._patch_large_job_limits()
-studio2_fixes._patch_image_orientation(studio2_module)
-# request.form() returns Starlette's UploadFile instance; Studio 2.1 accepts it
-# directly while still passing it to the established FastAPI render function.
-studio2_v3.UploadFile = StarletteUploadFile
+# Preserve the image-workspace large-job cleanup propagation. The current
+# workspace owns the final orientation transform and persistent action bar.
+image_workspace_fixes._patch_large_job_limits()
+image_workspace_fixes._patch_image_orientation(image_engine)
+# request.form() returns Starlette's UploadFile instance; the workspace accepts
+# it directly while still passing it to the shared engine render function.
+image_workspace.UploadFile = StarletteUploadFile
 
-# Interactive Auto maps balanced to the legacy quick render path. Keep that
+# Interactive Auto maps balanced to the quick engine render path. Keep that
 # browser-preview raster genuinely small so normal photographs do not spend
 # minutes in tracing/cleanup. Manual balanced/best remain 720/960 px.
-studio2_v3.legacy._WORKING_DIMENSION["quick"] = 320
+image_workspace.engine._WORKING_DIMENSION["quick"] = 320
 
-studio2_router = studio2_v3.router
+studio2_router = image_workspace.router
 
 app.include_router(studio2_router)
 
@@ -52,10 +51,10 @@ _configure_local_neural_worker()
 
 
 def _validate_studio_runtime() -> None:
-    """Refuse to start Studio with the legacy 20k shared geometry guard."""
+    """Refuse to start with the obsolete 20k shared geometry guard."""
     if MAX_STROKES < 200_000 or MAX_POINTS < 20_000_000:
         raise RuntimeError(
-            "Studio 2 runtime is using legacy geometry limits "
+            "Image workspace is using obsolete geometry limits "
             f"({MAX_STROKES:,} strokes / {MAX_POINTS:,} points). "
             "Reinstall the current repo with: python -m pip install -e '.[dev]'"
         )

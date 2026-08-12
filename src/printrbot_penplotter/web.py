@@ -121,8 +121,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #preview { margin-top:16px; }
 button.secondary { background:#6c756f; }
 button.safe { background:#8a5a2b; }
-#preview { background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
+#preview { position:relative; background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
 #preview svg { width:100%; height:auto; max-height:80vh; }
+.preview-content { width:100%; display:grid; place-items:center; }
+.preview-notice { display:none; position:absolute; z-index:2; top:12px; left:50%; transform:translateX(-50%); width:max-content; max-width:calc(100% - 24px); padding:7px 12px; border:1px solid #aa7b35; border-radius:999px; background:rgba(255,248,224,.95); color:#684b1f; font-size:12px; font-weight:700; box-shadow:0 2px 8px rgba(56,48,35,.12); }
+#preview.is-stale .preview-notice { display:block; }
 .preview-legend { margin:8px 0 0; color:#66706d; font-size:12px; }
 pre { white-space:pre-wrap; max-height:250px; overflow:auto; color:#9ed1ff; }
 .status { min-height:24px; color:#2d6155; margin-top:10px; }
@@ -195,7 +198,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 </div>
 </section>
-<section class="card" id="preview">Preview will appear here.</section>
+<section class="card" id="preview"><div class="preview-notice" id="previewNotice" role="status">Changes waiting — render to update</div><div class="preview-content" id="previewContent"><div class="placeholder">Preview will appear here.</div></div></section>
 <p class="preview-legend"><strong>Preview:</strong> black solid lines are ink paths; blue dashed lines show pen-up travel and are not drawn.</p>
 </div>
 <script>
@@ -207,7 +210,7 @@ const byId = id => document.getElementById(id);
 const noteStorageKey = 'printrbot-note-draft';
 function saveNote(){ localStorage.setItem(noteStorageKey,byId('text').value); byId('status').textContent='Note saved locally on this computer.'; }
 const savedNote=localStorage.getItem(noteStorageKey); if(savedNote)byId('text').value=savedNote;
-byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,byId('text').value);syncTypefaceForText();byId('status').textContent='Draft saved locally.';});
+byId('text').addEventListener('input',()=>{localStorage.setItem(noteStorageKey,byId('text').value);syncTypefaceForText();byId('status').textContent='Draft saved locally.';markPreviewStale();});
 function optionalNumber(id){ const value=byId(id).value.trim(); return value===''?null:Number(value); }
 function bindRange(numberId, rangeId){ const number=byId(numberId), range=byId(rangeId); const sync=value=>{ number.value=value; range.value=value; }; number.addEventListener('input',()=>sync(number.value)); range.addEventListener('input',()=>sync(range.value)); }
 function setControl(id,value){ byId(id).value=value; const range=byId(id+'Range'); if(range) range.value=value; }
@@ -260,33 +263,34 @@ async function postJson(url, body, signal){
  return data;
 }
 function showJob(data){
- byId('preview').innerHTML=data.preview_svg; latestGcode=data.gcode;
+ byId('previewContent').innerHTML=data.preview_svg; latestGcode=data.gcode;
+ byId('preview').classList.remove('is-stale');
  byId('downloadButton').disabled=!latestGcode;
  byId('meta').textContent=JSON.stringify(data.metadata,null,2);
  const warnings=data.metadata?.neural_text_warnings||[];
  byId('status').textContent=warnings.length?'Ready, with text cleanup: '+warnings.join(' '):'Ready: preview and G-code use the same machine-space paths.';
 }
 function markPreviewStale(){
- if(!latestGcode) return;
- latestGcode='';
- byId('downloadButton').disabled=true;
- byId('preview').innerHTML='<div class="placeholder">Settings changed. Render again to update the preview.</div>';
- byId('status').textContent='Settings changed. Render again to update the preview.';
+ if(!latestGcode){
+  byId('status').textContent='Changes made. Render to create the preview.';
+  return;
+ }
+ byId('preview').classList.add('is-stale');
+ byId('status').textContent='Changes made. Showing the previous render; render again to update it.';
 }
 function cancelRender(){
  if(renderAbortController) renderAbortController.abort();
 }
 async function renderJob(){
  const button=byId('renderButton'); const cancel=byId('cancelButton');
- renderAbortController=new AbortController(); button.disabled=true; cancel.hidden=false; byId('downloadButton').disabled=true;
+ renderAbortController=new AbortController(); button.disabled=true; cancel.hidden=false;
  const started=Date.now();
  const updateStatus=()=>byId('status').textContent='Rendering your note… '+((Date.now()-started)/1000).toFixed(1)+' s';
  updateStatus(); renderTimer=setInterval(updateStatus,250);
  try { showJob(await postJson('/api/render',payload(),renderAbortController.signal)); }
  catch(error){
-  latestGcode='';
-  if(error.name==='AbortError') byId('status').textContent='Render stopped. You can change settings or render again.';
-  else byId('status').textContent='Could not render this note: '+error.message;
+  if(error.name==='AbortError') byId('status').textContent=latestGcode?'Render stopped. The previous preview is still shown.':'Render stopped. You can render again.';
+  else byId('status').textContent=latestGcode?'Could not render this note: '+error.message+' The previous preview is still shown.':'Could not render this note: '+error.message;
  }
  finally { clearInterval(renderTimer); renderTimer=null; renderAbortController=null; button.disabled=false; cancel.hidden=true; }
 }

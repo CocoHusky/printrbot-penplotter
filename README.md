@@ -16,11 +16,11 @@ A Printrboard remains responsible for real-time motion, while a Python applicati
 
 The project makes written communication more accessible. A typed message can become a physical pen-written note in English, Chinese, Japanese, and other languages when the matching centerline font pack is installed. The same pipeline can prepare images and line art. It does not physically erase ink from paper; removing existing marks still requires a separate erasing tool.
 
-## Release 1.0 milestone
+## Project focus: an integrated communication machine
 
-This public milestone started with a **$20 used printer** and a **three-day build window** for the software UART connection, local bridge, and plotting workflow.
+This project started with a **$20 used printer** and a **three-day build window** for the software UART connection, local bridge, and plotting workflow. The larger goal is to take old hardware, understand its mechanical and electrical limits, and make it useful for new everyday tasks at home.
 
-The goal is deliberately practical: see how far a small amount of hardware and focused software can go toward useful communication. Release 1.0 brings together:
+The goal is deliberately practical: connect the full path from a person’s words to a safe physical mark. The current release brings together:
 
 - useful images and text on paper;
 - English, Chinese, Japanese, and other installed language font packs;
@@ -28,6 +28,8 @@ The goal is deliberately practical: see how far a small amount of hardware and f
 - clean robotic single-line lettering;
 - image-derived line art and shading; and
 - a local phone workflow for preparing and printing a message.
+
+The important boundary is the integration itself: the Python application creates and previews the job, the ESP32 provides a simple local interface and stores the validated file, the level shifter protects the UART connection, and the Printrboard/Marlin firmware performs the real-time motion. Each layer has a clear responsibility and a visible handoff for daily use.
 
 This is a working public milestone, not a claim that the hardware is a finished commercial product. The project remains in active development, and every new machine setup still needs an air plot and physical safety check.
 
@@ -38,7 +40,7 @@ The repository has one shared geometry pipeline with separate input adapters:
 | Part | Responsibility |
 | --- | --- |
 | `web.py` | Write workspace, request validation, preview, render, download, and stop control. |
-| `studio2.py` / `studio2_v3.py` | Guided image workspace and image-processing controls. |
+| `image_workspace.py` + `image_engine.py` | Current guided image workspace and its shared image-processing backend. `image_workspace.py` owns the public route; `image_engine.py` supplies processing and geometry generation. |
 | `inputs.py` | Chooses the text, image, outline, or neural input adapter. |
 | `writing.py` | Places authored centerline glyphs, spacing, wrapping, variants, and stroke order. |
 | `stroke_fonts.py` | Built-in centerline fonts: robot, hand, and Hershey families. |
@@ -101,7 +103,7 @@ This keeps the input flexible while converting every source into the same intern
 
 ### 2. Choose how it should look
 
-For text, choose clean Hershey Script centerlines for handwriting-style notes or robot lettering for technical marks. For images, choose grayscale, black-and-white, line-art, silhouette, or pen-shading processing.
+For text, choose clean Hershey Script or Graves ML centerlines for handwriting-style notes, or robot lettering for technical marks. For images, choose grayscale, black-and-white, line-art, silhouette, contour, or pen-shading processing.
 
 This separates appearance from machine movement. A text font or image style describes the marks; it does not directly control the printer.
 
@@ -143,11 +145,20 @@ The text path does not rasterize or outline a typeface:
 
 This is why robot lettering, hand-style lettering, and multilingual writing can share the same machine pipeline: they all end as pen paths.
 
-### Text lettering modes
+### Text lettering modes and ML handwriting controls
 
 - **Single-line handwriting** uses the Graves trajectory model automatically when the optional worker is installed. Its editable controls are model style, sampling bias, variation seed, and slant. Graves is stochastic generation, not a guaranteed font.
 - **Single-line robot** starts with the geometric `robot` centerline font. The selected built-in centerline font is honored, so Hershey Roman Simplex, Roman Duplex, Roman Plain, and Script can be selected and tested without being silently replaced.
 - **Experimental outline conversion** is separate from true centerline fonts. It rasterizes an installed TTF/OTF, thins it to a skeleton, extracts pen paths, and keeps glyphs on a shared baseline. It may still produce imperfect joins or doubled-looking regions because an outline does not contain the author’s original pen order.
+
+The Graves path is the ML part of the writing workflow. It generates online pen trajectories rather than tracing a filled font outline. The model parameters are deliberately exposed so the result can be tuned for a particular note, pen, and paper:
+
+- **Model style** selects the learned writing-style condition.
+- **Sampling bias** controls how strongly the model favors likely trajectories; it is not a readability score.
+- **Variation seed** makes a new sample reproducible and lets the operator compare variations.
+- **Slant** applies a predictable layout adjustment after trajectory generation.
+
+The ML output is cleaned, wrapped, baseline-separated, smoothed, scaled, previewed, and converted to the same machine-space centerline paths as the authored fonts. It is useful for natural variation, but it remains stochastic: legibility must be checked in the preview before plotting.
 
 Handwriting and robot modes do not silently fall back to outline fonts. Missing Graves characters are normalized when simple—smart quotes, dashes, ellipses, and special spaces—and unsupported punctuation is removed with a render warning. Unsupported letters or scripts produce a clear error so text is not silently lost.
 
@@ -155,9 +166,9 @@ Handwriting and robot modes do not silently fall back to outline fonts. Missing 
 
 Manual line breaks are preserved. Long Graves lines are automatically wrapped using the configured physical width and font size; each generated line receives its own baseline and line spacing. Authored centerline and experimental typed text use the same page-level wrapping controls.
 
-### Preview and stopping work
+### Preview, stale renders, and stopping work
 
-Changing lettering or layout settings clears the old preview and disables G-code download until a new render is made. While a render is running, **Stop rendering** aborts the browser request and returns the workspace to an editable state. Use `Ctrl-C` in the terminal to stop the local server itself.
+Changing lettering or layout settings keeps the last successful artwork visible and marks it **Changes waiting — render to update**. This makes it obvious that the text or settings changed while preserving the previous result for comparison. A new render replaces it and refreshes the G-code. While a render is running, **Stop rendering** aborts the browser request while preserving the previous artwork. Use `Ctrl-C` in the terminal to stop the local server itself.
 
 The optional neural model is intentionally kept outside the main package because the external checkpoint has separate licensing and heavyweight ML dependencies. The setup and worker contract are documented in [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md).
 
@@ -187,7 +198,7 @@ The grayscale values are compared with a manual or automatic threshold to create
   <img src="docs/images/studio-pointillism.png" alt="Pointillism style rendered as plot-ready marks" width="720">
 </p>
 
-The selected style turns the processed raster into plot geometry. A silhouette or contour style follows boundaries; pen shading fills darker regions with controlled strokes or dots. Styles that work directly from the mask do not require edge extraction.
+The selected style turns the processed raster into plot geometry. **Contour mode** extracts the boundaries of foreground regions and produces closed or open outline paths; it is the right choice for edges, silhouettes, logos, and object boundaries. **Centerline mode** thins stroke-like marks into one path through their middle. A silhouette or contour style follows boundaries; pen shading fills darker regions with controlled strokes or dots. Styles that work directly from the mask do not require edge extraction.
 
 ### 4. Machine output
 
@@ -283,28 +294,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-Release **1.0.13** is the final documented state of the current public milestone: text modes, experimental centerline conversion, Graves handwriting, image workflows, bridge transport, preview, and guarded G-code are documented together. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
-
-| Release | Purpose |
-| --- | --- |
-| [0.2](docs/RELEASE_0.2.md) | Safe machine foundation and physical validation |
-| [0.3](docs/RELEASE_0.3.md) | Native centerline writing engine |
-| [0.4](docs/RELEASE_0.4.md) | ESP32 local bridge |
-| [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
-| [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
-| [1.0.1](docs/RELEASE_1.0.1.md) | Public workflow plus corner-preserving centerline jitter cleanup |
-| [1.0.2](docs/RELEASE_1.0.2.md) | Graves parameter wiring and handwriting/robot mode isolation |
-| [1.0.3](docs/RELEASE_1.0.3.md) | Handwriting-only outline override isolation |
-| [1.0.4](docs/RELEASE_1.0.4.md) | Graves default handwriting, stale-preview protection, and coordinate orientation fix |
-| [1.0.5](docs/RELEASE_1.0.5.md) | Handwriting automatically selects Graves without a redundant checkbox |
-| [1.0.6](docs/RELEASE_1.0.6.md) | Preserve native Graves trajectory scale |
-| [1.0.7](docs/RELEASE_1.0.7.md) | Normalize pasted smart punctuation for Graves |
-| [1.0.8](docs/RELEASE_1.0.8.md) | Add a stop control for in-progress renders |
-| [1.0.9](docs/RELEASE_1.0.9.md) | Clean and warn on unsupported Graves text characters |
-| [1.0.10](docs/RELEASE_1.0.10.md) | Auto-wrap and baseline spacing for multi-line Graves text |
-| [1.0.11](docs/RELEASE_1.0.11.md) | Honor selected centerline fonts in robot lettering mode |
-| [1.0.12](docs/RELEASE_1.0.12.md) | Cache experimental glyph centerlines and lock baseline behavior |
-| [1.0.13](docs/RELEASE_1.0.13.md) | Final repository documentation and operating guide |
+Release **1.0.13** is the final documented repository state: text modes, ML-assisted Graves handwriting, experimental centerline conversion, image workflows including contour tracing, bridge transport, preview, and guarded G-code are documented together. Historical release notes remain in `docs/` as an audit trail; they are not separate supported versions. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 ## Documentation
 
@@ -314,9 +304,9 @@ Release **1.0.13** is the final documented state of the current public milestone
 - [`docs/ESP32_BRIDGE_HARDWARE.md`](docs/ESP32_BRIDGE_HARDWARE.md) — bridge-specific hardware details.
 - [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md) — custom centerline font packs.
 - [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md) — Graves installation, sampling, text limits, and worker protocol.
-- [`docs/RELEASE_1.0.0.md`](docs/RELEASE_1.0.0.md) — release scope, handwriting defaults, and known limits.
-- Graves controls are available under the handwriting model section. Selecting handwriting uses Graves automatically; style, sampling bias, seed, and slant affect the neural trajectory, but they do not guarantee legible letterforms.
-- [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md) — motion optimization details.
+- [`docs/RELEASE_1.0.13.md`](docs/RELEASE_1.0.13.md) — final repository documentation and operating guide.
+- Graves controls are available under the handwriting model section. Selecting handwriting uses Graves automatically; model style, sampling bias, seed, and slant affect the ML trajectory, but they do not guarantee legible letterforms.
+- [`docs/STEP_4_VECTORIZATION.md`](docs/STEP_4_VECTORIZATION.md) — centerline and contour vectorization, smoothing, and corner preservation.
 
 ## Contributing
 

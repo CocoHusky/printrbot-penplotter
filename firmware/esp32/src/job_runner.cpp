@@ -11,6 +11,15 @@ namespace plotter {
 
 JobRunner::JobRunner(PrinterBridge& bridge) : bridge_(bridge) {}
 
+bool JobRunner::setSafeZUpMm(float heightMm) {
+  if (!isfinite(heightMm) || heightMm < config::kSafeZUpMm ||
+      heightMm > config::kMachineZMaxMm) {
+    return false;
+  }
+  safeZUpMm_ = heightMm;
+  return true;
+}
+
 bool JobRunner::busy() const {
   return state_ == JobState::Running || state_ == JobState::Paused ||
          state_ == JobState::Cancelling || stopping_;
@@ -74,7 +83,7 @@ bool JobRunner::loadStoredJob(fs::FS& filesystem, const char* path, String& erro
     String line = file.readStringUntil('\n');
     ++lineNumber;
     const auto validation = protocol::validateJobSequenceLine(
-        std::string(line.c_str()), validationState);
+        std::string(line.c_str()), validationState, safeZUpMm_);
     if (!validation.accepted) {
       file.close();
       error = "Line " + String(lineNumber) + " rejected: " + validation.reason.c_str();
@@ -90,7 +99,7 @@ bool JobRunner::loadStoredJob(fs::FS& filesystem, const char* path, String& erro
     }
   }
 
-  const auto completion = protocol::validateJobCompletion(validationState);
+  const auto completion = protocol::validateJobCompletion(validationState, safeZUpMm_);
   if (!completion.accepted) {
     file.close();
     error = "Job rejected: " + String(completion.reason.c_str());
@@ -237,7 +246,7 @@ void JobRunner::driveSafeStop() {
       command = "M400";
       break;
     case 1:
-      command = "G0 Z" + String(config::kSafeZUpMm, 3) +
+      command = "G0 Z" + String(safeZUpMm_, 3) +
                 " F" + String(config::kSafeZFeedMmMin);
       break;
     case 2:

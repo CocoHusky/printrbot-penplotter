@@ -1,4 +1,4 @@
-"""Studio 2.1 wrapper: responsive auto preview, final sizing, saves, and orientation fix.
+"""Image workspace: responsive preview, final sizing, saves, and orientation fix.
 
 This module intentionally wraps the established Studio 2 rendering pipeline instead
 of duplicating image-analysis/style logic. The returned final polylines are the
@@ -18,7 +18,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 
-from . import __version__, studio2 as legacy
+from . import __version__, image_engine as engine
 from .gcode import polylines_to_gcode
 from .geometry import preview_svg, validate_polylines
 from .models import MachineConfig, PageConfig, PenConfig, Polylines
@@ -183,7 +183,7 @@ def _final_size_transform(
 
 @router.get("/studio2", response_class=HTMLResponse)
 def studio2() -> str:
-    html = legacy.STUDIO2_HTML
+    html = engine.STUDIO2_HTML
     size_controls = r'''
 <div class="group" id="finalSize"><h3>Final drawing size</h3>
 <label>Size mode</label><select id="sizeMode" name="size_mode"><option value="fit_box" selected>Fit inside box</option><option value="force_exact">Force exact width × height</option><option value="natural">Keep current generated size</option></select>
@@ -501,18 +501,18 @@ async def render_studio2_stage(request: Request) -> dict[str, object]:
     if not isinstance(upload, UploadFile):
         raise HTTPException(400, "A source image is required.")
     stage = _str(form, "stage", "source")
-    data = await upload.read(legacy.MAX_UPLOAD_BYTES + 1)
+    data = await upload.read(engine.MAX_UPLOAD_BYTES + 1)
     if not data:
         raise HTTPException(400, "Uploaded image is empty.")
-    if len(data) > legacy.MAX_UPLOAD_BYTES:
+    if len(data) > engine.MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Image exceeds the 20 MiB studio upload limit.")
     suffix = Path(upload.filename or "upload.png").suffix or ".png"
     try:
         with tempfile.TemporaryDirectory(prefix="printrbot-studio2-stage-") as directory:
             source = Path(directory) / f"source{suffix}"
             source.write_bytes(data)
-            result = await legacy.run_in_threadpool(
-                legacy.render_studio2_stage,
+            result = await engine.run_in_threadpool(
+                engine.render_studio2_stage,
                 source,
                 stage=stage,
                 form=form,
@@ -549,7 +549,7 @@ async def render_studio2(request: Request) -> dict[str, object]:
     effective_quality = "quick" if mode == "auto" and requested_quality != "best" else requested_quality
 
     try:
-        result = await legacy.render_studio2(
+        result = await engine.render_studio2(
             file=upload,
             mode=mode,  # type: ignore[arg-type]
             style=_str(form, "style", "refined_pen_sketch"),

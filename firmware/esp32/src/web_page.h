@@ -25,6 +25,7 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 .small{font-size:13px;color:#8da3b6}.full{grid-column:1/-1}.gcode-preview{background:#071019;border:1px solid #26394b;border-radius:12px;padding:10px;min-height:300px;display:grid;place-items:center;cursor:grab;touch-action:none}.gcode-preview.dragging{cursor:grabbing}.gcode-preview svg{width:100%;height:auto;max-height:620px}.preview-stats{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.preview-stat{background:#1b2b3b;border-radius:8px;padding:7px 9px;color:#c6d8e8}.preview-warning{color:#ffb4bd;font-weight:700}.preview-key{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}.preview-key span{display:inline-flex;align-items:center;gap:5px}.swatch{width:22px;height:3px;display:inline-block}.swatch.ink{background:#65e9a5}.swatch.travel{height:0;border-top:2px dashed #8daecc}.offset-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.offset-grid label{display:block;margin-bottom:4px}@media(max-width:760px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.offset-grid{grid-template-columns:1fr}}
 .placement-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}@media(max-width:760px){.status-summary{grid-template-columns:repeat(2,1fr)}.placement-actions{grid-template-columns:1fr}}
 .workflow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0;color:#9fb2c3}.workflow-step{border:1px solid #385069;border-radius:999px;padding:6px 10px}.workflow-arrow{color:#65e9a5}
+.validation-status{margin:10px 0 0;padding:10px 12px;border:1px solid #385069;border-radius:10px;background:#0b1621;color:#9fb2c3;font-weight:700}.validation-status.good{border-color:#2c8a63;color:#65e9a5}.validation-status.bad{border-color:#a74856;color:#ffb4bd}.validation-status.pending{border-color:#8a631b;color:#ffd166}
 </style>
 </head>
 <body><main>
@@ -74,9 +75,10 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 
 <section class="card full">
 <div class="section-kicker">Step 2</div><h2>Generate, validate, and plot</h2>
-<div class="offset-grid"><div><label for="drawSpeed">Drawing speed (mm/min)</label><input id="drawSpeed" type="number" min="60" max="7500" step="50" value="1200"></div><div><label for="travelSpeed">Travel speed (mm/min)</label><input id="travelSpeed" type="number" min="60" max="7500" step="50" value="3000"></div><div><label for="zSpeed">Pen lift speed (mm/min)</label><input id="zSpeed" type="number" min="30" max="300" step="10" value="300"></div></div>
-<p class="small">Lower drawing speed helps ink transfer. Travel speed controls pen-up moves; pen lift speed controls Z motion. Values are clamped to the bridge safety limits before validation.</p>
+<div class="offset-grid"><div><label for="drawSpeed">Drawing speed (mm/sec)</label><input id="drawSpeed" type="number" min="1" max="125" step="0.1" value="36.7"></div><div><label for="travelSpeed">Travel speed (mm/sec)</label><input id="travelSpeed" type="number" min="1" max="125" step="0.5" value="100"></div><div><label for="zSpeed">Pen lift speed (mm/sec)</label><input id="zSpeed" type="number" min="1" max="5" step="0.1" value="5"></div><div><label for="liftHeight">Pen lift height (mm)</label><input id="liftHeight" type="number" min="5" max="152.4" step="0.1" value="5"></div></div>
+<p class="small">Base speeds: drawing 2,200 mm/min, travel 6,000 mm/min, and pen lift 300 mm/min. Values are entered in mm/sec and converted to Marlin mm/min during validation.</p>
 <button onclick="generateAndValidateFinal()">Validate and store final G-code</button>
+<div id="validationStatus" class="validation-status" role="status" aria-live="polite">No final G-code validated yet.</div>
 <p class="small">The current loaded draft is validated and stored as the runnable job. Once validation succeeds, Start becomes the next action.</p>
 <div class="buttons">
 <button id="start" onclick="action('start')">Start</button>
@@ -121,7 +123,7 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 </div>
 </main>
 <script>
-const $=id=>document.getElementById(id);let latest={};
+const $=id=>document.getElementById(id);let latest={};let finalSettingsDirty=false;
 const BED={xmin:0,xmax:152.4,ymin:0,ymax:152.4,margin:8};
 function gword(line,letter){const match=line.match(new RegExp('(?:^|\\s)'+letter+'\\s*([-+]?\\d*\\.?\\d+)','i'));return match?Number(match[1]):null}
 function parseGcode(text,offsetX=0,offsetY=0){
@@ -176,6 +178,23 @@ $('offsetX').addEventListener('input',schedulePreview);$('offsetY').addEventList
 renderGcodePreview('');
 async function request(url,options={}){const r=await fetch(url,options);const t=await r.text();let d={};try{d=JSON.parse(t)}catch{d={message:t}}if(!r.ok)throw new Error(d.error||d.message||('HTTP '+r.status));return d}
 function formBody(values){const p=new URLSearchParams();Object.entries(values).forEach(([k,v])=>p.set(k,v));return p}
+function feedRateMmMin(id,min,max){const value=Number($(id).value);if(!Number.isFinite(value))throw new Error('Enter a valid '+id+' speed.');return Math.round(Math.min(max,Math.max(min,value*60)))}
+function applyBaseSpeeds(text){
+ const draw=feedRateMmMin('drawSpeed',60,7500),travel=feedRateMmMin('travelSpeed',60,7500),z=feedRateMmMin('zSpeed',60,300);
+ return text.split(/\r?\n/).map(source=>{
+  const code=source.replace(/;.*$/,'');if(!/^\s*G[01]\b/i.test(code))return source;
+  const feed=/\bZ\s*[-+]?\d*\.?\d+/i.test(code)?z:/^\s*G0\b/i.test(code)?travel:draw;
+  if(/\bF\s*[-+]?\d*\.?\d+/i.test(source))return source.replace(/\bF\s*[-+]?\d*\.?\d+/i,'F'+feed);
+  return source+' F'+feed;
+ }).join('\n');
+}
+function applyLiftHeight(text){
+ const height=Number($('liftHeight').value);if(!Number.isFinite(height)||height<5||height>152.4)throw new Error('Pen lift height must be between 5 and 152.4 mm.');
+ return text.split(/\r?\n/).map(source=>{
+  const code=source.replace(/;.*$/,'');if(!/^\s*G[01]\b/i.test(code))return source;
+  return source.replace(/(\bZ\s*)([-+]?\d*\.?\d+)/i,(match,prefix,value)=>Number(value)>0?prefix+height.toFixed(3):match);
+ }).join('\n');
+}
 async function uploadDraft(){
  try{
   const text=$('jobText').value;const file=$('jobFile').files[0];
@@ -186,10 +205,12 @@ async function uploadDraft(){
   $('message').textContent='Saving edited draft…';await request('/api/job/draft',{method:'POST',body:fd});$('message').textContent='Draft saved. Review the preview, then validate the final job.';await poll();
  }catch(e){$('message').textContent=e.message}
 }
+function setValidationStatus(message,kind=''){const node=$('validationStatus');node.textContent=message;node.className='validation-status '+kind}
+function markFinalSettingsDirty(){finalSettingsDirty=true;setValidationStatus('Speed or height changed. Validate and store the final G-code again before Start.','pending');$('message').textContent='Speed or height changed. Validate the final G-code again before plotting.';poll()}
 async function validateFinalJob(){
  try{
-  const text=$('jobText').value;if(!text.trim())throw new Error('Load or paste a G-code draft first.');const fd=new FormData();fd.append('job',new Blob([text],{type:'text/plain'}),'final.gcode');$('message').textContent='Validating final G-code…';await request('/api/job',{method:'POST',body:fd});$('message').textContent='Final G-code validated and stored. Use Start to plot it.';await poll();
- }catch(e){$('message').textContent='Final G-code rejected: '+e.message}
+  const text=$('jobText').value;if(!text.trim())throw new Error('Load or paste a G-code draft first.');const finalText=applyBaseSpeeds(applyLiftHeight(text));$('jobText').value=finalText;renderGcodePreview(finalText);const fd=new FormData();fd.append('safe_z_up_mm',$('liftHeight').value);fd.append('job',new Blob([finalText],{type:'text/plain'}),'final.gcode');setValidationStatus('Validating final G-code…','pending');$('message').textContent='Validating final G-code…';await request('/api/job',{method:'POST',body:fd});finalSettingsDirty=false;setValidationStatus('Final G-code validated and stored. Use Start to plot it.','good');$('message').textContent='Final G-code validated and stored. Use Start to plot it.';await poll();
+ }catch(e){setValidationStatus('Final G-code rejected: '+e.message,'bad');$('message').textContent='Final G-code rejected: '+e.message}
 }
 async function action(name){try{await request('/api/job/'+name,{method:'POST'});await poll()}catch(e){$('message').textContent=e.message}}
 async function emergency(){if(!confirm('Send M112 immediately? The Printrboard may require reset.'))return;try{await request('/api/emergency',{method:'POST'});await poll()}catch(e){$('message').textContent=e.message}}
@@ -198,10 +219,11 @@ async function saveWifi(){try{await request('/api/wifi',{method:'POST',headers:{
 function cls(state){return ['failed','emergency'].includes(state)?'value bad':['paused','cancelling'].includes(state)?'value warn':['ready','running','completed'].includes(state)?'value good':'value'}
 async function poll(){
  try{const s=await request('/api/status');latest=s;$('firmware').textContent=s.firmware;$('wifi').textContent=s.wifi_mode;$('ip').textContent=s.ip;$('printer').textContent=s.printer_connected?'responding':'no response yet';$('printer').className=s.printer_connected?'value good':'value warn';$('state').textContent=s.job.state;$('state').className=cls(s.job.state);$('commands').textContent=s.job.completed+' / '+s.job.total;$('bytes').textContent=Math.round(s.job.bytes/1024)+' KiB';$('active').textContent=s.job.active||'—';$('progress').value=s.job.progress;if(s.job.error)$('message').textContent=s.job.error;$('log').textContent=s.log.join('\n')||'No UART lines yet.';$('log').scrollTop=$('log').scrollHeight;
-  $('start').disabled=s.job.state!=='ready'&&!['completed','cancelled','failed'].includes(s.job.state);$('pause').disabled=s.job.state!=='running';$('resume').disabled=s.job.state!=='paused';$('cancel').disabled=!['ready','running','paused'].includes(s.job.state);
+  $('start').disabled=finalSettingsDirty||(s.job.state!=='ready'&&!['completed','cancelled','failed'].includes(s.job.state));$('pause').disabled=s.job.state!=='running';$('resume').disabled=s.job.state!=='paused';$('cancel').disabled=!['ready','running','paused'].includes(s.job.state);
  }catch(e){$('message').textContent='Bridge unavailable: '+e.message}
 }
 poll();setInterval(poll,1000);
+['drawSpeed','travelSpeed','zSpeed','liftHeight'].forEach(id=>$(id).addEventListener('input',markFinalSettingsDirty));
 </script>
 </body></html>
 )HTML";

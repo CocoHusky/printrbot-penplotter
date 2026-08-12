@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from printrbot_penplotter import line_art, studio2
+from printrbot_penplotter import image_engine, line_art
 from printrbot_penplotter import __version__
 from printrbot_penplotter.geometry import flip_y_in_page, place_on_page
 from printrbot_penplotter.models import LayoutConfig, MachineConfig, PageConfig
@@ -79,7 +79,7 @@ def test_studio2_version_endpoint_identifies_running_build() -> None:
 def test_studio2_image_geometry_is_mirrored_into_cartesian_y_before_placement() -> None:
     # Image coordinates are Y-down: the first point is visually above the second.
     image_line = [[(0.0, 0.0), (0.0, 10.0)]]
-    placed = studio2.place_on_page(
+    placed = image_engine.place_on_page(
         image_line,
         PageConfig(),
         LayoutConfig(fit_mode="fit"),
@@ -99,12 +99,12 @@ def test_studio_stage_preview_mirrors_placed_image_geometry_once() -> None:
         MachineConfig(),
     )
     mirrored = flip_y_in_page(placed, page)
-    # The stage preview receives image-space geometry from the legacy renderer;
+    # The stage preview receives image-space geometry from the shared engine;
     # after the shared conversion, its visually upper source point is machine-up.
     assert mirrored[0][0][1] > mirrored[0][1][1]
 
 
-def test_studio_cleanup_no_longer_stops_at_legacy_20k_soft_limit() -> None:
+def test_studio_cleanup_no_longer_stops_at_obsolete_20k_soft_limit() -> None:
     lines = [[(float(index), 0.0), (float(index), 1.0)] for index in range(20_001)]
     result = line_art.cleanup_polylines_fast(
         lines,

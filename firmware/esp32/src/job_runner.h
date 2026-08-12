@@ -23,6 +23,7 @@ class JobRunner {
  public:
   explicit JobRunner(PrinterBridge& bridge);
 
+  bool setSafeZUpMm(float heightMm);
   bool loadStoredJob(fs::FS& filesystem, const char* path, String& error);
   bool start(fs::FS& filesystem, String& error);
   bool pause(String& error);
@@ -62,6 +63,7 @@ class JobRunner {
   bool stopping_{false};
   int stopStage_{0};
   int startupStage_{2};
+  float safeZUpMm_{5.0F};
 };
 
 }  // namespace plotter

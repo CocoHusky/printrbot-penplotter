@@ -180,7 +180,10 @@ inline ValidationResult validateJobLine(std::string line) {
   return result;
 }
 
-inline ValidationResult validateJobSequenceLine(std::string line, JobValidationState& state) {
+inline ValidationResult validateJobSequenceLine(
+    std::string line,
+    JobValidationState& state,
+    float safeZUpMm = config::kSafeZUpMm) {
   ValidationResult result = validateJobLine(std::move(line));
   if (!result.accepted || result.empty) return result;
 
@@ -334,7 +337,7 @@ inline ValidationResult validateJobSequenceLine(std::string line, JobValidationS
   }
 
   if ((hasX || hasY) && !state.sawXyMotion) {
-    if (!state.zPositionKnown || state.zPositionMm < config::kSafeZUpMm - tolerance) {
+    if (!state.zPositionKnown || state.zPositionMm < safeZUpMm - tolerance) {
       result.accepted = false;
       result.reason = "first XY motion requires the pen to be raised to the configured safe Z first";
       return result;
@@ -356,7 +359,9 @@ inline ValidationResult validateJobSequenceLine(std::string line, JobValidationS
   return result;
 }
 
-inline ValidationResult validateJobCompletion(const JobValidationState& state) {
+inline ValidationResult validateJobCompletion(
+    const JobValidationState& state,
+    float safeZUpMm = config::kSafeZUpMm) {
   ValidationResult result;
   result.accepted = true;
 
@@ -368,7 +373,7 @@ inline ValidationResult validateJobCompletion(const JobValidationState& state) {
       result.reason = "plotting motion requires X, Y, and Z to be homed in the same job";
       return result;
     }
-    if (!state.zPositionKnown || state.zPositionMm < config::kSafeZUpMm - 0.01F) {
+    if (!state.zPositionKnown || state.zPositionMm < safeZUpMm - 0.01F) {
       result.accepted = false;
       result.reason = "plotting job must finish with the pen at or above the configured safe Z";
       return result;
