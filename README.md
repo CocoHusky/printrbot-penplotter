@@ -2,7 +2,7 @@
 
 Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
-> **Status:** Release 1.0.2. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
+> **Status:** Release 1.0.3. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
 
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
@@ -234,7 +234,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-Release **1.0.2** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and isolated experimental Graves controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
+Release **1.0.3** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and isolated experimental Graves controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 | Release | Purpose |
 | --- | --- |
@@ -245,6 +245,7 @@ Release **1.0.2** is the public three-day build milestone that brings the text, 
 | [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
 | [1.0.1](docs/RELEASE_1.0.1.md) | Public workflow plus corner-preserving centerline jitter cleanup |
 | [1.0.2](docs/RELEASE_1.0.2.md) | Graves parameter wiring and handwriting/robot mode isolation |
+| [1.0.3](docs/RELEASE_1.0.3.md) | Handwriting-only outline override isolation |
 
 ## Documentation
 

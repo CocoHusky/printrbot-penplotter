@@ -68,6 +68,20 @@ def test_notes_api_uses_clean_centerline_handwriting() -> None:
     assert response.json()["metadata"]["stroke_font"] == "Hershey Script"
 
 
+def test_handwriting_ignores_outline_override() -> None:
+    response = client.post(
+        "/api/render",
+        json={
+            "text": "Handwriting stays centerline",
+            "preset": "human",
+            "experimental_outline_centerline": True,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["metadata"]["text_engine"] == "stroke"
+    assert response.json()["metadata"]["stroke_font"] == "Hershey Script"
+
+
 def test_robot_api_never_uses_neural_handwriting() -> None:
     response = client.post(
         "/api/render",

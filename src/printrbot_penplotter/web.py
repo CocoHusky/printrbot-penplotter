@@ -217,8 +217,10 @@ function syncTypefaceForText(){
 function syncExperimental(){
  const human=byId('preset').value==='human';
  const outline=byId('experimentalOutline').checked;
+ if(human) byId('experimentalOutline').checked=false;
  byId('experimentalFontControls').style.display=outline&&!human?'block':'none';
  byId('strokeFontControls').style.display=human||outline?'none':'block';
+ byId('experimentalControls').style.display=human?'none':'block';
  byId('handwritingControls').style.display=human?'block':'none';
 }
 function applyPreset(){
@@ -320,14 +322,14 @@ def _render(request: RenderRequest):
     stroke_font = request.stroke_font
     if request.preset == "robot":
         stroke_font = "robot"
-    if request.preset == "human" and not request.experimental_outline_centerline:
+    if request.preset == "human":
         stroke_font = "hershey-script"
     writing_backend = request.writing_backend if request.preset == "human" else "stroke"
     style = StyleConfig.for_preset(
         request.preset,
         engine=request.engine,
         writing_backend=writing_backend,
-        experimental_outline_centerline=request.experimental_outline_centerline,
+        experimental_outline_centerline=request.experimental_outline_centerline if request.preset != "human" else False,
         neural_style=request.neural_style,
         neural_bias=request.neural_bias,
         font_family=request.font_family,
