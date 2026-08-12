@@ -174,21 +174,11 @@ def text_to_polylines_with_metadata(
         or 0xAC00 <= ord(character) <= 0xD7AF
         for character in text
     )
-    if style.preset == "standard" and not has_cjk:
-        resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
-        return outline_text_to_polylines(text, style), {
-            "text_engine": "font-outline",
-            "font_family": style.font_family,
-            "font_path": resolved_font_path,
-            "font_note": "Installed font geometry preserves the typeface's dots, joins, counters, and spacing.",
-        }
     if has_cjk:
-        resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
-        return text_to_mixed_centerlines(text, style, resolved_font_path), {
-            "text_engine": "centerline-mixed",
-            "font_family": style.font_family,
-            "font_path": resolved_font_path,
-        }
+        raise ValueError(
+            "This lettering mode only supports the built-in stroke-font alphabet; "
+            "CJK characters do not have a single-line font yet."
+        )
     if style.engine == "stroke":
         result = stroke_text_to_polylines(text, style)
         return result.polylines, {

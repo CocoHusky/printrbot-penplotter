@@ -10,7 +10,6 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
-from .font_library import font_library_entries
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
 from .pipeline import render_calibration_job, render_text_job
 from .sender import MarlinSender
@@ -151,10 +150,9 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <div class="step-columns">
 <details id="letteringSettings" class="settings-panel" open>
 <summary><span class="step-kicker">STEP 2</span><strong>Choose the lettering</strong></summary>
-<div><label for="preset">Lettering type</label><select id="preset"><option value="standard">Typed centerline</option><option value="robot">Robot centerline</option><option value="human">Handwritten centerline</option></select><div class="hint" id="languageHint">Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.</div></div>
+<div><label for="preset">Lettering type</label><select id="preset"><option value="standard">Single-line technical</option><option value="robot">Single-line robot</option><option value="human">Single-line handwriting</option></select><div class="hint" id="languageHint">Only authored stroke fonts are available. Every mark is drawn once; outline fonts are not used.</div></div>
 <div class="compact-row">
   <div class="control-group"><label for="fontSize">Size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div></div>
-  <div id="typedFontControls" class="typed-font-controls"><label for="font">Typeface</label><select id="font"><option value="DejaVu Sans">Loading…</option></select></div>
 </div>
 <div id="handwritingSummary" class="hint compact-hint">Handwriting uses the model-based trajectory when it is installed.</div>
 <details id="handwritingControls" class="control-group"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
@@ -217,15 +215,14 @@ function applyPreset(){
  if(value==='standard') { byId('neuralStyle').value=9; setControl('slant',0); setControl('letterSpacing',0); byId('handwritingControls').open=false; }
  else if(value==='robot') { setControl('slant',0); setControl('letterSpacing',1.2); byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
- byId('typedFontControls').style.display=value==='standard'?'block':'none';
- byId('handwritingSummary').textContent=value==='standard'?'Typed fonts use the selected installed typeface and are converted to plotter centerlines.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Neural handwriting is unavailable. Configure the model to use this mode; no fallback will be used.'):' ';
+ byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Neural handwriting is unavailable. Configure the model to use this mode; no fallback will be used.'):'Built-in authored stroke font; installed outline fonts are not used.';
  byId('renderButton').disabled=value==='human'&&!neuralAvailable;
  syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:byId('preset').value==='standard'?byId('font').value:(hasCjk(byId('text').value)?'Hiragino Sans GB':'DejaVu Sans'), font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
+ font_family:'', font_path:null, stroke_font:byId('preset').value==='robot'||byId('preset').value==='standard'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
  line_spacing:Number(byId('lineSpacing').value),
@@ -269,12 +266,6 @@ function syncNeuralState(available){
  applyPreset();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
-fetch('/api/font-library').then(response=>response.json()).then(data=>{
- const select=byId('font'); const previous=select.value; select.innerHTML='';
- (data.fonts||[]).forEach(font=>{ const option=document.createElement('option'); option.value=font.name; option.textContent=font.name; option.title=font.description; select.appendChild(option); });
- if([...select.options].some(option=>option.value===previous)) select.value=previous;
- if(!select.options.length){ const option=document.createElement('option'); option.textContent='No installed typefaces found'; option.value=''; select.appendChild(option); }
-}).catch(()=>{ byId('font').innerHTML='<option value="DejaVu Sans">DejaVu Sans</option>'; });
 applyPreset();
 </script>
 </main></body></html>"""
@@ -361,12 +352,6 @@ def fonts() -> dict[str, object]:
             for name in available_stroke_fonts()
         ]
     }
-
-
-@app.get("/api/font-library")
-def font_library() -> dict[str, object]:
-    """List installed conventional fonts for the typed-centerline mode."""
-    return {"fonts": font_library_entries()}
 
 
 @app.get("/api/handwriting/status")

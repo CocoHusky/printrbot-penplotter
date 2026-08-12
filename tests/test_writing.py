@@ -75,7 +75,8 @@ def test_centerline_text_supports_micro_physical_sizes() -> None:
         style=StyleConfig.for_preset("standard", font_size_mm=2),
         layout=LayoutConfig(fit_mode="none"),
     )
-    assert job.metadata["text_engine"] == "font-outline"
+    assert job.metadata["text_engine"] == "stroke"
+    assert job.metadata["stroke_font"] == "robot"
 
 
 def test_typed_centerlines_are_repeatable() -> None:
@@ -132,22 +133,15 @@ def test_standard_preset_uses_typed_centerline_strokes() -> None:
     job = render_text_job("Times", style=style, layout=LayoutConfig(fit_mode="none"))
     assert style.engine == "stroke"
     assert style.font_family == "Arial"
-    assert job.metadata["text_engine"] == "font-outline"
+    assert job.metadata["text_engine"] == "stroke"
 
 
 def test_standard_typed_preset_is_centerline_only() -> None:
     style = StyleConfig.for_preset("standard", font_size_mm=10)
     job = render_text_job("Hello", style=style)
     assert style.engine == "stroke"
-    assert job.metadata["text_engine"] == "font-outline"
-    assert job.metadata["font_family"] == "Arial"
-
-
-def test_standard_typed_preset_uses_selected_installed_font_centerlines() -> None:
-    style = StyleConfig.for_preset("standard", font_family="DejaVu Sans", font_size_mm=10)
-    job = render_text_job("Arial", style=style)
-    assert job.metadata["text_engine"] == "font-outline"
-    assert job.metadata["font_family"] == "DejaVu Sans"
+    assert job.metadata["text_engine"] == "stroke"
+    assert job.metadata["stroke_font"] == "robot"
 
 
 def test_fullwidth_cjk_punctuation_uses_centerline_equivalents() -> None:
@@ -159,19 +153,18 @@ def test_fullwidth_cjk_punctuation_uses_centerline_equivalents() -> None:
 
 def test_centerline_text_rejects_unsupported_non_latin_instead_of_falling_back() -> None:
     style = StyleConfig.for_preset("standard", font_family="Arial", font_size_mm=10)
-    with pytest.raises(ValueError, match="cannot draw"):
+    with pytest.raises(ValueError, match="only supports the built-in stroke-font alphabet"):
         text_to_polylines_with_metadata("你好", style)
 
 
-def test_cjk_text_uses_skeletonized_centerlines_when_font_is_available() -> None:
+def test_cjk_text_is_rejected_until_a_stroke_font_exists() -> None:
     style = StyleConfig.for_preset(
         "standard",
         font_family="PingFang SC",
         font_size_mm=10,
     )
-    polylines, metadata = text_to_polylines_with_metadata("你好 世界", style)
-    assert polylines
-    assert metadata["text_engine"] == "centerline-mixed"
+    with pytest.raises(ValueError, match="only supports the built-in stroke-font alphabet"):
+        text_to_polylines_with_metadata("你好 世界", style)
 
 
 def test_seeded_glyph_selection_is_reproducible() -> None:
