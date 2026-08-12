@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "printrbot-penplotter"
-version = "0.6.0"
+version = "1.0.0"
 description = "Turn text, handwriting, raster images, and vector art into optimized physically placed Marlin pen-plotter jobs."
 readme = "README.md"
 license = {file = "LICENSE"}

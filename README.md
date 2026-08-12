@@ -2,7 +2,7 @@
 
 Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
-> **Status:** Public demo release, active development. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; the UI and firmware are still evolving.
+> **Status:** Release 1.0.0. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
 
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
@@ -81,7 +81,7 @@ This keeps the input flexible while converting every source into the same intern
 
 ### 2. Choose how it should look
 
-For text, choose a centerline font such as hand or robot lettering. For images, choose grayscale, black-and-white, line-art, silhouette, or pen-shading processing.
+For text, choose clean Hershey Script centerlines for handwriting-style notes or robot lettering for technical marks. For images, choose grayscale, black-and-white, line-art, silhouette, or pen-shading processing.
 
 This separates appearance from machine movement. A text font or image style describes the marks; it does not directly control the printer.
 
@@ -203,7 +203,7 @@ printrbot-plotter text "Hello from Printrbot" \
 ### Trace an image
 
 ```bash
-printrbot-penplotter image sketch.png \
+printrbot-plotter image sketch.png \
   --trace-mode contour \
   --air-plot \
   --output out/sketch.gcode \
@@ -234,7 +234,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-The numbered software history ends at **0.6.0**. **Release 1.0** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together; it is still active development rather than a hardened commercial release.
+Release **1.0.0** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 | Release | Purpose |
 | --- | --- |
@@ -243,7 +243,7 @@ The numbered software history ends at **0.6.0**. **Release 1.0** is the public t
 | [0.4](docs/RELEASE_0.4.md) | ESP32 local bridge |
 | [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
 | [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
-| 1.0 milestone | Public text, image, multilingual, phone, and bridge workflow; active development |
+| [1.0.0](docs/RELEASE_1.0.0.md) | Public text, image, multilingual, phone, and bridge workflow; clean centerline handwriting default |
 
 ## Documentation
 
@@ -253,6 +253,7 @@ The numbered software history ends at **0.6.0**. **Release 1.0** is the public t
 - [`docs/ESP32_BRIDGE_HARDWARE.md`](docs/ESP32_BRIDGE_HARDWARE.md) — bridge-specific hardware details.
 - [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md) — custom centerline font packs.
 - [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md) — optional experimental trajectory backend.
+- [`docs/RELEASE_1.0.0.md`](docs/RELEASE_1.0.0.md) — release scope, handwriting defaults, and known limits.
 - [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md) — motion optimization details.
 
 ## Contributing
