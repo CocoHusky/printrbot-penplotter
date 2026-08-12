@@ -117,6 +117,18 @@ def test_common_typed_glyphs_do_not_remain_split_into_tiny_fragments() -> None:
         assert len(paths) <= 5
 
 
+def test_experimental_dots_are_closed_drawable_circles() -> None:
+    from printrbot_penplotter.centerline_fonts import _glyph_paths
+    from printrbot_penplotter.font_library import resolve_font_family
+
+    font_path = resolve_font_family("Arial")
+    assert font_path is not None
+    for character in ".!i":
+        paths, _ = _glyph_paths(character, font_path)
+        assert paths
+        assert any(path[0] == path[-1] and len(path) >= 12 for path in paths)
+
+
 def test_typed_centerline_text_wraps_words_to_physical_width() -> None:
     style = StyleConfig.for_preset(
         "standard",

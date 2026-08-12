@@ -142,6 +142,46 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
     return paths
 
 
+def _extract_dot_components(mask: np.ndarray, *, max_area: int = 500) -> tuple[np.ndarray, list[tuple[float, float]]]:
+    """Remove isolated punctuation/dot blobs and return their pixel centers."""
+
+    remaining = mask.astype(bool).copy()
+    height, width = remaining.shape
+    visited: set[tuple[int, int]] = set()
+    centers: list[tuple[float, float]] = []
+    for start in zip(*np.where(remaining)):
+        if start in visited:
+            continue
+        component: list[tuple[int, int]] = []
+        stack = [start]
+        visited.add(start)
+        while stack:
+            row, col = stack.pop()
+            component.append((row, col))
+            for row_delta in (-1, 0, 1):
+                for col_delta in (-1, 0, 1):
+                    neighbor = (row + row_delta, col + col_delta)
+                    if (
+                        neighbor not in visited
+                        and 0 <= neighbor[0] < height
+                        and 0 <= neighbor[1] < width
+                        and remaining[neighbor]
+                    ):
+                        visited.add(neighbor)
+                        stack.append(neighbor)
+        if len(component) > max_area:
+            continue
+        for row, col in component:
+            remaining[row, col] = False
+        centers.append(
+            (
+                sum(col for _, col in component) / len(component),
+                sum(row for row, _ in component) / len(component),
+            )
+        )
+    return remaining, centers
+
+
 def _glyph_paths(character: str, font_path: str, pixel_size: int = 192) -> tuple[list[list[Point]], float]:
     font = ImageFont.truetype(font_path, pixel_size)
     padding = 10
@@ -159,13 +199,26 @@ def _glyph_paths(character: str, font_path: str, pixel_size: int = 192) -> tuple
         fill=255,
         anchor="ls",
     )
-    paths = _skeleton_paths(_skeletonize(np.asarray(image) > 0))
+    mask, dot_centers = _extract_dot_components(np.asarray(image) > 0)
+    paths = _skeleton_paths(_skeletonize(mask))
     scale = pixel_size / 1.0
     converted = [
         [((col - padding) / scale, (baseline_row - row) / scale) for row, col in path]
         for path in paths
         if len(path) >= 3
     ]
+    # A one-pixel skeleton is effectively a pen tap. Replace isolated dots
+    # with a small closed circle so punctuation and the dots on i/j visibly
+    # ink on paper while remaining a single stroke.
+    for center_x, center_y in dot_centers:
+        radius = 0.045 * scale
+        converted.append([
+            (
+                (center_x - padding + radius * np.cos(angle)) / scale,
+                (baseline_row - (center_y + radius * np.sin(angle))) / scale,
+            )
+            for angle in np.linspace(0.0, 2.0 * np.pi, 13)
+        ])
     advance = float(font.getlength(character)) / scale
     return converted, max(advance, 0.5)
 
