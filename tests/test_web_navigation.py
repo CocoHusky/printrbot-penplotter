@@ -31,7 +31,7 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert 'id="letteringSettings"' in text
     assert 'class="step-columns"' in text
     assert 'class="lettering-choices"' not in text
-    assert "Handwriting adjustments" in text
+    assert "Experimental neural handwriting" in text
     assert "Every mode draws centerlines only" in text
     assert "outline fonts are not used" in text
     assert "Experimental: convert outline fonts" in text
@@ -40,7 +40,6 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert 'class="compact-row"' in text
     assert "Generate 10 mm air calibration" not in text
     assert 'id="airPlot"' not in text
-    assert "no fallback will be used" in text
     assert 'value="downscale" selected' in text
     assert "Generate first even when the note is larger than the page" in text
     assert 'id="wrapMode"' in text
@@ -60,10 +59,10 @@ def test_notes_api_rejects_legacy_outline_text() -> None:
     assert response.status_code == 422
 
 
-def test_notes_api_rejects_handwriting_fallback() -> None:
+def test_notes_api_uses_clean_centerline_handwriting() -> None:
     response = client.post(
         "/api/render",
         json={"text": "No fallback", "preset": "human", "writing_backend": "stroke"},
     )
-    assert response.status_code == 400
-    assert "will not fall back" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["metadata"]["stroke_font"] == "Hershey Script"

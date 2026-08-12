@@ -158,8 +158,8 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <div class="compact-row">
   <div class="control-group"><label for="fontSize">Size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div></div>
 </div>
-<div id="handwritingSummary" class="hint compact-hint">Handwriting uses the model-based trajectory when it is installed.</div>
-<details id="handwritingControls" class="control-group"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
+<div id="handwritingSummary" class="hint compact-hint">Uses Hershey Script centerlines: clean single-line strokes designed for a pen plotter.</div>
+<details id="handwritingControls" class="control-group"><summary>Experimental neural handwriting</summary><div class="check"><input id="neuralExperimental" type="checkbox"><label for="neuralExperimental" style="margin:0">Use the neural model instead</label></div><p class="control-note">The optional Graves model can look more variable and less legible. The normal mode stays with the cleaner authored centerline script.</p><div class="row"><div><label for="neuralStyle">Model style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Model neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
 <details class="control-group"><summary>Spacing and wrapping</summary><div class="row"><div><label for="wrapMode">Wrap mode</label><select id="wrapMode"><option value="on" selected>Wrap to width</option><option value="off">No wrapping</option></select></div><div><label for="wrapWidth">Wrap width (mm)</label><input id="wrapWidth" type="number" min="1" max="1000" step="1" value="120" placeholder="e.g. 120"></div></div><div class="row"><div><label for="lineSpacing">Line spacing (× character height)</label><div class="range-field"><input id="lineSpacingRange" type="range" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing slider"><input id="lineSpacing" type="number" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing multiplier"></div></div><div><label for="letterSpacing">Letter spacing (mm)</label><div class="range-field"><input id="letterSpacingRange" type="range" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing slider"><input id="letterSpacing" type="number" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing in millimeters"></div></div></div><div class="row"><div><label for="wordSpacing">Word spacing (em)</label><div class="range-field"><input id="wordSpacingRange" type="range" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing slider"><input id="wordSpacing" type="number" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing in em"></div></div></div><p class="control-note">Words wrap to the selected physical width. Adjust the width or line spacing for the card.</p></details>
 <details class="control-group">
 <summary>Page and machine placement</summary>
@@ -220,15 +220,15 @@ function applyPreset(){
  if(value==='standard') { byId('neuralStyle').value=9; setControl('slant',0); setControl('letterSpacing',0); byId('handwritingControls').open=false; }
  else if(value==='robot') { setControl('slant',0); setControl('letterSpacing',1.2); byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
- byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Neural handwriting is unavailable. Configure the model to use this mode; no fallback will be used.'):'Built-in authored stroke font; installed outline fonts are not used.';
+ byId('handwritingSummary').textContent=value==='human'?'Uses Hershey Script centerlines: clean single-line strokes designed for a pen plotter.':'Built-in authored stroke font; installed outline fonts are not used.';
  byId('strokeFontControls').style.display=value==='human'?'none':'block';
  syncExperimental();
- byId('renderButton').disabled=value==='human'&&!neuralAvailable;
+ byId('renderButton').disabled=false;
  syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
- writing_backend:byId('preset').value==='human'?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
+ writing_backend:(byId('preset').value==='human'&&byId('neuralExperimental').checked)?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
  font_family:byId('experimentalOutline').checked?byId('font').value:'', font_path:null, stroke_font:byId('strokeFont').value,
  experimental_outline_centerline:byId('experimentalOutline').checked,
  stroke_font_path:null,
@@ -271,6 +271,7 @@ function downloadGcode(){
 }
 function syncNeuralState(available){
  neuralAvailable=available;
+ byId('neuralExperimental').disabled=!available;
  applyPreset();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
@@ -293,11 +294,6 @@ def _machine() -> MachineConfig:
 
 
 def _render(request: RenderRequest):
-    if request.preset == "human" and request.writing_backend != "neural":
-        raise ValueError(
-            "Neural handwriting is not available. Configure the handwriting model; "
-            "the application will not fall back to built-in hand lettering."
-        )
     machine = _machine()
     page = PageConfig(
         width_mm=request.page_width_mm,
@@ -314,6 +310,9 @@ def _render(request: RenderRequest):
         offset_x_mm=request.offset_x_mm,
         offset_y_mm=request.offset_y_mm,
     )
+    stroke_font = request.stroke_font
+    if request.preset == "human" and not request.experimental_outline_centerline:
+        stroke_font = "hershey-script"
     style = StyleConfig.for_preset(
         request.preset,
         engine=request.engine,
@@ -323,7 +322,7 @@ def _render(request: RenderRequest):
         neural_bias=request.neural_bias,
         font_family=request.font_family,
         font_path=request.font_path,
-        stroke_font=request.stroke_font,
+        stroke_font=stroke_font,
         stroke_font_path=request.stroke_font_path,
         font_size_mm=request.font_size_mm,
         line_spacing=request.line_spacing,
