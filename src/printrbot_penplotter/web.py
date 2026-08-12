@@ -263,7 +263,8 @@ function showJob(data){
  byId('preview').innerHTML=data.preview_svg; latestGcode=data.gcode;
  byId('downloadButton').disabled=!latestGcode;
  byId('meta').textContent=JSON.stringify(data.metadata,null,2);
- byId('status').textContent='Ready: preview and G-code use the same machine-space paths.';
+ const warnings=data.metadata?.neural_text_warnings||[];
+ byId('status').textContent=warnings.length?'Ready, with text cleanup: '+warnings.join(' '):'Ready: preview and G-code use the same machine-space paths.';
 }
 function markPreviewStale(){
  if(!latestGcode) return;

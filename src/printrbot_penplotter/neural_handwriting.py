@@ -32,6 +32,7 @@ _NEURAL_PUNCTUATION = str.maketrans(
         "\u00a0": " ",
     }
 )
+_NEURAL_ALLOWED = set("\x00 !\"#'(),-.0123456789:;?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
 
 @dataclass(frozen=True)
@@ -66,12 +67,29 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
     normalized_text = "".join(
         character for character in normalized_text if not unicodedata.combining(character)
     )
-    if any(ord(character) > 127 for character in normalized_text):
+    unsupported_letters = sorted(
+        {character for character in normalized_text if character not in _NEURAL_ALLOWED and character.isalpha()}
+    )
+    if unsupported_letters:
         raise RuntimeError(
             "Neural handwriting currently supports Latin characters and accents. "
             "For Chinese, Japanese, Korean, or other scripts, choose Typed font "
             "and select a matching Unicode/CJK typeface."
         )
+    removed_characters = sorted(
+        {character for character in normalized_text if character not in _NEURAL_ALLOWED and not character.isspace()}
+    )
+    text_warnings: list[str] = []
+    if removed_characters:
+        normalized_text = "".join(
+            character for character in normalized_text if character in _NEURAL_ALLOWED or character.isspace()
+        )
+        normalized_text = "\n".join(" ".join(line.split()) for line in normalized_text.splitlines())
+        shown = " ".join(repr(character) for character in removed_characters[:8])
+        more = "" if len(removed_characters) <= 8 else f" (+{len(removed_characters) - 8} more)"
+        text_warnings.append(f"Removed unsupported Graves punctuation: {shown}{more}.")
+    if not normalized_text.strip():
+        raise ValueError("Text contains no drawable Graves characters after cleanup.")
     command = config.command or os.environ.get("PRINTRBOT_HANDWRITING_WORKER")
     if not command:
         raise RuntimeError(
@@ -141,4 +159,5 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
         "neural_bias": config.bias,
         "neural_seed": config.seed,
         "neural_slant_deg": config.slant_deg,
+        "neural_text_warnings": text_warnings,
     }

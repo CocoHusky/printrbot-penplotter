@@ -86,6 +86,23 @@ def test_neural_worker_normalizes_pasted_typography(tmp_path: Path) -> None:
     assert strokes == [[(0.0, 0.0), (1.0, 1.0)]]
 
 
+def test_neural_worker_warns_when_removing_unsupported_punctuation(tmp_path: Path) -> None:
+    worker = tmp_path / "cleanup-worker.py"
+    worker.write_text(
+        "import json, sys\n"
+        "request = json.load(sys.stdin)\n"
+        "assert request['text'] == 'hello world'\n"
+        "json.dump({'strokes': [[[0, 0], [1, 1]]]}, sys.stdout)\n",
+        encoding="utf-8",
+    )
+    strokes, metadata = generate_neural_trajectories(
+        "hello @ world",
+        config=NeuralWritingConfig(command=str(worker)),
+    )
+    assert strokes == [[(0.0, 0.0), (1.0, 1.0)]]
+    assert "'@'" in metadata["neural_text_warnings"][0]
+
+
 def test_neural_worker_receives_seed_and_applies_slant(tmp_path: Path) -> None:
     worker = tmp_path / "parameter-worker.py"
     worker.write_text(
