@@ -106,10 +106,9 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
             if not isinstance(raw_point, list) or len(raw_point) != 2:
                 raise RuntimeError("Neural handwriting worker returned an invalid point.")
             x, y = float(raw_point[0]), float(raw_point[1])
-            # Worker trajectories are Cartesian by default for backwards
-            # compatibility. Graves reports image coordinates explicitly;
-            # normalize those here so preview SVG and G-code share one
-            # upright machine-space orientation.
+            # Keep Cartesian workers upright. Image-coordinate workers are
+            # flipped exactly once here so preview SVG and G-code share one
+            # machine-space orientation.
             cartesian_y = -y if coordinate_system == "image-y-down" else y
             slant = math.tan(math.radians(config.slant_deg))
             stroke.append((x + slant * cartesian_y, cartesian_y))

@@ -65,9 +65,9 @@ def main() -> int:
         coords = offsets_to_coords(offsets)
         coords = denoise(coords)
         coords[:, :2] = align(coords[:, :2])
-        # The Graves checkpoint emits image-style coordinates (Y grows down).
-        # Declare that contract in the worker response; the shared client
-        # converts it once to Printrbot's Cartesian machine coordinates.
+        # The reference renderer plots these coordinates directly in a
+        # Cartesian graph. The shared client will flip only when a worker
+        # explicitly declares image coordinates.
         current: list[list[float]] = []
         for point, eos in zip(coords, coords[:, 2]):
             current.append([float(point[0]), float(point[1])])
@@ -81,7 +81,7 @@ def main() -> int:
     json.dump(
         {
             "backend": "graves-rnn",
-            "coordinate_system": "image-y-down",
+            "coordinate_system": "cartesian-y-up",
             "seed": seed,
             "style": style,
             "bias": bias,

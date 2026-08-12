@@ -31,7 +31,9 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert 'id="letteringSettings"' in text
     assert 'class="step-columns"' in text
     assert 'class="lettering-choices"' not in text
-    assert "Experimental neural handwriting" in text
+    assert "Handwriting model" in text
+    assert "Use Graves neural handwriting" in text
+    assert 'id="neuralExperimental" type="checkbox" checked' in text
     assert "Every mode draws centerlines only" in text
     assert "outline fonts are not used" in text
     assert "Experimental: convert outline fonts" in text
