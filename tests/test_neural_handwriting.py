@@ -70,6 +70,25 @@ def test_neural_worker_normalizes_latin_accents(tmp_path: Path) -> None:
     assert strokes == [[(0.0, 0.0), (1.0, 1.0)]]
 
 
+def test_neural_worker_receives_seed_and_applies_slant(tmp_path: Path) -> None:
+    worker = tmp_path / "parameter-worker.py"
+    worker.write_text(
+        "import json, sys\n"
+        "request = json.load(sys.stdin)\n"
+        "assert request['seed'] == 23\n"
+        "assert request['slant_deg'] == 10\n"
+        "json.dump({'coordinate_system': 'image-y-down', 'strokes': [[[0, 0], [1, -2]]]}, sys.stdout)\n",
+        encoding="utf-8",
+    )
+    strokes, metadata = generate_neural_trajectories(
+        "hello",
+        config=NeuralWritingConfig(command=str(worker), seed=23, slant_deg=10),
+    )
+    assert strokes[0][1][0] > 1.3
+    assert metadata["neural_seed"] == 23
+    assert metadata["neural_slant_deg"] == 10
+
+
 def test_neural_backend_flows_through_layout_and_gcode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     worker = tmp_path / "worker.py"
     _worker(worker)

@@ -8,6 +8,7 @@ runtime. Printrbot owns the stable worker protocol and all layout/G-code code.
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -23,6 +24,8 @@ class NeuralWritingConfig:
     command: str | None = None
     style: int = 9
     bias: float = 0.75
+    seed: int = 7
+    slant_deg: float = 0.0
     timeout_seconds: float = 90.0
 
     def validate(self) -> None:
@@ -30,6 +33,8 @@ class NeuralWritingConfig:
             raise ValueError("Neural style must be between 0 and 12.")
         if not 0 <= self.bias <= 1:
             raise ValueError("Neural bias must be between 0 and 1.")
+        if not -45 <= self.slant_deg <= 45:
+            raise ValueError("Neural slant must be between -45 and 45 degrees.")
         if self.timeout_seconds <= 0:
             raise ValueError("Neural timeout must be positive.")
 
@@ -63,7 +68,15 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
     try:
         result = subprocess.run(
             argv,
-            input=json.dumps({"text": normalized_text, "style": config.style, "bias": config.bias}),
+            input=json.dumps(
+                {
+                    "text": normalized_text,
+                    "style": config.style,
+                    "bias": config.bias,
+                    "seed": config.seed,
+                    "slant_deg": config.slant_deg,
+                }
+            ),
             capture_output=True,
             text=True,
             timeout=config.timeout_seconds,
@@ -97,7 +110,9 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
             # compatibility. Graves reports image coordinates explicitly;
             # normalize those here so preview SVG and G-code share one
             # upright machine-space orientation.
-            stroke.append((x, -y if coordinate_system == "image-y-down" else y))
+            cartesian_y = -y if coordinate_system == "image-y-down" else y
+            slant = math.tan(math.radians(config.slant_deg))
+            stroke.append((x + slant * cartesian_y, cartesian_y))
         if len(stroke) >= 2:
             strokes.append(stroke)
     if not strokes:
@@ -107,4 +122,6 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
         "neural_coordinate_system": coordinate_system,
         "neural_style": config.style,
         "neural_bias": config.bias,
+        "neural_seed": config.seed,
+        "neural_slant_deg": config.slant_deg,
     }

@@ -165,7 +165,12 @@ def text_to_polylines_with_metadata(
     if style.writing_backend == "neural":
         return generate_neural_trajectories(
             text,
-            config=NeuralWritingConfig(style=style.neural_style, bias=style.neural_bias),
+            config=NeuralWritingConfig(
+                style=style.neural_style,
+                bias=style.neural_bias,
+                seed=style.seed,
+                slant_deg=style.slant_deg,
+            ),
         )
     has_cjk = any(
         0x3400 <= ord(character) <= 0x4DBF

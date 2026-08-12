@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import sys
 from pathlib import Path
 
@@ -35,10 +36,19 @@ def main() -> int:
     text = str(request.get("text", ""))
     style = int(request.get("style", 9))
     bias = float(request.get("bias", 0.75))
+    seed = int(request.get("seed", 7))
     if not text.strip():
         print("text is empty", file=sys.stderr)
         return 2
 
+    random.seed(seed)
+    np.random.seed(seed)
+    try:
+        import tensorflow.compat.v1 as tf
+
+        tf.set_random_seed(seed)
+    except ImportError:
+        pass
     hand = Hand()
     strokes: list[list[list[float]]] = []
     for line in text.splitlines() or [text]:
@@ -72,6 +82,9 @@ def main() -> int:
         {
             "backend": "graves-rnn",
             "coordinate_system": "image-y-down",
+            "seed": seed,
+            "style": style,
+            "bias": bias,
             "strokes": strokes,
         },
         sys.stdout,

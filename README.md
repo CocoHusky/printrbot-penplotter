@@ -2,7 +2,7 @@
 
 Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
-> **Status:** Release 1.0.1. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
+> **Status:** Release 1.0.2. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
 
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
@@ -234,7 +234,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-Release **1.0.1** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with path cleanup for smoother centerline lettering. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
+Release **1.0.2** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and isolated experimental Graves controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 | Release | Purpose |
 | --- | --- |
@@ -244,6 +244,7 @@ Release **1.0.1** is the public three-day build milestone that brings the text, 
 | [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
 | [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
 | [1.0.1](docs/RELEASE_1.0.1.md) | Public workflow plus corner-preserving centerline jitter cleanup |
+| [1.0.2](docs/RELEASE_1.0.2.md) | Graves parameter wiring and handwriting/robot mode isolation |
 
 ## Documentation
 
@@ -254,6 +255,7 @@ Release **1.0.1** is the public three-day build milestone that brings the text, 
 - [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md) — custom centerline font packs.
 - [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md) — optional experimental trajectory backend.
 - [`docs/RELEASE_1.0.0.md`](docs/RELEASE_1.0.0.md) — release scope, handwriting defaults, and known limits.
+- Graves controls are available only under handwriting’s experimental section. Style, sampling bias, seed, and slant affect the neural trajectory, but they do not guarantee legible letterforms; Hershey Script remains the reliable handwriting default.
 - [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md) — motion optimization details.
 
 ## Contributing
