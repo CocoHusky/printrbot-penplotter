@@ -10,7 +10,7 @@ from printrbot_penplotter.stroke_fonts import (
     get_builtin_stroke_font,
     load_stroke_font,
 )
-from printrbot_penplotter.writing import stroke_text_to_polylines
+from printrbot_penplotter.writing import _centerline_cleanup, stroke_text_to_polylines
 from printrbot_penplotter.inputs import text_to_polylines_with_metadata
 
 
@@ -91,6 +91,21 @@ def test_typed_centerlines_are_repeatable() -> None:
     first = render_text_job("Happy 60th Birthday, Dad!", style=style)
     second = render_text_job("Happy 60th Birthday, Dad!", style=style)
     assert first.gcode == second.gcode
+
+
+def test_centerline_cleanup_reduces_straight_run_jitter() -> None:
+    source = [(0.0, 0.0), (1.0, 0.08), (2.0, -0.06), (3.0, 0.07), (4.0, 0.0)]
+    cleaned = _centerline_cleanup(source, spacing=0.5)
+    assert cleaned[0] == source[0]
+    assert cleaned[-1] == source[-1]
+    assert max(abs(point[1]) for point in cleaned[1:-1]) < max(abs(point[1]) for point in source[1:-1])
+
+
+def test_centerline_cleanup_preserves_a_real_bend() -> None:
+    source = [(0.0, 0.0), (1.0, 0.02), (2.0, 0.0), (2.05, 1.0), (2.05, 2.0)]
+    cleaned = _centerline_cleanup(source, spacing=0.25)
+    assert max(point[1] for point in cleaned) > 1.8
+    assert max(point[0] for point in cleaned) < 2.2
 
 
 def test_typed_glyphs_share_a_baseline_for_descenders() -> None:

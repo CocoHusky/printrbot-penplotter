@@ -2,7 +2,7 @@
 
 Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
-> **Status:** Release 1.0.0. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
+> **Status:** Release 1.0.1. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
 
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
@@ -234,7 +234,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-Release **1.0.0** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
+Release **1.0.1** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with path cleanup for smoother centerline lettering. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 | Release | Purpose |
 | --- | --- |
@@ -243,7 +243,7 @@ Release **1.0.0** is the public three-day build milestone that brings the text, 
 | [0.4](docs/RELEASE_0.4.md) | ESP32 local bridge |
 | [0.5](docs/RELEASE_0.5.md) | Image and handwriting studio |
 | [0.6.0](docs/RELEASE_0.6.md) | Motion quality and plot optimization |
-| [1.0.0](docs/RELEASE_1.0.0.md) | Public text, image, multilingual, phone, and bridge workflow; clean centerline handwriting default |
+| [1.0.1](docs/RELEASE_1.0.1.md) | Public workflow plus corner-preserving centerline jitter cleanup |
 
 ## Documentation
 

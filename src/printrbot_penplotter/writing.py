@@ -107,6 +107,76 @@ def _connector(start: Point, end: Point) -> list[Point] | None:
     ]
 
 
+def _polyline_length(line: list[Point]) -> float:
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(line, line[1:]))
+
+
+def _resample_centerline(line: list[Point], spacing: float) -> list[Point]:
+    """Put path samples at even distances so cleanup is scale-independent."""
+
+    if len(line) < 3 or spacing <= 0:
+        return line[:]
+    total = _polyline_length(line)
+    if total <= spacing:
+        return line[:]
+    samples = max(2, int(math.ceil(total / spacing)))
+    result: list[Point] = [line[0]]
+    segment_index = 0
+    segment_start_distance = 0.0
+    segment_length = math.hypot(line[1][0] - line[0][0], line[1][1] - line[0][1])
+    for sample_index in range(1, samples):
+        target = total * sample_index / samples
+        while segment_index < len(line) - 2 and segment_start_distance + segment_length < target:
+            segment_start_distance += segment_length
+            segment_index += 1
+            segment_length = math.hypot(
+                line[segment_index + 1][0] - line[segment_index][0],
+                line[segment_index + 1][1] - line[segment_index][1],
+            )
+        fraction = 0.0 if segment_length <= 1e-12 else (target - segment_start_distance) / segment_length
+        start = line[segment_index]
+        end = line[segment_index + 1]
+        result.append((start[0] + (end[0] - start[0]) * fraction, start[1] + (end[1] - start[1]) * fraction))
+    result.append(line[-1])
+    return result
+
+
+def _centerline_cleanup(line: list[Point], *, spacing: float) -> list[Point]:
+    """Reduce repeated straight-run jitter while protecting real bends."""
+
+    if len(line) < 5 or line[0] == line[-1]:
+        return line[:]
+    points = _resample_centerline(line, spacing)
+    for _ in range(2):
+        cleaned = points[:]
+        for index in range(2, len(points) - 2):
+            before = points[index - 2]
+            current = points[index]
+            after = points[index + 2]
+            first = (before[0] - current[0], before[1] - current[1])
+            second = (after[0] - current[0], after[1] - current[1])
+            first_norm = math.hypot(*first)
+            second_norm = math.hypot(*second)
+            if first_norm <= 1e-9 or second_norm <= 1e-9:
+                continue
+            cosine = max(-1.0, min(1.0, (first[0] * second[0] + first[1] * second[1]) / (first_norm * second_norm)))
+            angle = math.degrees(math.acos(cosine))
+            # Angles below this threshold are intentional corners/turns. The
+            # broad straight-run threshold keeps r, t, y, k, x, and 4 intact.
+            if angle < 148.0:
+                continue
+            average = (
+                (points[index - 1][0] + current[0] + points[index + 1][0]) / 3.0,
+                (points[index - 1][1] + current[1] + points[index + 1][1]) / 3.0,
+            )
+            cleaned[index] = (
+                current[0] * 0.55 + average[0] * 0.45,
+                current[1] * 0.55 + average[1] * 0.45,
+            )
+        points = cleaned
+    return points
+
+
 def _word_width(
     selected: list[tuple[str, GlyphVariant, int]],
     *,
@@ -219,6 +289,10 @@ def stroke_text_to_polylines(text: str, style: StyleConfig) -> WritingResult:
                         for point in stroke
                     ]
                     for stroke in source_strokes
+                ]
+                transformed_strokes = [
+                    _centerline_cleanup(stroke, spacing=max(0.08, unit_mm * 0.08))
+                    for stroke in transformed_strokes
                 ]
                 transformed_entry = (
                     _transform_point(
