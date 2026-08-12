@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .font_library import font_library_entries
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
 from .pipeline import render_calibration_job, render_text_job
 from .sender import MarlinSender
@@ -24,6 +25,7 @@ class RenderRequest(BaseModel):
     preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
     engine: Literal["stroke"] = "stroke"
     writing_backend: Literal["stroke", "neural"] = "stroke"
+    experimental_outline_centerline: bool = False
     neural_style: int = Field(default=9, ge=0, le=12)
     neural_bias: float = Field(default=0.75, ge=0, le=1)
     font_family: str = "DejaVu Sans"
@@ -154,7 +156,8 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <div class="compact-row">
   <div class="control-group"><label for="fontSize">Size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div></div>
 </div>
-<div id="handwritingSummary" class="hint compact-hint">Handwriting uses the model-based trajectory when it is installed.</div>
+<div id="handwritingSummary" class="hint compact-hint">Built-in authored stroke font; installed outline fonts are not used.</div>
+<details class="control-group" id="experimentalControls"><summary>Experimental: outline-font conversion</summary><div class="check"><input id="experimentalOutline" type="checkbox"><label for="experimentalOutline" style="margin:0">Enable experimental outline-font conversion</label></div><p class="control-note">Exposes installed fonts such as Arial and Courier. They are outline fonts converted into plot paths, not true authored centerline fonts, so letters may have doubled edges or imperfect joins.</p><div id="experimentalFontControls" style="display:none"><label for="font">Installed outline font</label><select id="font"><option value="DejaVu Sans">Loading…</option></select></div></details>
 <details id="handwritingControls" class="control-group"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
 <details class="control-group"><summary>Spacing and wrapping</summary><div class="row"><div><label for="wrapMode">Wrap mode</label><select id="wrapMode"><option value="on" selected>Wrap to width</option><option value="off">No wrapping</option></select></div><div><label for="wrapWidth">Wrap width (mm)</label><input id="wrapWidth" type="number" min="1" max="1000" step="1" value="120" placeholder="e.g. 120"></div></div><div class="row"><div><label for="lineSpacing">Line spacing (× character height)</label><div class="range-field"><input id="lineSpacingRange" type="range" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing slider"><input id="lineSpacing" type="number" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing multiplier"></div></div><div><label for="letterSpacing">Letter spacing (mm)</label><div class="range-field"><input id="letterSpacingRange" type="range" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing slider"><input id="letterSpacing" type="number" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing in millimeters"></div></div></div><div class="row"><div><label for="wordSpacing">Word spacing (em)</label><div class="range-field"><input id="wordSpacingRange" type="range" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing slider"><input id="wordSpacing" type="number" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing in em"></div></div></div><p class="control-note">Words wrap to the selected physical width. Adjust the width or line spacing for the card.</p></details>
 <details class="control-group">
@@ -208,8 +211,9 @@ function setControl(id,value){ byId(id).value=value; const range=byId(id+'Range'
 bindRange('fontSize','fontSizeRange'); bindRange('lineSpacing','lineSpacingRange'); bindRange('letterSpacing','letterSpacingRange'); bindRange('wordSpacing','wordSpacingRange');
 function hasCjk(text){ return /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/u.test(text); }
 function syncTypefaceForText(){
- byId('languageHint').textContent=hasCjk(byId('text').value)?'CJK detected. A compatible installed font is converted to centerlines; no outline fallback is used.':'Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.';
+ byId('languageHint').textContent=hasCjk(byId('text').value)?'CJK is unsupported by the built-in stroke fonts.':'Every mode draws authored centerlines unless Experimental outline-font conversion is enabled.';
 }
+function syncExperimental(){ const enabled=byId('experimentalOutline').checked; byId('experimentalFontControls').style.display=enabled?'block':'none'; }
 function applyPreset(){
  const value=byId('preset').value;
  if(value==='standard') { byId('neuralStyle').value=9; setControl('slant',0); setControl('letterSpacing',0); byId('handwritingControls').open=false; }
@@ -217,12 +221,13 @@ function applyPreset(){
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
  byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Neural handwriting is unavailable. Configure the model to use this mode; no fallback will be used.'):'Built-in authored stroke font; installed outline fonts are not used.';
  byId('renderButton').disabled=value==='human'&&!neuralAvailable;
+ syncExperimental();
  syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
- writing_backend:byId('preset').value==='human'?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:'', font_path:null, stroke_font:byId('preset').value==='robot'||byId('preset').value==='standard'?'robot':'hand',
+ writing_backend:byId('preset').value==='human'?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value), experimental_outline_centerline:byId('experimentalOutline').checked,
+ font_family:byId('experimentalOutline').checked?byId('font').value:'', font_path:null, stroke_font:byId('preset').value==='robot'||byId('preset').value==='standard'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
  line_spacing:Number(byId('lineSpacing').value),
@@ -266,6 +271,11 @@ function syncNeuralState(available){
  applyPreset();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
+byId('experimentalOutline').addEventListener('change',syncExperimental);
+fetch('/api/font-library').then(response=>response.json()).then(data=>{
+ const select=byId('font'); select.innerHTML='';
+ (data.fonts||[]).forEach(font=>{ const option=document.createElement('option'); option.value=font.name; option.textContent=font.name; option.title=font.description; select.appendChild(option); });
+}).catch(()=>{});
 applyPreset();
 </script>
 </main></body></html>"""
@@ -301,6 +311,7 @@ def _render(request: RenderRequest):
         request.preset,
         engine=request.engine,
         writing_backend=request.writing_backend,
+        experimental_outline_centerline=request.experimental_outline_centerline,
         neural_style=request.neural_style,
         neural_bias=request.neural_bias,
         font_family=request.font_family,
@@ -352,6 +363,12 @@ def fonts() -> dict[str, object]:
             for name in available_stroke_fonts()
         ]
     }
+
+
+@app.get("/api/font-library")
+def font_library() -> dict[str, object]:
+    """List installed outline fonts for the explicitly experimental mode."""
+    return {"fonts": font_library_entries()}
 
 
 @app.get("/api/handwriting/status")

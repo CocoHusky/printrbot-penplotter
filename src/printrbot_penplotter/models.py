@@ -174,6 +174,7 @@ class StyleConfig:
     preset: Literal["standard", "clean", "human", "cursive", "robot"] = "human"
     engine: TextEngine = "stroke"
     writing_backend: Literal["stroke", "neural"] = "stroke"
+    experimental_outline_centerline: bool = False
     neural_style: int = 9
     neural_bias: float = 0.75
 
