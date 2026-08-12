@@ -84,4 +84,4 @@ __all__ = [
     "two_opt_stroke_order",
 ]
 
-__version__ = "1.0.10"
+__version__ = "1.0.11"

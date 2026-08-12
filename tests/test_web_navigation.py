@@ -93,3 +93,12 @@ def test_robot_api_never_uses_neural_handwriting() -> None:
     )
     assert response.status_code == 200
     assert response.json()["metadata"]["stroke_font"] == "robot"
+
+
+def test_robot_mode_honors_selected_centerline_font() -> None:
+    response = client.post(
+        "/api/render",
+        json={"text": "Mixed case", "preset": "robot", "stroke_font": "hershey-script"},
+    )
+    assert response.status_code == 200
+    assert response.json()["metadata"]["stroke_font"] == "Hershey Script"

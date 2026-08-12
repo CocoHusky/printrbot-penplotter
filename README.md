@@ -2,7 +2,7 @@
 
 Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
-> **Status:** Release 1.0.10. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
+> **Status:** Release 1.0.11. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
 
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
@@ -234,7 +234,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-Release **1.0.10** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and clearer Graves handwriting controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
+Release **1.0.11** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and clearer Graves handwriting controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 | Release | Purpose |
 | --- | --- |
@@ -253,6 +253,7 @@ Release **1.0.10** is the public three-day build milestone that brings the text,
 | [1.0.8](docs/RELEASE_1.0.8.md) | Add a stop control for in-progress renders |
 | [1.0.9](docs/RELEASE_1.0.9.md) | Clean and warn on unsupported Graves text characters |
 | [1.0.10](docs/RELEASE_1.0.10.md) | Auto-wrap and baseline spacing for multi-line Graves text |
+| [1.0.11](docs/RELEASE_1.0.11.md) | Honor selected centerline fonts in robot lettering mode |
 
 ## Documentation
 

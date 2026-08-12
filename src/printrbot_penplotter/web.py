@@ -30,7 +30,7 @@ class RenderRequest(BaseModel):
     neural_bias: float = Field(default=0.75, ge=0, le=1)
     font_family: str = "DejaVu Sans"
     font_path: str | None = None
-    stroke_font: str = "hand"
+    stroke_font: str = "robot"
     stroke_font_path: str | None = None
     seed: int = 7
     # A card-sized character height.  The value is the cap height of each
@@ -340,8 +340,6 @@ def _render(request: RenderRequest):
         offset_y_mm=request.offset_y_mm,
     )
     stroke_font = request.stroke_font
-    if request.preset == "robot":
-        stroke_font = "robot"
     if request.preset == "human":
         stroke_font = "hershey-script"
     writing_backend = request.writing_backend if request.preset == "human" else "stroke"
