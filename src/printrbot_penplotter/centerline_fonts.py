@@ -144,16 +144,25 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
 
 def _glyph_paths(character: str, font_path: str, pixel_size: int = 96) -> tuple[list[list[Point]], float]:
     font = ImageFont.truetype(font_path, pixel_size)
-    left, top, right, bottom = font.getbbox(character)
     padding = 10
-    width = max(24, right - left + 2 * padding)
-    height = max(24, bottom - top + 2 * padding)
+    ascent, descent = font.getmetrics()
+    width = max(24, int(font.getlength(character)) + 2 * padding)
+    height = max(24, ascent + descent + 2 * padding)
+    baseline_row = padding + ascent
     image = Image.new("L", (width, height), 0)
-    ImageDraw.Draw(image).text((padding - left, padding - top), character, font=font, fill=255)
+    # Render every glyph against the same font baseline. Rendering each glyph
+    # in its own bbox makes descenders such as p and g jump upward.
+    ImageDraw.Draw(image).text(
+        (padding, baseline_row),
+        character,
+        font=font,
+        fill=255,
+        anchor="ls",
+    )
     paths = _skeleton_paths(_skeletonize(np.asarray(image) > 0))
     scale = pixel_size / 1.0
     converted = [
-        [((col - padding) / scale, (height - row - padding) / scale) for row, col in path]
+        [((col - padding) / scale, (baseline_row - row) / scale) for row, col in path]
         for path in paths
         if len(path) >= 3
     ]
