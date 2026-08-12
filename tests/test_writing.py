@@ -75,7 +75,7 @@ def test_centerline_text_supports_micro_physical_sizes() -> None:
         style=StyleConfig.for_preset("standard", font_size_mm=2),
         layout=LayoutConfig(fit_mode="none"),
     )
-    assert job.metadata["text_engine"] == "font-centerline"
+    assert job.metadata["text_engine"] == "font-outline"
 
 
 def test_typed_centerlines_are_repeatable() -> None:
@@ -132,21 +132,21 @@ def test_standard_preset_uses_typed_centerline_strokes() -> None:
     job = render_text_job("Times", style=style, layout=LayoutConfig(fit_mode="none"))
     assert style.engine == "stroke"
     assert style.font_family == "Arial"
-    assert job.metadata["text_engine"] == "font-centerline"
+    assert job.metadata["text_engine"] == "font-outline"
 
 
 def test_standard_typed_preset_is_centerline_only() -> None:
     style = StyleConfig.for_preset("standard", font_size_mm=10)
     job = render_text_job("Hello", style=style)
     assert style.engine == "stroke"
-    assert job.metadata["text_engine"] == "font-centerline"
+    assert job.metadata["text_engine"] == "font-outline"
     assert job.metadata["font_family"] == "Arial"
 
 
 def test_standard_typed_preset_uses_selected_installed_font_centerlines() -> None:
     style = StyleConfig.for_preset("standard", font_family="DejaVu Sans", font_size_mm=10)
     job = render_text_job("Arial", style=style)
-    assert job.metadata["text_engine"] == "font-centerline"
+    assert job.metadata["text_engine"] == "font-outline"
     assert job.metadata["font_family"] == "DejaVu Sans"
 
 

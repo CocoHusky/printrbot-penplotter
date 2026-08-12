@@ -193,7 +193,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </div>
 </section>
 <section class="card" id="preview">Preview will appear here.</section>
-<p class="preview-legend"><strong>Preview:</strong> solid lines are the ink paths. The plotter lifts between separate strokes; those travel moves are hidden here to keep the lettering readable.</p>
+<p class="preview-legend"><strong>Preview:</strong> black solid lines are ink paths; blue dashed lines show pen-up travel and are not drawn.</p>
 </div>
 <script>
 let latestGcode = "";

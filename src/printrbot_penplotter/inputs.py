@@ -176,11 +176,11 @@ def text_to_polylines_with_metadata(
     )
     if style.preset == "standard" and not has_cjk:
         resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
-        return text_to_centerline_polylines(text, style, resolved_font_path), {
-            "text_engine": "font-centerline",
+        return outline_text_to_polylines(text, style), {
+            "text_engine": "font-outline",
             "font_family": style.font_family,
             "font_path": resolved_font_path,
-            "centerline_note": "Filled typeface skeletonized to plotter centerlines.",
+            "font_note": "Installed font geometry preserves the typeface's dots, joins, counters, and spacing.",
         }
     if has_cjk:
         resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
