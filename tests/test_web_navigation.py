@@ -24,17 +24,20 @@ def test_unified_tool_navigation_is_present_on_each_workspace() -> None:
 def test_notes_workspace_has_simple_lettering_choices() -> None:
     text = client.get("/").text
     assert "Write notes for the plotter" in text
-    assert "Robot centerline" in text
+    assert "Lettering type" in text
     assert "Typed centerline" in text
+    assert "Robot centerline" in text
     assert "Handwritten centerline" in text
     assert 'id="preset"' in text
-    assert 'class="lettering-choices"' in text
+    assert 'id="letteringSettings"' in text
+    assert 'class="lettering-choices"' not in text
     assert "Handwriting adjustments" in text
     assert "Every mode draws centerlines only" in text
     assert 'id="typedFontControls"' in text
     assert "api/font-library" in text
     assert "Font size (pt)" in text
-    assert "Generate 10 mm air calibration" in text
+    assert "Generate 10 mm air calibration" not in text
+    assert 'id="airPlot"' not in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
     assert "Rendering your note…" in text

@@ -88,7 +88,7 @@ h1 { margin-bottom:4px; letter-spacing:-.03em; } p { color:#66706d; }
 .app-tabs a { color:#59615d; text-decoration:none; padding:9px 15px; border-radius:8px; font-weight:700; font-size:13px; }
 .app-tabs a:hover { background:#f8f6f1; color:#20211f; }
 .app-tabs a.active { background:#20211f; color:#fff; }
-.grid { display:grid; grid-template-columns:minmax(320px,430px) 1fr; gap:16px; }
+.grid { display:block; }
 .card { background:#fffdf9; border:1px solid #d9d4ca; border-radius:16px; padding:16px; box-shadow:0 8px 24px rgba(56,48,35,.06); }
 .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .typed-font-controls { display:none; }
@@ -99,12 +99,16 @@ textarea { min-height:142px; resize:vertical; }
 button { margin-top:12px; background:#2d6155; color:white; font-weight:700; cursor:pointer; }
 button:disabled { opacity:.48; cursor:not-allowed; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline:3px solid #2d6155; outline-offset:2px; }
-.lettering-choices { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:6px; }
-.lettering-choice { margin:0; text-align:left; background:#0b1721; color:#c7d3dd; border:1px solid #2d6686; min-height:66px; }
-.lettering-choice strong { display:block; color:#f0f6fa; }
-.lettering-choice small { display:block; margin-top:4px; color:#9ab0c2; }
-.lettering-choice.selected { background:#193a4f; border-color:#70cfff; box-shadow:0 0 0 2px rgba(112,207,255,.25); }
-#preset { display:none; }
+.workflow-step { margin-top:16px; }
+.settings-panel { margin-top:16px; padding:0 16px 16px; background:#fffdf9; border:1px solid #d9d4ca; border-radius:16px; }
+.settings-panel > summary { padding:16px 0 4px; color:#20211f; list-style:none; }
+.settings-panel > summary::-webkit-details-marker { display:none; }
+.settings-panel > summary strong { display:block; margin-top:4px; font-size:24px; letter-spacing:-.03em; }
+.settings-panel > summary::after { content:'Show less'; float:right; color:#66706d; font-size:13px; font-weight:600; margin-top:-28px; }
+.settings-panel:not([open]) > summary::after { content:'Show settings'; }
+.settings-panel .control-group { margin-top:14px; padding-top:14px; border-top:1px solid #e5e1d8; }
+.step-kicker { color:#2d6155; font-size:12px; font-weight:800; letter-spacing:.16em; }
+#preview { margin-top:16px; }
 button.secondary { background:#6c756f; }
 button.safe { background:#8a5a2b; }
 #preview { background:#dce4eb; min-height:580px; display:grid; place-items:center; overflow:auto; }
@@ -121,7 +125,7 @@ pre { white-space:pre-wrap; max-height:250px; overflow:auto; color:#9ed1ff; }
 .control-note { margin:5px 0 0; color:#66706d; font-size:12px; }
 details { margin-top:12px; border-top:1px solid #263545; padding-top:8px; }
 summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
-@media(max-width:860px){ .grid{grid-template-columns:1fr;} #preview{min-height:350px;} }
+@media(max-width:860px){ #preview{min-height:350px;} .row{grid-template-columns:1fr;} }
 </style>
 </head>
 <body><main>
@@ -135,17 +139,17 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <label for="text">Text</label>
 <textarea id="text">Today I need to remember:</textarea>
 </div>
-<div class="workflow-step"><div class="step-kicker">STEP 2</div><h2>Choose the lettering</h2>
-<div><label>Lettering type</label><select id="preset" aria-hidden="true"><option value="standard">Typed centerline</option><option value="robot">Robot centerline</option><option value="human">Handwritten centerline</option></select><div class="lettering-choices" role="group" aria-label="Lettering type"><button type="button" class="lettering-choice" data-preset="standard"><strong>Typed centerline</strong><small>Single-stroke print lettering</small></button><button type="button" class="lettering-choice" data-preset="robot"><strong>Robot centerline</strong><small>Technical single-line strokes</small></button><button type="button" class="lettering-choice" data-preset="human"><strong>Handwritten centerline</strong><small>Natural pen trajectory</small></button></div><div class="hint" id="languageHint">Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.</div></div>
+<details id="letteringSettings" class="settings-panel" open>
+<summary><span class="step-kicker">STEP 2</span><strong>Choose the lettering</strong></summary>
+<div><label for="preset">Lettering type</label><select id="preset"><option value="standard">Typed centerline</option><option value="robot">Robot centerline</option><option value="human">Handwritten centerline</option></select><div class="hint" id="languageHint">Every mode draws centerlines only. Filled typefaces and unsupported characters are not silently converted.</div></div>
 <div class="row">
-  <div><label for="fontSize">Font size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div><p class="control-note">Uses familiar print sizes such as 8 pt, 12 pt, and 18 pt. The selected point size is converted to physical plotter scale; it controls each character, not the whole note.</p></div>
+  <div class="control-group"><label for="fontSize">Font size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div><p class="control-note">Controls character size, not the overall note.</p></div>
 </div>
 <div id="typedFontControls" class="typed-font-controls"><label for="font">Typeface</label><select id="font"><option value="DejaVu Sans">Loading installed typefaces…</option></select><p class="control-note">Uses a typeface installed on this computer. Filled glyphs are thinned into plotter centerlines; they are not outline traces.</p></div>
 <div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
-<details id="handwritingControls"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
-<details open><summary>Spacing and wrapping</summary><div class="row"><div><label for="lineSpacing">Line spacing (× character height)</label><div class="range-field"><input id="lineSpacingRange" type="range" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing slider"><input id="lineSpacing" type="number" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing multiplier"></div></div><div><label for="letterSpacing">Letter spacing (mm)</label><div class="range-field"><input id="letterSpacingRange" type="range" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing slider"><input id="letterSpacing" type="number" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing in millimeters"></div></div></div><div class="row"><div><label for="wordSpacing">Word spacing (em)</label><div class="range-field"><input id="wordSpacingRange" type="range" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing slider"><input id="wordSpacing" type="number" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing in em"></div></div><div><label for="wrapWidth">Wrap width (mm)</label><input id="wrapWidth" type="number" min="1" max="1000" step="1" value="120" placeholder="e.g. 120"></div></div><p class="control-note">The default 120 mm width creates readable card lines on the 152.4 mm bed. Set a smaller value for narrower cards. The character height stays unchanged while the note wraps.</p></details>
-</div>
-<details>
+<details id="handwritingControls" class="control-group"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
+<details open class="control-group"><summary>Spacing and wrapping</summary><div class="row"><div><label for="lineSpacing">Line spacing (× character height)</label><div class="range-field"><input id="lineSpacingRange" type="range" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing slider"><input id="lineSpacing" type="number" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing multiplier"></div></div><div><label for="letterSpacing">Letter spacing (mm)</label><div class="range-field"><input id="letterSpacingRange" type="range" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing slider"><input id="letterSpacing" type="number" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing in millimeters"></div></div></div><div class="row"><div><label for="wordSpacing">Word spacing (em)</label><div class="range-field"><input id="wordSpacingRange" type="range" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing slider"><input id="wordSpacing" type="number" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing in em"></div></div><div><label for="wrapWidth">Wrap width (mm)</label><input id="wrapWidth" type="number" min="1" max="1000" step="1" value="120" placeholder="e.g. 120"></div></div><p class="control-note">The default 120 mm width creates readable card lines on the 152.4 mm bed. Set a smaller value for narrower cards.</p></details>
+<details class="control-group">
 <summary>Page and machine placement</summary>
 <div class="row">
   <div><label for="fitMode">Fit behavior</label><select id="fitMode"><option value="none" selected>Exact size or explain overflow</option><option value="downscale">Preserve size; shrink only</option><option value="fit">Fill page</option></select></div>
@@ -160,16 +164,17 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
   <div><label for="originY">Page origin Y (mm)</label><input id="originY" type="number" value="0"></div>
 </div>
 </details>
-<div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
+<div class="control-group"><h3>Plot settings</h3>
 <div class="row"><div><label for="penTip">Pen tip width (mm)</label><input id="penTip" type="number" min="0.1" max="10" step="0.1" value="0.5"></div></div>
 <p class="control-note">When ink-contact extension is enabled below, open stroke ends are extended by half this width. Closed loops are unchanged.</p>
-<div class="check"><input id="airPlot" type="checkbox"><label for="airPlot" style="margin:0">Generate air plot (never lower pen)</label></div>
 <div class="check"><input id="contactCompensation" type="checkbox" checked><label for="contactCompensation" style="margin:0">Extend open stroke ends for pen ink contact</label></div><p class="control-note">Adds half the pen-tip width at the start and end of open strokes. Disable it for exact technical endpoints.</p>
 <div class="check"><input id="homeBeforePlot" type="checkbox" checked><label for="homeBeforePlot" style="margin:0">Home before plot and re-home X/Y at the end</label></div>
 <p class="control-note">Homing is enabled by default for hardware-safe G-code. The export adds a full G28 before movement, then a safe pen-up, M400, and X/Y re-home at the end. Turn it off only for diagnostic files.</p>
+</div>
+</details>
+<div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
 <button id="renderButton" onclick="renderJob()">Render writing preview</button>
 <button class="secondary" onclick="saveNote()">Save note locally</button>
-<button class="safe" onclick="renderCalibration()">Generate 10 mm air calibration</button>
 <button id="downloadButton" class="secondary" onclick="downloadGcode()" disabled>Download G-code</button>
 </div>
 <div class="status" id="status" role="status" aria-live="polite">Example loaded. Edit your note, then render a new preview.</div>
@@ -202,7 +207,6 @@ function applyPreset(){
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
  byId('typedFontControls').style.display=value==='standard'?'block':'none';
  byId('handwritingSummary').textContent=value==='standard'?'Typed fonts use the selected installed typeface and are converted to plotter centerlines.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
- document.querySelectorAll('.lettering-choice').forEach(button=>button.classList.toggle('selected',button.dataset.preset===value));
  syncTypefaceForText();
 }
 function payload(){ return {
@@ -219,7 +223,7 @@ function payload(){ return {
  page_origin_x_mm:Number(byId('originX').value), page_origin_y_mm:Number(byId('originY').value),
  margin_mm:8, fit_mode:byId('fitMode').value, horizontal_align:byId('align').value,
  vertical_align:'center', offset_x_mm:0, offset_y_mm:0, scale:1,
- z_up_mm:5, z_down_mm:0, pen_tip_mm:Number(byId('penTip').value), contact_compensation:byId('contactCompensation').checked, home_before_plot:byId('homeBeforePlot').checked, air_plot:byId('airPlot').checked
+ z_up_mm:5, z_down_mm:0, pen_tip_mm:Number(byId('penTip').value), contact_compensation:byId('contactCompensation').checked, home_before_plot:byId('homeBeforePlot').checked, air_plot:false
 }; }
 async function postJson(url, body){
  const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
@@ -242,11 +246,6 @@ async function renderJob(){
  catch(error){ latestGcode=''; byId('status').textContent='Could not render this note: '+error.message; }
  finally { clearInterval(renderTimer); renderTimer=null; button.disabled=false; }
 }
-async function renderCalibration(){
- byId('status').textContent='Generating safe calibration…';
- try { showJob(await postJson('/api/calibration',{size_mm:10,air_plot:true})); }
- catch(error){ byId('status').textContent=error.message; }
-}
 function downloadGcode(){
  if(!latestGcode){byId('status').textContent='Render first.';return;}
  const blob=new Blob([latestGcode],{type:'text/plain'});
@@ -263,7 +262,6 @@ fetch('/api/font-library').then(response=>response.json()).then(data=>{
  if([...select.options].some(option=>option.value===previous)) select.value=previous;
  if(!select.options.length){ const option=document.createElement('option'); option.textContent='No installed typefaces found'; option.value=''; select.appendChild(option); }
 }).catch(()=>{ byId('font').innerHTML='<option value="DejaVu Sans">DejaVu Sans</option>'; });
-document.querySelectorAll('.lettering-choice').forEach(button=>button.addEventListener('click',()=>{byId('preset').value=button.dataset.preset;applyPreset();}));
 applyPreset();
 </script>
 </main></body></html>"""
