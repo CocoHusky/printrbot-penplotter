@@ -107,38 +107,34 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
                 previous, current = current, candidate
             if len(path) >= 3:
                 paths.append(path)
-    # A junction is allowed to continue into another branch. Pairing paths at
-    # shared endpoints turns the many tiny graph edges produced by thinning
-    # into long pen strokes without drawing across empty glyph space.
-    def close(first: tuple[int, int], second: tuple[int, int]) -> bool:
-        # Do not bridge separate skeleton fragments. Those pen-down bridges
-        # are read as random marks in typed lettering; extra pen lifts are
-        # safer than inventing geometry between glyph components.
-        return first == second
-
-    changed = True
-    while changed:
-        changed = False
+    # Thinning can split one glyph into tiny graph edges at a junction. Join
+    # only the globally nearest one-pixel endpoints; a broad radius or greedy
+    # path-order join creates chords that look like random marks.
+    while len(paths) > 1:
+        closest: tuple[int, int, int, int, int] | None = None
         for first_index, first in enumerate(paths):
-            joined = False
             for second_index in range(first_index + 1, len(paths)):
                 second = paths[second_index]
-                if close(first[-1], second[0]):
-                    paths[first_index] = first + second[1:]
-                elif close(first[-1], second[-1]):
-                    paths[first_index] = first + list(reversed(second[:-1]))
-                elif close(first[0], second[0]):
-                    paths[first_index] = list(reversed(first[1:])) + second
-                elif close(first[0], second[-1]):
-                    paths[first_index] = second + first[1:]
-                else:
-                    continue
-                paths.pop(second_index)
-                changed = True
-                joined = True
-                break
-            if joined:
-                break
+                for first_end, first_point in enumerate((first[0], first[-1])):
+                    for second_end, second_point in enumerate((second[0], second[-1])):
+                        distance = max(
+                            abs(first_point[0] - second_point[0]),
+                            abs(first_point[1] - second_point[1]),
+                        )
+                        candidate = (distance, first_index, second_index, first_end, second_end)
+                        if closest is None or candidate < closest:
+                            closest = candidate
+        if closest is None or closest[0] > 4:
+            break
+        _, first_index, second_index, first_end, second_end = closest
+        first = paths[first_index]
+        second = paths[second_index]
+        if first_end == 0:
+            first = list(reversed(first))
+        if second_end == 1:
+            second = list(reversed(second))
+        paths[first_index] = first + second
+        paths.pop(second_index)
     return paths
 
 

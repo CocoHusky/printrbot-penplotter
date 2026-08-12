@@ -98,6 +98,17 @@ def test_typed_glyphs_share_a_baseline_for_descenders() -> None:
     assert p_min_y < o_min_y - 0.1
 
 
+def test_common_typed_glyphs_do_not_remain_split_into_tiny_fragments() -> None:
+    from printrbot_penplotter.centerline_fonts import _glyph_paths
+    from printrbot_penplotter.font_library import resolve_font_family
+
+    font_path = resolve_font_family("DejaVu Sans")
+    assert font_path is not None
+    for character in "4pga":
+        paths, _ = _glyph_paths(character, font_path)
+        assert len(paths) <= 5
+
+
 def test_typed_centerline_text_wraps_words_to_physical_width() -> None:
     style = StyleConfig.for_preset(
         "standard",
