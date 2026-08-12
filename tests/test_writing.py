@@ -160,6 +160,7 @@ def test_experimental_outline_font_override_is_explicit() -> None:
     )
     job = render_text_job("Arial", style=style)
     assert job.metadata["text_engine"] == "experimental-outline-centerline"
+    assert "thinned" in job.metadata["font_note"]
 
 
 def test_fullwidth_cjk_punctuation_uses_centerline_equivalents() -> None:

@@ -124,7 +124,11 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
                         candidate = (distance, first_index, second_index, first_end, second_end)
                         if closest is None or candidate < closest:
                             closest = candidate
-        if closest is None or closest[0] > 4:
+        # At the higher raster resolution used by the converter, diagonal
+        # joins can be several pixels apart even when they are one glyph
+        # stroke. Join only close endpoints; the deterministic tie-breaker
+        # prevents random-looking bridges between unrelated parts.
+        if closest is None or closest[0] > 8:
             break
         _, first_index, second_index, first_end, second_end = closest
         first = paths[first_index]
@@ -138,7 +142,7 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
     return paths
 
 
-def _glyph_paths(character: str, font_path: str, pixel_size: int = 96) -> tuple[list[list[Point]], float]:
+def _glyph_paths(character: str, font_path: str, pixel_size: int = 192) -> tuple[list[list[Point]], float]:
     font = ImageFont.truetype(font_path, pixel_size)
     padding = 10
     ascent, descent = font.getmetrics()
@@ -174,7 +178,8 @@ def text_to_centerline_polylines(text: str, style: StyleConfig, font_path: str) 
     if not text:
         raise ValueError("Text input cannot be empty.")
     scale_mm = style.font_size_mm
-    px_size = 96
+    # More pixels make diagonal strokes (K, X, 4, k) smoother before thinning.
+    px_size = 192
     font = ImageFont.truetype(font_path, px_size)
     line_height = style.font_size_mm * style.line_spacing * 1.35
     cursor_x = 0.0

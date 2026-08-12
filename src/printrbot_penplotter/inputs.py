@@ -181,11 +181,11 @@ def text_to_polylines_with_metadata(
         )
     if style.experimental_outline_centerline:
         resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
-        return outline_text_to_polylines(text, style), {
+        return text_to_centerline_polylines(text, style, resolved_font_path), {
             "text_engine": "experimental-outline-centerline",
             "font_family": style.font_family,
             "font_path": resolved_font_path,
-            "font_note": "Experimental outline conversion; not an authored single-line font.",
+            "font_note": "Experimental: outline glyphs were thinned into one-pixel centerline paths.",
         }
     if style.engine == "stroke":
         result = stroke_text_to_polylines(text, style)
