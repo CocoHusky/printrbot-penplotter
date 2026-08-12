@@ -219,7 +219,7 @@ function applyPreset(){
  const value=byId('preset').value;
  if(value==='standard') { byId('neuralStyle').value=9; setControl('slant',0); setControl('letterSpacing',0); byId('handwritingControls').open=false; }
  else if(value==='robot') { setControl('slant',0); setControl('letterSpacing',1.2); byId('handwritingControls').open=false; }
- else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
+ else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=false; }
  byId('handwritingSummary').textContent=value==='human'?'Uses Hershey Script centerlines: clean single-line strokes designed for a pen plotter.':'Built-in authored stroke font; installed outline fonts are not used.';
  byId('strokeFontControls').style.display=value==='human'?'none':'block';
  syncExperimental();
