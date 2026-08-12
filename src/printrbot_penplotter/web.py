@@ -151,6 +151,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <details id="letteringSettings" class="settings-panel" open>
 <summary><span class="step-kicker">STEP 2</span><strong>Choose the lettering</strong></summary>
 <div><label for="preset">Lettering type</label><select id="preset"><option value="robot">Single-line robot</option><option value="human">Single-line handwriting</option></select><div class="hint" id="languageHint">Only authored stroke fonts are available. Every mark is drawn once; outline fonts are not used.</div></div>
+<div id="strokeFontControls"><label for="strokeFont">Stroke font</label><select id="strokeFont"><option value="robot">Robot</option></select><div class="hint">These are vector centerline fonts. The pen traces each stroke once.</div></div>
 <div class="compact-row">
   <div class="control-group"><label for="fontSize">Size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div></div>
 </div>
@@ -216,13 +217,14 @@ function applyPreset(){
  else if(value==='robot') { setControl('slant',0); setControl('letterSpacing',1.2); byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
  byId('handwritingSummary').textContent=value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Neural handwriting is unavailable. Configure the model to use this mode; no fallback will be used.'):'Built-in authored stroke font; installed outline fonts are not used.';
+ byId('strokeFontControls').style.display=value==='human'?'none':'block';
  byId('renderButton').disabled=value==='human'&&!neuralAvailable;
  syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:'', font_path:null, stroke_font:byId('preset').value==='robot'||byId('preset').value==='standard'?'robot':'hand',
+ font_family:'', font_path:null, stroke_font:byId('strokeFont').value,
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
  line_spacing:Number(byId('lineSpacing').value),
@@ -266,6 +268,10 @@ function syncNeuralState(available){
  applyPreset();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
+fetch('/api/fonts').then(response=>response.json()).then(data=>{
+ const select=byId('strokeFont'); select.innerHTML='';
+ (data.fonts||[]).forEach(font=>{ const option=document.createElement('option'); option.value=font.name; option.textContent=font.name; option.title=font.description; select.appendChild(option); });
+}).catch(()=>{});
 applyPreset();
 </script>
 </main></body></html>"""

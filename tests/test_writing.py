@@ -15,7 +15,14 @@ from printrbot_penplotter.inputs import text_to_polylines_with_metadata
 
 
 def test_builtin_fonts_validate_and_cover_core_characters() -> None:
-    assert available_stroke_fonts() == ("hand", "robot")
+    assert available_stroke_fonts() == (
+        "hand",
+        "hershey-roman-duplex",
+        "hershey-roman-plain",
+        "hershey-roman-simplex",
+        "hershey-script",
+        "robot",
+    )
     for name in available_stroke_fonts():
         font = get_builtin_stroke_font(name)
         font.validate()

@@ -311,10 +311,50 @@ def _build_hand_font() -> StrokeFont:
     return font
 
 
+def _build_hershey_font(mapping: str, name: str, description: str) -> StrokeFont:
+    """Adapt Hershey vector glyphs into the native centerline model."""
+
+    from pyhershey import glyph_factory
+
+    glyphs: dict[str, tuple[GlyphVariant, ...]] = {}
+    for codepoint in range(33, 127):
+        character = chr(codepoint)
+        glyph = glyph_factory.from_ascii(character, mapping)
+        strokes = tuple(
+            tuple((x / 21.0, y / 21.0) for x, y in segment)
+            for segment in glyph.segments
+            if len(segment) >= 2
+        )
+        if strokes:
+            glyphs[character] = (_glyph(*strokes, advance=max(glyph.advance_width / 21.0, 0.2)),)
+
+    font = StrokeFont(
+        name=name,
+        glyphs=_freeze_glyphs(glyphs),
+        line_height=1.35,
+        fallback="?",
+        description=description,
+    )
+    font.validate()
+    return font
+
+
 _BUILTINS: Mapping[str, StrokeFont] = MappingProxyType(
     {
         "robot": _build_robot_font(),
         "hand": _build_hand_font(),
+        "hershey-roman-simplex": _build_hershey_font(
+            "roman_simplex", "Hershey Roman Simplex", "Public-domain Hershey single-line Roman strokes."
+        ),
+        "hershey-roman-duplex": _build_hershey_font(
+            "roman_duplex", "Hershey Roman Duplex", "Hershey Roman double-stroke centerline lettering."
+        ),
+        "hershey-script": _build_hershey_font(
+            "script_simplex", "Hershey Script", "Hershey single-line script strokes."
+        ),
+        "hershey-roman-plain": _build_hershey_font(
+            "roman_plain", "Hershey Roman Plain", "Hershey compact plain single-line strokes."
+        ),
     }
 )
 
