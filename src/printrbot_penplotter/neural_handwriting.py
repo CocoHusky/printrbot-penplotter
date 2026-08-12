@@ -19,6 +19,21 @@ from dataclasses import dataclass
 from .models import Point, Polylines
 
 
+_NEURAL_PUNCTUATION = str.maketrans(
+    {
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2212": "-",
+        "\u2026": "...",
+        "\u00a0": " ",
+    }
+)
+
+
 @dataclass(frozen=True)
 class NeuralWritingConfig:
     command: str | None = None
@@ -44,7 +59,10 @@ def generate_neural_trajectories(text: str, *, config: NeuralWritingConfig) -> t
     config.validate()
     if not text.strip():
         raise ValueError("Text input cannot be empty.")
-    normalized_text = unicodedata.normalize("NFKD", text)
+    # Graves was trained on a small ASCII alphabet. Normalize common pasted
+    # typography first so smart quotes, dashes, and non-breaking spaces do not
+    # make an otherwise valid Latin note fail.
+    normalized_text = unicodedata.normalize("NFKD", text).translate(_NEURAL_PUNCTUATION)
     normalized_text = "".join(
         character for character in normalized_text if not unicodedata.combining(character)
     )
