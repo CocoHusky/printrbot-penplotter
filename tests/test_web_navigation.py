@@ -38,6 +38,7 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "Font size (pt)" in text
     assert "Generate 10 mm air calibration" not in text
     assert 'id="airPlot"' not in text
+    assert "no fallback will be used" in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
     assert "Rendering your note…" in text
@@ -59,3 +60,12 @@ def test_font_library_endpoint_returns_ui_safe_installed_fonts() -> None:
 def test_notes_api_rejects_legacy_outline_text() -> None:
     response = client.post("/api/render", json={"text": "Centerline only", "engine": "outline"})
     assert response.status_code == 422
+
+
+def test_notes_api_rejects_handwriting_fallback() -> None:
+    response = client.post(
+        "/api/render",
+        json={"text": "No fallback", "preset": "human", "writing_backend": "stroke"},
+    )
+    assert response.status_code == 400
+    assert "will not fall back" in response.json()["detail"]

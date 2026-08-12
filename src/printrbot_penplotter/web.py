@@ -206,12 +206,13 @@ function applyPreset(){
  else if(value==='robot') { setControl('slant',0); setControl('letterSpacing',1.2); byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
  byId('typedFontControls').style.display=value==='standard'?'block':'none';
- byId('handwritingSummary').textContent=value==='standard'?'Typed fonts use the selected installed typeface and are converted to plotter centerlines.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
+ byId('handwritingSummary').textContent=value==='standard'?'Typed fonts use the selected installed typeface and are converted to plotter centerlines.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Neural handwriting is unavailable. Configure the model to use this mode; no fallback will be used.'):' ';
+ byId('renderButton').disabled=value==='human'&&!neuralAvailable;
  syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
- writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
+ writing_backend:byId('preset').value==='human'?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
  font_family:byId('preset').value==='standard'?byId('font').value:(hasCjk(byId('text').value)?'Hiragino Sans GB':'DejaVu Sans'), font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
@@ -272,6 +273,11 @@ def _machine() -> MachineConfig:
 
 
 def _render(request: RenderRequest):
+    if request.preset == "human" and request.writing_backend != "neural":
+        raise ValueError(
+            "Neural handwriting is not available. Configure the handwriting model; "
+            "the application will not fall back to built-in hand lettering."
+        )
     machine = _machine()
     page = PageConfig(
         width_mm=request.page_width_mm,
