@@ -57,11 +57,10 @@ def main() -> int:
         samples = hand._sample([line], biases=[bias], styles=[style])
         offsets = samples[0]
         # Match the reference renderer's cleanup before converting the model's
-        # pen-state stream into separate Printrbot polylines.  Without this,
-        # raw recurrent-model jitter is visible as doubled loops and slanted
-        # baselines in the plotter preview.
+        # pen-state stream into separate Printrbot polylines. Keep the model's
+        # native trajectory scale here; physical sizing belongs to Printrbot's
+        # later page/layout stage.
         offsets = np.asarray(offsets, dtype=float).copy()
-        offsets[:, :2] *= 1.5
         coords = offsets_to_coords(offsets)
         coords = denoise(coords)
         coords[:, :2] = align(coords[:, :2])

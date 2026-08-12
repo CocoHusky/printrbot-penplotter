@@ -31,6 +31,8 @@ handwriting automatically when the worker is installed. The **Handwriting
 model** panel exposes style 0–12, sampling bias 0–1, variation seed, and slant.
 Its points are converted to the same internal polylines used by authored
 strokes, so layout, preview, optimization, Z motion, and G-code are shared.
+The worker preserves the reference model's native trajectory scale; physical
+size is applied later by the Printrbot page/layout stage.
 
 Diffusion models such as DiffInk are not enabled yet: they are research-scale
 models with different model assets and style-reference requirements, not a
