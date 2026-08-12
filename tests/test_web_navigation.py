@@ -50,6 +50,8 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "Save note locally" in text
     assert "blue dashed lines show pen-up travel" in text
     assert "Rendering your note…" in text
+    assert 'id="cancelButton"' in text
+    assert "Render stopped. You can change settings or render again." in text
     assert "STEP 1" in text and "STEP 2" in text and "STEP 3" in text
     assert 'id="handwritingControls"' in text
     assert 'id="homeBeforePlot"' in text

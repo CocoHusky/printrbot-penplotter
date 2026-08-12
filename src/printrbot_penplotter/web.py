@@ -186,6 +186,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 </details>
 <div class="generate-panel"><div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
 <button id="renderButton" onclick="renderJob()">Render writing preview</button>
+<button id="cancelButton" class="secondary" onclick="cancelRender()" hidden>Stop rendering</button>
 <button class="secondary" onclick="saveNote()">Save note locally</button>
 <button id="downloadButton" class="secondary" onclick="downloadGcode()" disabled>Download G-code</button>
 </div>
@@ -201,6 +202,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 let latestGcode = "";
 let neuralAvailable = false;
 let renderTimer = null;
+let renderAbortController = null;
 const byId = id => document.getElementById(id);
 const noteStorageKey = 'printrbot-note-draft';
 function saveNote(){ localStorage.setItem(noteStorageKey,byId('text').value); byId('status').textContent='Note saved locally on this computer.'; }
@@ -251,8 +253,8 @@ function payload(){ return {
  vertical_align:'center', offset_x_mm:0, offset_y_mm:0, scale:1,
  z_up_mm:5, z_down_mm:0, pen_tip_mm:Number(byId('penTip').value), contact_compensation:byId('contactCompensation').checked, home_before_plot:byId('homeBeforePlot').checked, air_plot:false
 }; }
-async function postJson(url, body){
- const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+async function postJson(url, body, signal){
+ const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal});
  const data=await response.json();
  if(!response.ok) throw new Error(data.detail||'Request failed');
  return data;
@@ -270,14 +272,22 @@ function markPreviewStale(){
  byId('preview').innerHTML='<div class="placeholder">Settings changed. Render again to update the preview.</div>';
  byId('status').textContent='Settings changed. Render again to update the preview.';
 }
+function cancelRender(){
+ if(renderAbortController) renderAbortController.abort();
+}
 async function renderJob(){
- const button=byId('renderButton'); button.disabled=true; byId('downloadButton').disabled=true;
+ const button=byId('renderButton'); const cancel=byId('cancelButton');
+ renderAbortController=new AbortController(); button.disabled=true; cancel.hidden=false; byId('downloadButton').disabled=true;
  const started=Date.now();
  const updateStatus=()=>byId('status').textContent='Rendering your note… '+((Date.now()-started)/1000).toFixed(1)+' s';
  updateStatus(); renderTimer=setInterval(updateStatus,250);
- try { showJob(await postJson('/api/render',payload())); }
- catch(error){ latestGcode=''; byId('status').textContent='Could not render this note: '+error.message; }
- finally { clearInterval(renderTimer); renderTimer=null; button.disabled=false; }
+ try { showJob(await postJson('/api/render',payload(),renderAbortController.signal)); }
+ catch(error){
+  latestGcode='';
+  if(error.name==='AbortError') byId('status').textContent='Render stopped. You can change settings or render again.';
+  else byId('status').textContent='Could not render this note: '+error.message;
+ }
+ finally { clearInterval(renderTimer); renderTimer=null; renderAbortController=null; button.disabled=false; cancel.hidden=true; }
 }
 function downloadGcode(){
  if(!latestGcode){byId('status').textContent='Render first.';return;}
