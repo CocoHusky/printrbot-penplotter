@@ -78,6 +78,13 @@ def test_centerline_text_supports_micro_physical_sizes() -> None:
     assert job.metadata["text_engine"] == "font-centerline"
 
 
+def test_typed_centerlines_are_repeatable() -> None:
+    style = StyleConfig.for_preset("standard", font_size_mm=10, wrap_width_mm=120)
+    first = render_text_job("Happy 60th Birthday, Dad!", style=style)
+    second = render_text_job("Happy 60th Birthday, Dad!", style=style)
+    assert first.gcode == second.gcode
+
+
 def test_typed_centerline_text_wraps_words_to_physical_width() -> None:
     style = StyleConfig.for_preset(
         "standard",

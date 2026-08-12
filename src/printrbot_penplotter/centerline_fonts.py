@@ -67,7 +67,7 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
     def edge(a: tuple[int, int], b: tuple[int, int]) -> tuple[tuple[int, int], tuple[int, int]]:
         return (a, b) if a <= b else (b, a)
 
-    for node in nodes:
+    for node in sorted(nodes):
         for first in neighbors[node]:
             if edge(node, first) in used:
                 continue
@@ -88,7 +88,7 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
                 paths.append(path)
 
     # Closed loops have no endpoint/junction node.
-    for start in pixels:
+    for start in sorted(pixels):
         for first in neighbors[start]:
             if edge(start, first) in used:
                 continue
@@ -111,10 +111,9 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
     # shared endpoints turns the many tiny graph edges produced by thinning
     # into long pen strokes without drawing across empty glyph space.
     def close(first: tuple[int, int], second: tuple[int, int]) -> bool:
-        # Small raster gaps are artifacts of thinning, not intentional pen
-        # lifts. Joining within this radius keeps CJK glyphs compact while
-        # avoiding long bridges across separate components.
-        return max(abs(first[0] - second[0]), abs(first[1] - second[1])) <= 7
+        # Only close adjacent pixels. A larger radius can bridge separate
+        # parts of a glyph and create apparent random strokes in typed text.
+        return max(abs(first[0] - second[0]), abs(first[1] - second[1])) <= 2
 
     changed = True
     while changed:
