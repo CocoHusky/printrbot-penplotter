@@ -2,7 +2,7 @@
 
 Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
-> **Status:** Release 1.0.4. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
+> **Status:** Release 1.0.5. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
 
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
@@ -234,7 +234,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-Release **1.0.4** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and clearer Graves handwriting controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
+Release **1.0.5** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and clearer Graves handwriting controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 | Release | Purpose |
 | --- | --- |
@@ -247,6 +247,7 @@ Release **1.0.4** is the public three-day build milestone that brings the text, 
 | [1.0.2](docs/RELEASE_1.0.2.md) | Graves parameter wiring and handwriting/robot mode isolation |
 | [1.0.3](docs/RELEASE_1.0.3.md) | Handwriting-only outline override isolation |
 | [1.0.4](docs/RELEASE_1.0.4.md) | Graves default handwriting, stale-preview protection, and coordinate orientation fix |
+| [1.0.5](docs/RELEASE_1.0.5.md) | Handwriting automatically selects Graves without a redundant checkbox |
 
 ## Documentation
 
@@ -257,7 +258,7 @@ Release **1.0.4** is the public three-day build milestone that brings the text, 
 - [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md) — custom centerline font packs.
 - [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md) — optional experimental trajectory backend.
 - [`docs/RELEASE_1.0.0.md`](docs/RELEASE_1.0.0.md) — release scope, handwriting defaults, and known limits.
-- Graves controls are available under the handwriting model section. When the neural worker is installed, Graves is enabled by default; style, sampling bias, seed, and slant affect the neural trajectory, but they do not guarantee legible letterforms. Turn it off for the authored Hershey Script centerline.
+- Graves controls are available under the handwriting model section. Selecting handwriting uses Graves automatically; style, sampling bias, seed, and slant affect the neural trajectory, but they do not guarantee legible letterforms.
 - [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md) — motion optimization details.
 
 ## Contributing

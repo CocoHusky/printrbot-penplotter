@@ -26,13 +26,11 @@ export PRINTRBOT_GRAVES_SOURCE="$PWD/.external/handwriting-synthesis"
 printrbot-studio
 ```
 
-When the neural worker is installed, the normal Write notes handwriting mode
-uses Graves neural centerline handwriting by default. The **Handwriting model**
-panel exposes style 0–12, sampling bias 0–1, variation seed, and slant. The
-model can be more variable and less legible than the authored alternative.
-Turn off **Use Graves neural handwriting** to use Hershey Script. Its points
-are converted to the same internal polylines used by authored strokes, so
-layout, preview, optimization, Z motion, and G-code are shared.
+The normal Write notes handwriting mode uses Graves neural centerline
+handwriting automatically when the worker is installed. The **Handwriting
+model** panel exposes style 0–12, sampling bias 0–1, variation seed, and slant.
+Its points are converted to the same internal polylines used by authored
+strokes, so layout, preview, optimization, Z motion, and G-code are shared.
 
 Diffusion models such as DiffInk are not enabled yet: they are research-scale
 models with different model assets and style-reference requirements, not a
