@@ -66,7 +66,9 @@ def _finish_job(
     return RenderedJob(
         polylines=final,
         gcode=polylines_to_gcode(final, page, pen, machine, title=title),
-        preview_svg=preview_svg(final, page, machine),
+        # Writing previews show ink only. Pen-up travel is still emitted in
+        # G-code, but dashed travel lines make normal text look fragmented.
+        preview_svg=preview_svg(final, page, machine, show_travel=input_type != "text"),
         metadata=complete_metadata,
     )
 
