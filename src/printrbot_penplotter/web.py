@@ -150,7 +150,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <div class="step-columns">
 <details id="letteringSettings" class="settings-panel" open>
 <summary><span class="step-kicker">STEP 2</span><strong>Choose the lettering</strong></summary>
-<div><label for="preset">Lettering type</label><select id="preset"><option value="standard">Single-line technical</option><option value="robot">Single-line robot</option><option value="human">Single-line handwriting</option></select><div class="hint" id="languageHint">Only authored stroke fonts are available. Every mark is drawn once; outline fonts are not used.</div></div>
+<div><label for="preset">Lettering type</label><select id="preset"><option value="robot">Single-line robot</option><option value="human">Single-line handwriting</option></select><div class="hint" id="languageHint">Only authored stroke fonts are available. Every mark is drawn once; outline fonts are not used.</div></div>
 <div class="compact-row">
   <div class="control-group"><label for="fontSize">Size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div></div>
 </div>

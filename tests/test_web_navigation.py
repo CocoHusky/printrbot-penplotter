@@ -25,7 +25,6 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     text = client.get("/").text
     assert "Write notes for the plotter" in text
     assert "Lettering type" in text
-    assert "Single-line technical" in text
     assert "Single-line robot" in text
     assert "Single-line handwriting" in text
     assert 'id="preset"' in text
