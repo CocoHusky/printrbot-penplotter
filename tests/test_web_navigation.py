@@ -30,12 +30,14 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "Handwritten centerline" in text
     assert 'id="preset"' in text
     assert 'id="letteringSettings"' in text
+    assert 'class="step-columns"' in text
     assert 'class="lettering-choices"' not in text
     assert "Handwriting adjustments" in text
     assert "Every mode draws centerlines only" in text
     assert 'id="typedFontControls"' in text
     assert "api/font-library" in text
-    assert "Font size (pt)" in text
+    assert "Size (pt)" in text
+    assert 'class="compact-row"' in text
     assert "Generate 10 mm air calibration" not in text
     assert 'id="airPlot"' not in text
     assert "no fallback will be used" in text
