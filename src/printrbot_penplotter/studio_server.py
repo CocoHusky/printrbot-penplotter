@@ -62,6 +62,7 @@ def _validate_studio_runtime() -> None:
 
 def main() -> None:
     import uvicorn
+    import os
 
     _validate_studio_runtime()
     _configure_local_neural_worker()
@@ -71,7 +72,10 @@ def main() -> None:
         f"{MAX_STROKES:,} strokes / {MAX_POINTS:,} points | source: {package_root}"
     )
     print("Studio 2 interactive quick raster cap: 320 px")
-    uvicorn.run("printrbot_penplotter.studio_server:app", host="127.0.0.1", port=8000)
+    host = os.environ.get("PRINTRBOT_HOST", "127.0.0.1")
+    port = int(os.environ.get("PRINTRBOT_PORT", "8000"))
+    print(f"Writing API listening on http://{host}:{port}")
+    uvicorn.run("printrbot_penplotter.studio_server:app", host=host, port=port)
 
 
 if __name__ == "__main__":

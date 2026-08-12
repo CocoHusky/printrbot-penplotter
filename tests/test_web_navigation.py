@@ -48,6 +48,8 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "Wrap to width" in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
+    assert "Send to printrbot.local for validation" in text
+    assert "sendToBridge" in text
     assert "blue dashed lines show pen-up travel" in text
     assert "Rendering your note…" in text
     assert 'id="cancelButton"' in text

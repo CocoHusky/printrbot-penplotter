@@ -2,6 +2,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
+#include <HTTPClient.h>
 #include <esp_system.h>
 #include <LittleFS.h>
 #include <Preferences.h>
@@ -38,6 +39,7 @@ bool uploadDraftMode = false;
 std::uint32_t lastLedUpdateMs = 0;
 String httpUser = "admin";
 String httpPassword;
+String renderServerUrl;
 
 String generateHttpPassword() {
   String password;
@@ -109,6 +111,69 @@ void sendError(int status, const String& message) {
 String activeIp() {
   if (WiFi.status() == WL_CONNECTED) return WiFi.localIP().toString();
   return WiFi.softAPIP().toString();
+}
+
+String renderUrl(const char* path) {
+  String base = renderServerUrl;
+  while (base.endsWith("/")) base.remove(base.length() - 1);
+  return base + path;
+}
+
+bool renderServerConfigured() {
+  return renderServerUrl.startsWith("http://") && renderServerUrl.length() <= 120;
+}
+
+void proxyPythonGet(const char* path, const char* contentType) {
+  if (!renderServerConfigured()) {
+    sendError(503, "Python render server is not configured.");
+    return;
+  }
+  WiFiClient client;
+  HTTPClient request;
+  if (!request.begin(client, renderUrl(path))) {
+    sendError(502, "Could not connect to the Python render server.");
+    return;
+  }
+  request.setTimeout(30000);
+  const int status = request.GET();
+  const String body = request.getString();
+  request.end();
+  if (status <= 0) {
+    sendError(502, "Python render server did not respond.");
+    return;
+  }
+  server.sendHeader("Cache-Control", "no-store");
+  server.send(status, contentType, body);
+}
+
+void proxyPythonJsonPost(const char* path) {
+  if (!renderServerConfigured()) {
+    sendError(503, "Python render server is not configured.");
+    return;
+  }
+  const String body = server.arg("plain");
+  if (body.isEmpty() || body.length() > 32000) {
+    sendError(400, "Expected a non-empty JSON request under 32 KiB.");
+    return;
+  }
+  WiFiClient client;
+  HTTPClient request;
+  if (!request.begin(client, renderUrl(path))) {
+    sendError(502, "Could not connect to the Python render server.");
+    return;
+  }
+  request.setTimeout(60000);
+  request.addHeader("Content-Type", "application/json");
+  String payload = body;
+  const int status = request.POST(reinterpret_cast<uint8_t*>(payload.begin()), payload.length());
+  const String response = request.getString();
+  request.end();
+  if (status <= 0) {
+    sendError(502, "Python render server did not respond.");
+    return;
+  }
+  server.sendHeader("Cache-Control", "no-store");
+  server.send(status, "application/json", response);
 }
 
 String wifiModeName() {
@@ -193,6 +258,7 @@ void handleStatus() {
   json += "\"wifi_mode\":\"" + jsonEscape(wifiModeName()) + "\",";
   json += "\"ip\":\"" + jsonEscape(activeIp()) + "\",";
   json += "\"ap_ip\":\"" + WiFi.softAPIP().toString() + "\",";
+  json += "\"render_server\":\"" + jsonEscape(renderServerUrl) + "\",";
   json += "\"printer_connected\":" + String(printerBridge.connected() ? "true" : "false") + ",";
   json += "\"printer_pending\":" + String(printerBridge.pending() ? "true" : "false") + ",";
   json += "\"last_printer_line\":\"" + jsonEscape(printerBridge.lastLine()) + "\",";
@@ -362,11 +428,32 @@ void handleWifiSave() {
   ESP.restart();
 }
 
+void handleRenderServerSave() {
+  if (jobRunner.busy()) {
+    sendError(409, "Do not change the render server while a hardware job is active.");
+    return;
+  }
+  String url = server.arg("url");
+  url.trim();
+  while (url.endsWith("/")) url.remove(url.length() - 1);
+  if (!url.isEmpty() && (!url.startsWith("http://") || url.length() > 120)) {
+    sendError(400, "Use an HTTP URL such as http://192.168.1.42:8000.");
+    return;
+  }
+  renderServerUrl = url;
+  preferences.putString("render_url", renderServerUrl);
+  sendOk(renderServerUrl.isEmpty() ? "Python render server cleared." : "Python render server saved.");
+}
+
 void configureRoutes() {
   server.on("/", HTTP_GET, []() {
     if (!requireHttpAuthentication()) return;
     server.sendHeader("Cache-Control", "no-store");
     server.send_P(200, "text/html", plotter::web::kIndexHtml);
+  });
+  server.on("/write", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    proxyPythonGet("/", "text/html");
   });
   server.on("/generate_204", HTTP_GET, []() {
     if (!requireHttpAuthentication()) return;
@@ -383,6 +470,22 @@ void configureRoutes() {
   server.on("/api/status", HTTP_GET, []() {
     if (!requireHttpAuthentication()) return;
     handleStatus();
+  });
+  server.on("/api/render", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    proxyPythonJsonPost("/api/render");
+  });
+  server.on("/api/fonts", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    proxyPythonGet("/api/fonts", "application/json");
+  });
+  server.on("/api/font-library", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    proxyPythonGet("/api/font-library", "application/json");
+  });
+  server.on("/api/handwriting/status", HTTP_GET, []() {
+    if (!requireHttpAuthentication()) return;
+    proxyPythonGet("/api/handwriting/status", "application/json");
   });
   server.on("/api/job", HTTP_POST,
             []() { if (requireHttpAuthentication()) finishUploadRequest(); },
@@ -419,6 +522,10 @@ void configureRoutes() {
     if (!requireHttpAuthentication()) return;
     handleWifiSave();
   });
+  server.on("/api/render-server", HTTP_POST, []() {
+    if (!requireHttpAuthentication()) return;
+    handleRenderServerSave();
+  });
   server.onNotFound([]() {
     if (!requireHttpAuthentication()) return;
     server.sendHeader("Location", "http://192.168.4.1/", true);
@@ -440,6 +547,7 @@ void setup() {
   setPixel(0, 30, 160);
 
   preferences.begin("plotter", false);
+  renderServerUrl = preferences.getString("render_url", "");
   configureHttpAuthentication();
   if (!LittleFS.begin(true)) {
     setPixel(220, 0, 20);

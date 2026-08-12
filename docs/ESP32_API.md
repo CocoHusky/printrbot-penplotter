@@ -1,10 +1,69 @@
 # ESP32 Bridge HTTP API
 
-**API version:** local bridge 0.4.1
+**API version:** local bridge 0.4.2
 
 The bridge serves JSON endpoints from both its setup access point and, when configured, its station-mode address. The setup address is normally `http://192.168.4.1` and mDNS is `http://printrbot.local` where supported.
 
 This API controls real hardware. It is intentionally narrow: the bridge accepts final G-code and does not render text, trace images, or alter machine-space geometry.
+
+## Phone writing workflow
+
+The Python writing service renders fonts and handwriting; the ESP32 remains the
+hardware safety boundary. The bridge can proxy the writing UI so a phone only
+needs to open `http://printrbot.local/write`:
+
+```text
+phone → printrbot.local/write → ESP32 → Python /api/render → G-code
+                                      ↓
+                              ESP32 validates/stores
+                                      ↓
+                              operator presses Start
+```
+
+The Python service must listen on the home network, not only on loopback:
+
+```bash
+cd /Users/alexburton/Documents/GitHub/printrbot-penplotter
+PRINTRBOT_HOST=0.0.0.0 PYTHONPATH=src \
+  .venv-neural/bin/python -m printrbot_penplotter.studio_server
+```
+
+Find the computer's LAN address with `ipconfig getifaddr en0` (use `en1` if
+that is the active interface). In the bridge dashboard, open diagnostics,
+enter `http://<computer-lan-ip>:8000` under **Python render server**, and save
+it. Do not enter `127.0.0.1`: on the ESP32 that means the ESP32 itself.
+
+Then open `http://printrbot.local/write`, render the note, and choose **Send to
+printrbot.local for validation**. The bridge stores the validated G-code. Use
+the bridge dashboard's **Start** button to begin motion. If mDNS is not
+available, use the station IP shown by `/api/status` or `http://192.168.4.1`
+while connected to the bridge access point.
+
+The Python server is intended for a trusted home LAN. It is not an Internet
+service: do not port-forward it, and do not expose the ESP32 access point.
+
+## `POST /api/render` (Python service)
+
+The ESP32 proxy forwards the writing app's JSON request unchanged to the
+Python service. The service returns `preview_svg`, `gcode`, and `metadata`.
+The browser then uploads the returned G-code to the bridge's `POST /api/job`
+endpoint, where the firmware validates motion, limits, and machine-safe
+commands before the job can be started.
+
+## `POST /api/render-server`
+
+Stores the Python service URL in ESP32 Preferences. It accepts a form field
+named `url`, for example:
+
+```bash
+curl -u admin:'password' -X POST \
+  --data-urlencode 'url=http://192.168.1.42:8000' \
+  http://printrbot.local/api/render-server
+```
+
+The bridge currently accepts HTTP URLs on the trusted home network. HTTPS is
+not required for the local workflow and is intentionally not silently treated
+as equivalent.
 
 ## Authentication status
 

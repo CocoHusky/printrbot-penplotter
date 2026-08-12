@@ -30,7 +30,8 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 </head>
 <body><main>
 <h1>Printrbot Bridge</h1>
-<p class="workflow-note">Prepare a plot in three steps: load the draft, review it, then generate and plot the validated job.</p>
+<p class="workflow-note">Prepare a plot in three steps: write or load a draft, review it, then validate and plot the stored job.</p>
+<a href="/write" style="display:block;background:#65e9a5;color:#08111b;text-align:center;text-decoration:none;border-radius:10px;padding:12px;font-weight:800;margin-bottom:12px">Write a note on the Python render server</a>
 <div class="grid">
 <section class="card">
 <div class="section-kicker">Live status</div><h2>Printer status</h2>
@@ -117,6 +118,12 @@ progress{width:100%;height:18px;margin:10px 0}.log{background:#071019;border-rad
 </div>
 <button class="secondary" onclick="saveWifi()">Save and restart</button>
 <p class="small">HTTP Basic authentication protects the dashboard and control API. The first-boot username and password are printed to the USB serial monitor.</p>
+</section>
+<section class="card full">
+<h2>Python render server</h2>
+<label for="renderServerUrl">Server URL</label><input id="renderServerUrl" type="url" placeholder="http://192.168.1.42:8000">
+<button class="secondary" onclick="saveRenderServer()">Save render server URL</button>
+<p class="small">Run the Python server on the computer that has the fonts and Graves model. Use its home-network IP, not <code>127.0.0.1</code>; that address means the ESP32 itself.</p>
 </section>
 </div>
 </details>
@@ -216,9 +223,10 @@ async function action(name){try{await request('/api/job/'+name,{method:'POST'});
 async function emergency(){if(!confirm('Send M112 immediately? The Printrboard may require reset.'))return;try{await request('/api/emergency',{method:'POST'});await poll()}catch(e){$('message').textContent=e.message}}
 async function queryPrinter(command){try{await request('/api/printer/query',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:formBody({command})});$('message').textContent=command+' sent; inspect UART activity.'}catch(e){$('message').textContent=e.message}}
 async function saveWifi(){try{await request('/api/wifi',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:formBody({ssid:$('ssid').value,password:$('password').value})});$('message').textContent='Saved. Bridge is restarting…'}catch(e){$('message').textContent=e.message}}
+async function saveRenderServer(){try{await request('/api/render-server',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:formBody({url:$('renderServerUrl').value})});$('message').textContent='Python render server URL saved.';await poll()}catch(e){$('message').textContent=e.message}}
 function cls(state){return ['failed','emergency'].includes(state)?'value bad':['paused','cancelling'].includes(state)?'value warn':['ready','running','completed'].includes(state)?'value good':'value'}
 async function poll(){
- try{const s=await request('/api/status');latest=s;$('firmware').textContent=s.firmware;$('wifi').textContent=s.wifi_mode;$('ip').textContent=s.ip;$('printer').textContent=s.printer_connected?'responding':'no response yet';$('printer').className=s.printer_connected?'value good':'value warn';$('state').textContent=s.job.state;$('state').className=cls(s.job.state);$('commands').textContent=s.job.completed+' / '+s.job.total;$('bytes').textContent=Math.round(s.job.bytes/1024)+' KiB';$('active').textContent=s.job.active||'—';$('progress').value=s.job.progress;if(s.job.error)$('message').textContent=s.job.error;$('log').textContent=s.log.join('\n')||'No UART lines yet.';$('log').scrollTop=$('log').scrollHeight;
+  try{const s=await request('/api/status');latest=s;$('firmware').textContent=s.firmware;$('wifi').textContent=s.wifi_mode;$('ip').textContent=s.ip;if(document.activeElement!==$('renderServerUrl'))$('renderServerUrl').value=s.render_server||'';$('printer').textContent=s.printer_connected?'responding':'no response yet';$('printer').className=s.printer_connected?'value good':'value warn';$('state').textContent=s.job.state;$('state').className=cls(s.job.state);$('commands').textContent=s.job.completed+' / '+s.job.total;$('bytes').textContent=Math.round(s.job.bytes/1024)+' KiB';$('active').textContent=s.job.active||'—';$('progress').value=s.job.progress;if(s.job.error)$('message').textContent=s.job.error;$('log').textContent=s.log.join('\n')||'No UART lines yet.';$('log').scrollTop=$('log').scrollHeight;
   $('start').disabled=finalSettingsDirty||(s.job.state!=='ready'&&!['completed','cancelled','failed'].includes(s.job.state));$('pause').disabled=s.job.state!=='running';$('resume').disabled=s.job.state!=='paused';$('cancel').disabled=!['ready','running','paused'].includes(s.job.state);
  }catch(e){$('message').textContent='Bridge unavailable: '+e.message}
 }

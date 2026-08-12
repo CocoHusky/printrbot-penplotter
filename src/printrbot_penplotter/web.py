@@ -192,6 +192,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <button id="cancelButton" class="secondary" onclick="cancelRender()" hidden>Stop rendering</button>
 <button class="secondary" onclick="saveNote()">Save note locally</button>
 <button id="downloadButton" class="secondary" onclick="downloadGcode()" disabled>Download G-code</button>
+<button id="bridgeButton" class="secondary" onclick="sendToBridge()" disabled>Send to printrbot.local for validation</button>
 </div>
 <div class="status" id="status" role="status" aria-live="polite">Example loaded. Edit your note, then render a new preview.</div>
 <pre id="meta"></pre>
@@ -266,6 +267,7 @@ function showJob(data){
  byId('previewContent').innerHTML=data.preview_svg; latestGcode=data.gcode;
  byId('preview').classList.remove('is-stale');
  byId('downloadButton').disabled=!latestGcode;
+ byId('bridgeButton').disabled=!latestGcode;
  byId('meta').textContent=JSON.stringify(data.metadata,null,2);
  const warnings=data.metadata?.neural_text_warnings||[];
  byId('status').textContent=warnings.length?'Ready, with text cleanup: '+warnings.join(' '):'Ready: preview and G-code use the same machine-space paths.';
@@ -298,6 +300,17 @@ function downloadGcode(){
  if(!latestGcode){byId('status').textContent='Render first.';return;}
  const blob=new Blob([latestGcode],{type:'text/plain'});
  const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download='plot.gcode'; link.click(); URL.revokeObjectURL(link.href);
+}
+async function sendToBridge(){
+ if(!latestGcode){byId('status').textContent='Render first.';return;}
+ const button=byId('bridgeButton'); button.disabled=true; byId('status').textContent='Sending final G-code to the bridge for validation…';
+ try{
+  const form=new FormData(); form.append('job',new Blob([latestGcode],{type:'text/plain'}),'rendered-note.gcode');
+  const response=await fetch('/api/job',{method:'POST',body:form}); const text=await response.text(); let data={}; try{data=JSON.parse(text)}catch{}
+  if(!response.ok) throw new Error(data.error||data.message||('HTTP '+response.status));
+  byId('status').textContent='Final G-code validated and stored on printrbot.local. Open the bridge dashboard and press Start.';
+ }catch(error){ byId('status').textContent='Bridge upload failed: '+error.message; }
+ finally{ button.disabled=!latestGcode; }
 }
 function syncNeuralState(available){
  neuralAvailable=available;

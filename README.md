@@ -230,6 +230,33 @@ python -m pytest -q
 printrbot-studio
 ```
 
+### Phone-to-plotter setup
+
+For the daily workflow, run the renderer on the computer and use the ESP32 as
+the authenticated hardware gateway. This keeps fonts, optional Graves neural
+handwriting, previews, and G-code generation on the computer while the bridge
+owns validation, storage, homing, motion, pause, cancel, and emergency stop.
+
+Start the renderer so the ESP32 can reach it over the home LAN:
+
+```bash
+cd /Users/alexburton/Documents/GitHub/printrbot-penplotter
+PRINTRBOT_HOST=0.0.0.0 PYTHONPATH=src \
+  .venv-neural/bin/python -m printrbot_penplotter.studio_server
+```
+
+Find the computer's LAN address with `ipconfig getifaddr en0`, open the bridge
+at `http://printrbot.local`, and save `http://<computer-lan-ip>:8000` under
+**Diagnostics, printer queries, and Wi-Fi settings → Python render server**.
+Then open `http://printrbot.local/write` from a phone, write the note, render
+it, and press **Send to printrbot.local for validation**. After the bridge says
+the final G-code is validated and stored, press **Start** on the bridge page.
+
+`127.0.0.1` is only the computer itself. It must not be used as the ESP32's
+renderer URL. Keep both services on a trusted home LAN; do not port-forward
+either service. The full endpoint details are in
+[`docs/ESP32_API.md`](docs/ESP32_API.md).
+
 Open:
 
 - `http://127.0.0.1:8000/` for writing text and preparing jobs.
