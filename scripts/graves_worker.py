@@ -13,6 +13,11 @@ import os
 import sys
 from pathlib import Path
 
+# The published Graves checkpoint uses TensorFlow 1-era RNNCell APIs.  Keep
+# the compatibility switch in the worker itself so direct worker invocation
+# behaves the same as invocation through the Studio subprocess wrapper.
+os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+
 import numpy as np
 
 

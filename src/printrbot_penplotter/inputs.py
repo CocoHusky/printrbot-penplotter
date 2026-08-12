@@ -7,7 +7,8 @@ import random
 from pathlib import Path
 
 from .geometry import rotate_scale_translate
-from .centerline_fonts import text_to_mixed_centerlines
+from .centerline_fonts import text_to_centerline_polylines, text_to_mixed_centerlines
+from .font_library import FONT_ALIASES, resolve_font_family
 from .image_preprocess import ImagePreprocessConfig
 from .image_understanding import ImageUnderstandingConfig
 from .line_art import LineArtConfig, render_line_art
@@ -24,13 +25,6 @@ POINTS_TO_MM = MM_PER_INCH / POINTS_PER_INCH
 # Matplotlib does not always see the macOS font aliases used in the UI (most
 # notably PingFang). Keep the aliases here so a CJK selection resolves to a
 # real installed font instead of silently falling back to DejaVu Sans.
-_FONT_ALIASES = {
-    "PingFang SC": "/System/Library/Fonts/Hiragino Sans GB.ttc",
-    "Noto Sans CJK SC": "/System/Library/Fonts/Hiragino Sans GB.ttc",
-    "Hiragino Sans GB": "/System/Library/Fonts/Hiragino Sans GB.ttc",
-}
-
-
 def _resolve_outline_font(font_family: str, font_path: str | None, text: str):
     """Resolve a font without permitting silent glyph substitution.
 
@@ -45,15 +39,14 @@ def _resolve_outline_font(font_family: str, font_path: str | None, text: str):
 
     resolved_path = font_path
     if resolved_path is None:
-        alias_path = _FONT_ALIASES.get(font_family)
+        alias_path = FONT_ALIASES.get(font_family)
         if alias_path and Path(alias_path).is_file():
             resolved_path = alias_path
         else:
             try:
-                resolved_path = findfont(
-                    FontProperties(family=font_family),
-                    fallback_to_default=False,
-                )
+                resolved_path = resolve_font_family(font_family)
+                if resolved_path is None:
+                    raise ValueError(f"Typeface '{font_family}' is not installed.")
             except (OSError, ValueError) as exc:
                 raise ValueError(
                     f"Typeface '{font_family}' is not installed. "
@@ -174,13 +167,22 @@ def text_to_polylines_with_metadata(
             text,
             config=NeuralWritingConfig(style=style.neural_style, bias=style.neural_bias),
         )
-    if any(
+    has_cjk = any(
         0x3400 <= ord(character) <= 0x4DBF
         or 0x4E00 <= ord(character) <= 0x9FFF
         or 0x3040 <= ord(character) <= 0x30FF
         or 0xAC00 <= ord(character) <= 0xD7AF
         for character in text
-    ):
+    )
+    if style.preset == "standard" and not has_cjk:
+        resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
+        return text_to_centerline_polylines(text, style, resolved_font_path), {
+            "text_engine": "font-centerline",
+            "font_family": style.font_family,
+            "font_path": resolved_font_path,
+            "centerline_note": "Filled typeface skeletonized to plotter centerlines.",
+        }
+    if has_cjk:
         resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
         return text_to_mixed_centerlines(text, style, resolved_font_path), {
             "text_engine": "centerline-mixed",

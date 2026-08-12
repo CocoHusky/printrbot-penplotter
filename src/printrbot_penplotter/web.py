@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .font_library import font_library_entries
 from .models import LayoutConfig, MachineConfig, PageConfig, PenConfig, StyleConfig
 from .pipeline import render_calibration_job, render_text_job
 from .sender import MarlinSender
@@ -90,6 +91,7 @@ h1 { margin-bottom:4px; letter-spacing:-.03em; } p { color:#66706d; }
 .grid { display:grid; grid-template-columns:minmax(320px,430px) 1fr; gap:16px; }
 .card { background:#fffdf9; border:1px solid #d9d4ca; border-radius:16px; padding:16px; box-shadow:0 8px 24px rgba(56,48,35,.06); }
 .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.typed-font-controls { display:none; }
 label { display:block; margin:12px 0 5px; color:#414844; }
 textarea,input,select,button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid #c9c5bc; padding:10px; font:inherit; }
 textarea,input,select { background:#fff; color:#20211f; }
@@ -138,9 +140,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <div class="row">
   <div><label for="fontSize">Font size (pt)</label><div class="range-field"><input id="fontSizeRange" type="range" min="4" max="72" step="0.5" value="12" aria-label="Font size slider"><input id="fontSize" type="number" min="4" max="72" step="0.5" value="12" aria-label="Font size in points"></div><p class="control-note">Uses familiar print sizes such as 8 pt, 12 pt, and 18 pt. The selected point size is converted to physical plotter scale; it controls each character, not the whole note.</p></div>
 </div>
-<div class="row">
-  <div id="typefaceField"><label for="font">Centerline alphabet</label><select id="font"><option value="robot">Robot single-line</option><option value="hand">Hand single-line</option></select></div>
-</div>
+<div id="typedFontControls" class="typed-font-controls"><label for="font">Typeface</label><select id="font"><option value="DejaVu Sans">Loading installed typefaces…</option></select><p class="control-note">Uses a typeface installed on this computer. Filled glyphs are thinned into plotter centerlines; they are not outline traces.</p></div>
 <div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
 <details id="handwritingControls"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
 <details open><summary>Spacing and wrapping</summary><div class="row"><div><label for="lineSpacing">Line spacing (× character height)</label><div class="range-field"><input id="lineSpacingRange" type="range" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing slider"><input id="lineSpacing" type="number" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing multiplier"></div></div><div><label for="letterSpacing">Letter spacing (mm)</label><div class="range-field"><input id="letterSpacingRange" type="range" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing slider"><input id="letterSpacing" type="number" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing in millimeters"></div></div></div><div class="row"><div><label for="wordSpacing">Word spacing (em)</label><div class="range-field"><input id="wordSpacingRange" type="range" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing slider"><input id="wordSpacing" type="number" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing in em"></div></div><div><label for="wrapWidth">Wrap width (mm)</label><input id="wrapWidth" type="number" min="1" max="1000" step="1" value="120" placeholder="e.g. 120"></div></div><p class="control-note">The default 120 mm width creates readable card lines on the 152.4 mm bed. Set a smaller value for narrower cards. The character height stays unchanged while the note wraps.</p></details>
@@ -197,18 +197,18 @@ function syncTypefaceForText(){
 }
 function applyPreset(){
  const value=byId('preset').value;
- if(value==='standard') { byId('font').value='robot'; byId('neuralStyle').value=9; setControl('slant',0); setControl('letterSpacing',0); byId('handwritingControls').open=false; }
+ if(value==='standard') { byId('neuralStyle').value=9; setControl('slant',0); setControl('letterSpacing',0); byId('handwritingControls').open=false; }
  else if(value==='robot') { setControl('slant',0); setControl('letterSpacing',1.2); byId('handwritingControls').open=false; }
  else { byId('neuralStyle').value=9; setControl('slant',3); setControl('letterSpacing',0.55); byId('handwritingControls').open=true; }
- byId('typefaceField').style.display=value==='standard'?'block':'none';
- byId('handwritingSummary').textContent=value==='standard'?'Typed centerline lettering uses the robot single-stroke alphabet.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
+ byId('typedFontControls').style.display=value==='standard'?'block':'none';
+ byId('handwritingSummary').textContent=value==='standard'?'Typed fonts use the selected installed typeface and are converted to plotter centerlines.':value==='human'?(neuralAvailable?'Model-based handwriting is active. Adjust neatness, slant, and variation below.':'Model handwriting is unavailable; the built-in hand lettering will be used.'):' ';
  document.querySelectorAll('.lettering-choice').forEach(button=>button.classList.toggle('selected',button.dataset.preset===value));
  syncTypefaceForText();
 }
 function payload(){ return {
  text:byId('text').value, preset:byId('preset').value, engine:'stroke',
  writing_backend:byId('preset').value==='human'&&neuralAvailable?'neural':'stroke', neural_style:Number(byId('neuralStyle').value), neural_bias:Number(byId('neuralBias').value),
- font_family:hasCjk(byId('text').value)?'Hiragino Sans GB':'DejaVu Sans', font_path:null, stroke_font:byId('preset').value==='standard'?byId('font').value:byId('preset').value==='robot'?'robot':'hand',
+ font_family:byId('preset').value==='standard'?byId('font').value:(hasCjk(byId('text').value)?'Hiragino Sans GB':'DejaVu Sans'), font_path:null, stroke_font:byId('preset').value==='robot'?'robot':'hand',
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
  line_spacing:Number(byId('lineSpacing').value),
@@ -257,6 +257,12 @@ function syncNeuralState(available){
  applyPreset();
 }
 fetch('/api/handwriting/status').then(response=>response.json()).then(data=>syncNeuralState(Boolean(data.neural_available))).catch(()=>syncNeuralState(false));
+fetch('/api/font-library').then(response=>response.json()).then(data=>{
+ const select=byId('font'); const previous=select.value; select.innerHTML='';
+ (data.fonts||[]).forEach(font=>{ const option=document.createElement('option'); option.value=font.name; option.textContent=font.name; option.title=font.description; select.appendChild(option); });
+ if([...select.options].some(option=>option.value===previous)) select.value=previous;
+ if(!select.options.length){ const option=document.createElement('option'); option.textContent='No installed typefaces found'; option.value=''; select.appendChild(option); }
+}).catch(()=>{ byId('font').innerHTML='<option value="DejaVu Sans">DejaVu Sans</option>'; });
 document.querySelectorAll('.lettering-choice').forEach(button=>button.addEventListener('click',()=>{byId('preset').value=button.dataset.preset;applyPreset();}));
 applyPreset();
 </script>
@@ -339,6 +345,12 @@ def fonts() -> dict[str, object]:
             for name in available_stroke_fonts()
         ]
     }
+
+
+@app.get("/api/font-library")
+def font_library() -> dict[str, object]:
+    """List installed conventional fonts for the typed-centerline mode."""
+    return {"fonts": font_library_entries()}
 
 
 @app.get("/api/handwriting/status")

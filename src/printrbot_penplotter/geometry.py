@@ -314,6 +314,32 @@ def preview_svg(
 
     page_top = svg_y(page.origin_y_mm + page.height_mm)
     margin_top = svg_y(page.origin_y_mm + page.height_mm - page.margin_mm)
+    # A light 10 mm grid makes the text size and placement understandable in
+    # the preview without putting labels inside the drawable area.
+    grid_parts: list[str] = []
+    tick_parts: list[str] = []
+    for x in range(0, int(page.width_mm) + 1, 10):
+        grid_parts.append(
+            f'<path d="M {page.origin_x_mm + x:.3f} {page_top:.3f} '
+            f'V {page_top + page.height_mm:.3f}" '
+            'stroke="#d9e1e8" stroke-width="0.16"/>'
+        )
+        tick_parts.append(
+            f'<text x="{page.origin_x_mm + x:.3f}" y="{page_top - 1.5:.3f}" '
+            'text-anchor="middle" font-size="2.5" fill="#718394">'
+            f'{x}</text>'
+        )
+    for y in range(0, int(page.height_mm) + 1, 10):
+        grid_parts.append(
+            f'<path d="M {page.origin_x_mm:.3f} {page_top + y:.3f} '
+            f'H {page.origin_x_mm + page.width_mm:.3f}" '
+            'stroke="#d9e1e8" stroke-width="0.16"/>'
+        )
+        tick_parts.append(
+            f'<text x="{page.origin_x_mm - 1.5:.3f}" y="{page_top + y + 0.9:.3f}" '
+            'text-anchor="end" font-size="2.5" fill="#718394">'
+            f'{y}</text>'
+        )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="{machine.x_min_mm:.3f} {machine.y_min_mm:.3f} '
@@ -323,7 +349,9 @@ def preview_svg(
         f'<rect x="{page.origin_x_mm:.3f}" y="{page_top:.3f}" '
         f'width="{page.width_mm:.3f}" height="{page.height_mm:.3f}" '
         'fill="white" stroke="#506578" stroke-width="0.35"/>'
-        f'<rect x="{page.origin_x_mm + page.margin_mm:.3f}" y="{margin_top:.3f}" '
+        + "".join(grid_parts)
+        + "".join(tick_parts)
+        + f'<rect x="{page.origin_x_mm + page.margin_mm:.3f}" y="{margin_top:.3f}" '
         f'width="{page.drawable_width_mm:.3f}" height="{page.drawable_height_mm:.3f}" '
         'fill="none" stroke="#b5c0ca" stroke-width="0.2" stroke-dasharray="1.5 1.5"/>'
         + "".join(travel_parts)

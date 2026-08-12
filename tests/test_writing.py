@@ -75,7 +75,7 @@ def test_centerline_text_supports_micro_physical_sizes() -> None:
         style=StyleConfig.for_preset("standard", font_size_mm=2),
         layout=LayoutConfig(fit_mode="none"),
     )
-    assert job.metadata["text_engine"] == "stroke"
+    assert job.metadata["text_engine"] == "font-centerline"
 
 
 def test_standard_preset_uses_typed_centerline_strokes() -> None:
@@ -83,15 +83,22 @@ def test_standard_preset_uses_typed_centerline_strokes() -> None:
     job = render_text_job("Times", style=style, layout=LayoutConfig(fit_mode="none"))
     assert style.engine == "stroke"
     assert style.font_family == "Arial"
-    assert job.metadata["text_engine"] == "stroke"
+    assert job.metadata["text_engine"] == "font-centerline"
 
 
 def test_standard_typed_preset_is_centerline_only() -> None:
     style = StyleConfig.for_preset("standard", font_size_mm=10)
     job = render_text_job("Hello", style=style)
     assert style.engine == "stroke"
-    assert job.metadata["text_engine"] == "stroke"
-    assert job.metadata["stroke_font"] == "robot"
+    assert job.metadata["text_engine"] == "font-centerline"
+    assert job.metadata["font_family"] == "Arial"
+
+
+def test_standard_typed_preset_uses_selected_installed_font_centerlines() -> None:
+    style = StyleConfig.for_preset("standard", font_family="DejaVu Sans", font_size_mm=10)
+    job = render_text_job("Arial", style=style)
+    assert job.metadata["text_engine"] == "font-centerline"
+    assert job.metadata["font_family"] == "DejaVu Sans"
 
 
 def test_fullwidth_cjk_punctuation_uses_centerline_equivalents() -> None:
