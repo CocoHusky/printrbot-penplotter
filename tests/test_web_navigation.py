@@ -41,6 +41,8 @@ def test_notes_workspace_has_simple_lettering_choices() -> None:
     assert "no fallback will be used" in text
     assert 'value="downscale" selected' in text
     assert "Generate first even when the note is larger than the page" in text
+    assert 'id="wrapMode"' in text
+    assert "Wrap to width" in text
     assert "printrbot-note-draft" in text
     assert "Save note locally" in text
     assert "Rendering your note…" in text

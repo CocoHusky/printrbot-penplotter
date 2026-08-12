@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -174,18 +175,32 @@ def text_to_centerline_polylines(text: str, style: StyleConfig, font_path: str) 
     cursor_x = 0.0
     cursor_y = 0.0
     output: Polylines = []
-    for character in text:
-        if character == "\n":
+    tokens = re.findall(r"\n|[ \t]+|[^\s]+", text)
+    for token in tokens:
+        if token == "\n":
             cursor_x = 0.0
             cursor_y -= line_height
             continue
-        if character.isspace():
-            cursor_x += max(float(font.getlength(character)) / px_size * scale_mm, scale_mm * style.word_spacing_em)
+        if token.isspace():
+            space_width = max(float(font.getlength(token)) / px_size * scale_mm, scale_mm * style.word_spacing_em)
+            cursor_x += space_width
             continue
-        paths, advance = _glyph_paths(character, font_path, px_size)
-        for path in paths:
-            output.append([(x * scale_mm + cursor_x, y * scale_mm + cursor_y) for x, y in path])
-        cursor_x += advance * scale_mm + style.letter_spacing_mm
+
+        word_width = sum(float(font.getlength(character)) / px_size * scale_mm for character in token)
+        word_width += max(0, len(token) - 1) * style.letter_spacing_mm
+        if style.wrap_width_mm is not None and cursor_x > 0 and cursor_x + word_width > style.wrap_width_mm:
+            cursor_x = 0.0
+            cursor_y -= line_height
+
+        for character in token:
+            advance_width = float(font.getlength(character)) / px_size * scale_mm
+            if style.wrap_width_mm is not None and cursor_x > 0 and cursor_x + advance_width > style.wrap_width_mm:
+                cursor_x = 0.0
+                cursor_y -= line_height
+            paths, advance = _glyph_paths(character, font_path, px_size)
+            for path in paths:
+                output.append([(x * scale_mm + cursor_x, y * scale_mm + cursor_y) for x, y in path])
+            cursor_x += advance * scale_mm + style.letter_spacing_mm
     if not output:
         raise ValueError("The supplied text produced no centerline glyphs.")
     return output

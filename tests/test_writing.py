@@ -78,6 +78,24 @@ def test_centerline_text_supports_micro_physical_sizes() -> None:
     assert job.metadata["text_engine"] == "font-centerline"
 
 
+def test_typed_centerline_text_wraps_words_to_physical_width() -> None:
+    style = StyleConfig.for_preset(
+        "standard",
+        font_size_mm=10,
+        wrap_width_mm=25,
+    )
+    from printrbot_penplotter.font_library import resolve_font_family
+    from printrbot_penplotter.centerline_fonts import text_to_centerline_polylines
+
+    polylines = text_to_centerline_polylines(
+        "This is a longer typed note that should wrap.",
+        style,
+        resolve_font_family("Arial") or resolve_font_family("DejaVu Sans"),
+    )
+    y_values = {round(point[1], 2) for path in polylines for point in path}
+    assert len(y_values) > 2
+
+
 def test_standard_preset_uses_typed_centerline_strokes() -> None:
     style = StyleConfig.for_preset("standard", font_size_mm=12)
     job = render_text_job("Times", style=style, layout=LayoutConfig(fit_mode="none"))

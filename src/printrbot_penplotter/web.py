@@ -150,7 +150,7 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <div id="typedFontControls" class="typed-font-controls"><label for="font">Typeface</label><select id="font"><option value="DejaVu Sans">Loading installed typefaces…</option></select><p class="control-note">Uses a typeface installed on this computer. Filled glyphs are thinned into plotter centerlines; they are not outline traces.</p></div>
 <div id="handwritingSummary" class="hint">Handwriting uses the model-based trajectory when it is installed.</div>
 <details id="handwritingControls" class="control-group"><summary>Handwriting adjustments</summary><div class="row"><div><label for="neuralStyle">Handwriting style</label><input id="neuralStyle" type="number" value="9" min="0" max="12"></div><div><label for="neuralBias">Neatness (0–1)</label><input id="neuralBias" type="number" value="0.85" min="0" max="1" step="0.05"></div></div><div class="row"><div><label for="seed">Variation seed</label><input id="seed" type="number" value="7"></div><div><label for="slant">Slant (degrees)</label><input id="slant" type="number" value="3" min="-45" max="45"></div></div></details>
-<details open class="control-group"><summary>Spacing and wrapping</summary><div class="row"><div><label for="lineSpacing">Line spacing (× character height)</label><div class="range-field"><input id="lineSpacingRange" type="range" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing slider"><input id="lineSpacing" type="number" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing multiplier"></div></div><div><label for="letterSpacing">Letter spacing (mm)</label><div class="range-field"><input id="letterSpacingRange" type="range" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing slider"><input id="letterSpacing" type="number" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing in millimeters"></div></div></div><div class="row"><div><label for="wordSpacing">Word spacing (em)</label><div class="range-field"><input id="wordSpacingRange" type="range" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing slider"><input id="wordSpacing" type="number" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing in em"></div></div><div><label for="wrapWidth">Wrap width (mm)</label><input id="wrapWidth" type="number" min="1" max="1000" step="1" value="120" placeholder="e.g. 120"></div></div><p class="control-note">The default 120 mm width creates readable card lines on the 152.4 mm bed. Set a smaller value for narrower cards.</p></details>
+<details class="control-group"><summary>Spacing and wrapping</summary><div class="row"><div><label for="wrapMode">Wrap mode</label><select id="wrapMode"><option value="on" selected>Wrap to width</option><option value="off">No wrapping</option></select></div><div><label for="wrapWidth">Wrap width (mm)</label><input id="wrapWidth" type="number" min="1" max="1000" step="1" value="120" placeholder="e.g. 120"></div></div><div class="row"><div><label for="lineSpacing">Line spacing (× character height)</label><div class="range-field"><input id="lineSpacingRange" type="range" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing slider"><input id="lineSpacing" type="number" min="0.8" max="3" step="0.05" value="1" aria-label="Line spacing multiplier"></div></div><div><label for="letterSpacing">Letter spacing (mm)</label><div class="range-field"><input id="letterSpacingRange" type="range" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing slider"><input id="letterSpacing" type="number" min="-1" max="10" step="0.05" value="0.55" aria-label="Letter spacing in millimeters"></div></div></div><div class="row"><div><label for="wordSpacing">Word spacing (em)</label><div class="range-field"><input id="wordSpacingRange" type="range" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing slider"><input id="wordSpacing" type="number" min="0.2" max="2" step="0.02" value="0.42" aria-label="Word spacing in em"></div></div></div><p class="control-note">Words wrap to the selected physical width. Adjust the width or line spacing for the card.</p></details>
 <details class="control-group">
 <summary>Page and machine placement</summary>
 <div class="row">
@@ -166,13 +166,13 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
   <div><label for="originY">Page origin Y (mm)</label><input id="originY" type="number" value="0"></div>
 </div>
 </details>
-<div class="control-group"><h3>Plot settings</h3>
+<details class="control-group"><summary>Plot settings</summary><div>
 <div class="row"><div><label for="penTip">Pen tip width (mm)</label><input id="penTip" type="number" min="0.1" max="10" step="0.1" value="0.5"></div></div>
 <p class="control-note">When ink-contact extension is enabled below, open stroke ends are extended by half this width. Closed loops are unchanged.</p>
 <div class="check"><input id="contactCompensation" type="checkbox" checked><label for="contactCompensation" style="margin:0">Extend open stroke ends for pen ink contact</label></div><p class="control-note">Adds half the pen-tip width at the start and end of open strokes. Disable it for exact technical endpoints.</p>
 <div class="check"><input id="homeBeforePlot" type="checkbox" checked><label for="homeBeforePlot" style="margin:0">Home before plot and re-home X/Y at the end</label></div>
 <p class="control-note">Homing is enabled by default for hardware-safe G-code. The export adds a full G28 before movement, then a safe pen-up, M400, and X/Y re-home at the end. Turn it off only for diagnostic files.</p>
-</div>
+</div></details>
 </details>
 <div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
 <button id="renderButton" onclick="renderJob()">Render writing preview</button>
@@ -219,7 +219,7 @@ function payload(){ return {
  stroke_font_path:null,
  seed:Number(byId('seed').value), font_size_mm:Number(byId('fontSize').value)*25.4/72,
  line_spacing:Number(byId('lineSpacing').value),
- wrap_width_mm:optionalNumber('wrapWidth'), connect_letters:false,
+ wrap_width_mm:byId('wrapMode').value==='on'?optionalNumber('wrapWidth'):null, connect_letters:false,
  word_spacing_em:Number(byId('wordSpacing').value), letter_spacing_mm:Number(byId('letterSpacing').value),
  variant_mode:byId('preset').value==='robot'?'first':'seeded', stroke_order:byId('preset').value==='robot'?'nearest':'authored', slant_deg:Number(byId('slant').value),
  page_width_mm:Number(byId('pageWidth').value), page_height_mm:Number(byId('pageHeight').value),
