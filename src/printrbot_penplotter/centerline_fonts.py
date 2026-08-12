@@ -111,9 +111,10 @@ def _skeleton_paths(skeleton: np.ndarray) -> list[list[tuple[int, int]]]:
     # shared endpoints turns the many tiny graph edges produced by thinning
     # into long pen strokes without drawing across empty glyph space.
     def close(first: tuple[int, int], second: tuple[int, int]) -> bool:
-        # Only close adjacent pixels. A larger radius can bridge separate
-        # parts of a glyph and create apparent random strokes in typed text.
-        return max(abs(first[0] - second[0]), abs(first[1] - second[1])) <= 2
+        # Do not bridge separate skeleton fragments. Those pen-down bridges
+        # are read as random marks in typed lettering; extra pen lifts are
+        # safer than inventing geometry between glyph components.
+        return first == second
 
     changed = True
     while changed:

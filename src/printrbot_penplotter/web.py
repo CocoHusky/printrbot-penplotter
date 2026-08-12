@@ -90,7 +90,7 @@ h1 { margin-bottom:4px; letter-spacing:-.03em; } p { color:#66706d; }
 .app-tabs a { color:#59615d; text-decoration:none; padding:9px 15px; border-radius:8px; font-weight:700; font-size:13px; }
 .app-tabs a:hover { background:#f8f6f1; color:#20211f; }
 .app-tabs a.active { background:#20211f; color:#fff; }
-.grid { display:block; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .card { background:#fffdf9; border:1px solid #d9d4ca; border-radius:16px; padding:16px; box-shadow:0 8px 24px rgba(56,48,35,.06); }
 .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .typed-font-controls { display:none; }
@@ -102,6 +102,12 @@ button { margin-top:12px; background:#2d6155; color:white; font-weight:700; curs
 button:disabled { opacity:.48; cursor:not-allowed; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline:3px solid #2d6155; outline-offset:2px; }
 .workflow-step { margin-top:16px; }
+.workflow-card { display:contents; }
+.workflow-card > .workflow-step:first-child { grid-column:1 / -1; }
+.workflow-card > #letteringSettings { grid-column:1; }
+.workflow-card > .generate-panel { grid-column:2; }
+.workflow-card > .status, .workflow-card > pre { grid-column:2; }
+.grid > #preview, .grid > .preview-legend { grid-column:1 / -1; }
 .settings-panel { margin-top:16px; padding:0 16px 16px; background:#fffdf9; border:1px solid #d9d4ca; border-radius:16px; }
 .settings-panel > summary { padding:16px 0 4px; color:#20211f; list-style:none; }
 .settings-panel > summary::-webkit-details-marker { display:none; }
@@ -174,13 +180,14 @@ summary { cursor:pointer; font-weight:700; color:#c7d3dd; }
 <p class="control-note">Homing is enabled by default for hardware-safe G-code. The export adds a full G28 before movement, then a safe pen-up, M400, and X/Y re-home at the end. Turn it off only for diagnostic files.</p>
 </div></details>
 </details>
-<div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
+<div class="generate-panel"><div class="workflow-step"><div class="step-kicker">STEP 3</div><h2>Generate and export</h2>
 <button id="renderButton" onclick="renderJob()">Render writing preview</button>
 <button class="secondary" onclick="saveNote()">Save note locally</button>
 <button id="downloadButton" class="secondary" onclick="downloadGcode()" disabled>Download G-code</button>
 </div>
 <div class="status" id="status" role="status" aria-live="polite">Example loaded. Edit your note, then render a new preview.</div>
 <pre id="meta"></pre>
+</div>
 </section>
 <section class="card" id="preview">Preview will appear here.</section>
 <p class="preview-legend"><strong>Preview key:</strong> black solid = pen-down ink; blue dashed = pen-up travel between strokes (it is not drawn).</p>
