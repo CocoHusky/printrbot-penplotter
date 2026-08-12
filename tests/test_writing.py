@@ -144,18 +144,6 @@ def test_standard_typed_preset_is_centerline_only() -> None:
     assert job.metadata["stroke_font"] == "robot"
 
 
-def test_outline_conversion_is_explicitly_experimental() -> None:
-    style = StyleConfig.for_preset(
-        "standard",
-        font_family="DejaVu Sans",
-        experimental_outline_centerline=True,
-        font_size_mm=10,
-    )
-    job = render_text_job("Arial", style=style)
-    assert job.metadata["text_engine"] == "experimental-outline-centerline"
-    assert job.metadata["font_family"] == "DejaVu Sans"
-
-
 def test_fullwidth_cjk_punctuation_uses_centerline_equivalents() -> None:
     style = StyleConfig.for_preset("standard", font_size_mm=10)
     fullwidth = stroke_text_to_polylines("，！", style).polylines

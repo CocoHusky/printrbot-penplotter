@@ -179,14 +179,6 @@ def text_to_polylines_with_metadata(
             "This lettering mode only supports the built-in stroke-font alphabet; "
             "CJK characters do not have a single-line font yet."
         )
-    if style.experimental_outline_centerline:
-        resolved_font_path = _resolve_outline_font(style.font_family, style.font_path, text)
-        return outline_text_to_polylines(text, style), {
-            "text_engine": "experimental-outline-centerline",
-            "font_family": style.font_family,
-            "font_path": resolved_font_path,
-            "font_note": "Experimental: an installed outline font was converted to plot paths; it is not an authored single-line font.",
-        }
     if style.engine == "stroke":
         result = stroke_text_to_polylines(text, style)
         return result.polylines, {
