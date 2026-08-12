@@ -2,7 +2,7 @@
 
 Local software for turning typed language into tactile, pen-written communication on repurposed Printrbot hardware. It also converts SVGs and images into reviewed plots.
 
-> **Status:** Release 1.0.12. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
+> **Status:** Release 1.0.13. The core text, image, preview, G-code, and ESP32 bridge workflows are usable; physical hardware still requires operator validation.
 
 <p align="center">
   <img src="docs/images/plotter-hero.png" alt="Printrbot pen plotter with a drawing on its bed" width="360">
@@ -30,6 +30,26 @@ The goal is deliberately practical: see how far a small amount of hardware and f
 - a local phone workflow for preparing and printing a message.
 
 This is a working public milestone, not a claim that the hardware is a finished commercial product. The project remains in active development, and every new machine setup still needs an air plot and physical safety check.
+
+## How the application is organized
+
+The repository has one shared geometry pipeline with separate input adapters:
+
+| Part | Responsibility |
+| --- | --- |
+| `web.py` | Write workspace, request validation, preview, render, download, and stop control. |
+| `studio2.py` / `studio2_v3.py` | Guided image workspace and image-processing controls. |
+| `inputs.py` | Chooses the text, image, outline, or neural input adapter. |
+| `writing.py` | Places authored centerline glyphs, spacing, wrapping, variants, and stroke order. |
+| `stroke_fonts.py` | Built-in centerline fonts: robot, hand, and Hershey families. |
+| `centerline_fonts.py` | Experimental installed-font conversion: rasterize, skeletonize, extract paths, and preserve baselines. |
+| `neural_handwriting.py` | Validates the external Graves worker protocol and converts trajectories into shared polylines. |
+| `scripts/graves_worker.py` | Runs the optional Graves checkpoint, cleans text, wraps lines, and creates separated baselines. |
+| `geometry.py` / `optimize.py` | Page placement, fit behavior, pen-contact compensation, routing, and conservative motion cleanup. |
+| `gcode.py` / `sender.py` | Converts reviewed paths to guarded Marlin G-code and sends jobs to hardware. |
+| `esp32/` | Local Wi-Fi bridge, authentication, job storage, acknowledged UART forwarding, and controls. |
+
+Every text and image mode eventually produces the same millimeter XY polylines. The preview is generated from those final paths, so the SVG, metadata, and G-code describe the same job.
 
 ## Connect from a phone
 
@@ -123,6 +143,24 @@ The text path does not rasterize or outline a typeface:
 
 This is why robot lettering, hand-style lettering, and multilingual writing can share the same machine pipeline: they all end as pen paths.
 
+### Text lettering modes
+
+- **Single-line handwriting** uses the Graves trajectory model automatically when the optional worker is installed. Its editable controls are model style, sampling bias, variation seed, and slant. Graves is stochastic generation, not a guaranteed font.
+- **Single-line robot** starts with the geometric `robot` centerline font. The selected built-in centerline font is honored, so Hershey Roman Simplex, Roman Duplex, Roman Plain, and Script can be selected and tested without being silently replaced.
+- **Experimental outline conversion** is separate from true centerline fonts. It rasterizes an installed TTF/OTF, thins it to a skeleton, extracts pen paths, and keeps glyphs on a shared baseline. It may still produce imperfect joins or doubled-looking regions because an outline does not contain the author’s original pen order.
+
+Handwriting and robot modes do not silently fall back to outline fonts. Missing Graves characters are normalized when simple—smart quotes, dashes, ellipses, and special spaces—and unsupported punctuation is removed with a render warning. Unsupported letters or scripts produce a clear error so text is not silently lost.
+
+### Multi-line text and wrapping
+
+Manual line breaks are preserved. Long Graves lines are automatically wrapped using the configured physical width and font size; each generated line receives its own baseline and line spacing. Authored centerline and experimental typed text use the same page-level wrapping controls.
+
+### Preview and stopping work
+
+Changing lettering or layout settings clears the old preview and disables G-code download until a new render is made. While a render is running, **Stop rendering** aborts the browser request and returns the workspace to an editable state. Use `Ctrl-C` in the terminal to stop the local server itself.
+
+The optional neural model is intentionally kept outside the main package because the external checkpoint has separate licensing and heavyweight ML dependencies. The setup and worker contract are documented in [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md).
+
 ## Image to a pen plot
 
 Image processing is staged so every transformation can be inspected before it reaches the plotter.
@@ -186,6 +224,17 @@ Open:
 - `http://127.0.0.1:8000/` for writing text and preparing jobs.
 - `http://127.0.0.1:8000/studio2` for the guided image workflow.
 
+Use one server per checkout. If port 8000 is already in use, inspect it with
+`lsof -nP -iTCP:8000 -sTCP:LISTEN`, stop that exact process, and start the
+server again. Do not launch a second copy on the same port.
+
+For Graves handwriting, prepare the optional environment described in
+[`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md), then start with:
+
+```bash
+PYTHONPATH=src .venv-neural/bin/python -m printrbot_penplotter.studio_server
+```
+
 ### Create centerline text
 
 ```bash
@@ -234,7 +283,7 @@ Full contract: [`docs/JOB_SAFETY.md`](docs/JOB_SAFETY.md)
 
 ## Releases
 
-Release **1.0.12** is the public three-day build milestone that brings the text, image, bridge, and communication workflows together, with smoother centerline lettering and clearer Graves handwriting controls. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
+Release **1.0.13** is the final documented state of the current public milestone: text modes, experimental centerline conversion, Graves handwriting, image workflows, bridge transport, preview, and guarded G-code are documented together. The software is usable, but physical plotting remains operator-controlled and is not a hardened commercial product.
 
 | Release | Purpose |
 | --- | --- |
@@ -255,6 +304,7 @@ Release **1.0.12** is the public three-day build milestone that brings the text,
 | [1.0.10](docs/RELEASE_1.0.10.md) | Auto-wrap and baseline spacing for multi-line Graves text |
 | [1.0.11](docs/RELEASE_1.0.11.md) | Honor selected centerline fonts in robot lettering mode |
 | [1.0.12](docs/RELEASE_1.0.12.md) | Cache experimental glyph centerlines and lock baseline behavior |
+| [1.0.13](docs/RELEASE_1.0.13.md) | Final repository documentation and operating guide |
 
 ## Documentation
 
@@ -263,7 +313,7 @@ Release **1.0.12** is the public three-day build milestone that brings the text,
 - [`docs/ESP32_API.md`](docs/ESP32_API.md) — local bridge API.
 - [`docs/ESP32_BRIDGE_HARDWARE.md`](docs/ESP32_BRIDGE_HARDWARE.md) — bridge-specific hardware details.
 - [`docs/STROKE_FONT_FORMAT.md`](docs/STROKE_FONT_FORMAT.md) — custom centerline font packs.
-- [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md) — optional experimental trajectory backend.
+- [`docs/NEURAL_HANDWRITING.md`](docs/NEURAL_HANDWRITING.md) — Graves installation, sampling, text limits, and worker protocol.
 - [`docs/RELEASE_1.0.0.md`](docs/RELEASE_1.0.0.md) — release scope, handwriting defaults, and known limits.
 - Graves controls are available under the handwriting model section. Selecting handwriting uses Graves automatically; style, sampling bias, seed, and slant affect the neural trajectory, but they do not guarantee legible letterforms.
 - [`docs/RELEASE_0.6.md`](docs/RELEASE_0.6.md) — motion optimization details.
