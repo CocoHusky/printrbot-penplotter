@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+from functools import lru_cache
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -182,6 +183,7 @@ def _extract_dot_components(mask: np.ndarray, *, max_area: int = 500) -> tuple[n
     return remaining, centers
 
 
+@lru_cache(maxsize=4096)
 def _glyph_paths(character: str, font_path: str, pixel_size: int = 192) -> tuple[list[list[Point]], float]:
     font = ImageFont.truetype(font_path, pixel_size)
     padding = 10
@@ -191,7 +193,9 @@ def _glyph_paths(character: str, font_path: str, pixel_size: int = 192) -> tuple
     baseline_row = padding + ascent
     image = Image.new("L", (width, height), 0)
     # Render every glyph against the same font baseline. Rendering each glyph
-    # in its own bbox makes descenders such as p and g jump upward.
+    # in its own bbox makes descenders such as p and g jump upward. The
+    # converted Y coordinate is Cartesian: baseline is zero and descenders
+    # are negative, independent of the glyph's visible top.
     ImageDraw.Draw(image).text(
         (padding, baseline_row),
         character,

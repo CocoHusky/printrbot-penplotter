@@ -121,6 +121,20 @@ def test_typed_glyphs_share_a_baseline_for_descenders() -> None:
     assert p_min_y < o_min_y - 0.1
 
 
+def test_typed_glyphs_keep_common_letters_on_one_baseline() -> None:
+    from printrbot_penplotter.centerline_fonts import _glyph_paths
+    from printrbot_penplotter.font_library import resolve_font_family
+
+    font_path = resolve_font_family("DejaVu Sans")
+    assert font_path is not None
+    bottoms = {}
+    for character in "Loy":
+        paths, _ = _glyph_paths(character, font_path)
+        bottoms[character] = min(point[1] for path in paths for point in path)
+    assert abs(bottoms["L"] - bottoms["o"]) < 0.08
+    assert bottoms["y"] < bottoms["o"] - 0.1
+
+
 def test_common_typed_glyphs_do_not_remain_split_into_tiny_fragments() -> None:
     from printrbot_penplotter.centerline_fonts import _glyph_paths
     from printrbot_penplotter.font_library import resolve_font_family
